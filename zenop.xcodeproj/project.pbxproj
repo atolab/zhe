@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		0305876A1EF92BEB0040F446 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587691EF92BEB0040F446 /* main.c */; };
+		030587741EF92CEC0040F446 /* zeno.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587731EF92CEC0040F446 /* zeno.c */; };
+		030587771EFB8FAF0040F446 /* pack.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587761EFB8FAF0040F446 /* pack.c */; };
+		038D6C641F25DD380045040D /* bitset.c in Sources */ = {isa = PBXBuildFile; fileRef = 038D6C621F25DD380045040D /* bitset.c */; };
+		038D6C671F2F080A0045040D /* binheap.c in Sources */ = {isa = PBXBuildFile; fileRef = 038D6C651F2F080A0045040D /* binheap.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -25,6 +29,18 @@
 /* Begin PBXFileReference section */
 		030587661EF92BEB0040F446 /* zenop */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = zenop; sourceTree = BUILT_PRODUCTS_DIR; };
 		030587691EF92BEB0040F446 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		030587701EF92CEC0040F446 /* zeno-msg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-msg.h"; sourceTree = "<group>"; };
+		030587711EF92CEC0040F446 /* zeno-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-config.h"; sourceTree = "<group>"; };
+		030587721EF92CEC0040F446 /* zeno.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = zeno.h; sourceTree = "<group>"; };
+		030587731EF92CEC0040F446 /* zeno.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = zeno.c; sourceTree = "<group>"; };
+		030587751EF92D6B0040F446 /* zeno-config-int.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zeno-config-int.h"; sourceTree = "<group>"; };
+		030587761EFB8FAF0040F446 /* pack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pack.c; sourceTree = "<group>"; };
+		030587781EFB90DF0040F446 /* pack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pack.h; sourceTree = "<group>"; };
+		030587791EFB914E0040F446 /* zeno-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-int.h"; sourceTree = "<group>"; };
+		038D6C621F25DD380045040D /* bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = bitset.c; sourceTree = "<group>"; };
+		038D6C631F25DD380045040D /* bitset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bitset.h; sourceTree = "<group>"; };
+		038D6C651F2F080A0045040D /* binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = binheap.c; sourceTree = "<group>"; };
+		038D6C661F2F080A0045040D /* binheap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = binheap.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +60,7 @@
 				030587681EF92BEB0040F446 /* zenop */,
 				030587671EF92BEB0040F446 /* Products */,
 			);
+			indentWidth = 4;
 			sourceTree = "<group>";
 		};
 		030587671EF92BEB0040F446 /* Products */ = {
@@ -57,7 +74,19 @@
 		030587681EF92BEB0040F446 /* zenop */ = {
 			isa = PBXGroup;
 			children = (
+				030587791EFB914E0040F446 /* zeno-int.h */,
+				030587781EFB90DF0040F446 /* pack.h */,
+				030587701EF92CEC0040F446 /* zeno-msg.h */,
+				030587711EF92CEC0040F446 /* zeno-config.h */,
+				030587721EF92CEC0040F446 /* zeno.h */,
+				030587731EF92CEC0040F446 /* zeno.c */,
+				030587761EFB8FAF0040F446 /* pack.c */,
 				030587691EF92BEB0040F446 /* main.c */,
+				030587751EF92D6B0040F446 /* zeno-config-int.h */,
+				038D6C621F25DD380045040D /* bitset.c */,
+				038D6C631F25DD380045040D /* bitset.h */,
+				038D6C651F2F080A0045040D /* binheap.c */,
+				038D6C661F2F080A0045040D /* binheap.h */,
 			);
 			path = zenop;
 			sourceTree = "<group>";
@@ -119,7 +148,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				038D6C641F25DD380045040D /* bitset.c in Sources */,
+				030587771EFB8FAF0040F446 /* pack.c in Sources */,
 				0305876A1EF92BEB0040F446 /* main.c in Sources */,
+				030587741EF92CEC0040F446 /* zeno.c in Sources */,
+				038D6C671F2F080A0045040D /* binheap.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -248,6 +281,7 @@
 				0305876F1EF92BEB0040F446 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
