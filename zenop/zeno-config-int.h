@@ -4,18 +4,22 @@
 
 #include "zeno-config.h"
 
-#define TRANSPORT_PACKET 1
-#define TRANSPORT_STREAM 2
-#define TRANSPORT_MODE   TRANSPORT_STREAM
+#include "transport-udp.h"
+//#include "transport-arduino.h"
 
-/* Choose MTU size: this code can handle anything up to 253 (outp, inp, outspos, serst if in
-   packet mode limit it), but the Bluetooth LE MTU appears to be 20 and the current broker
-   implementation doesn't yet deal gracefully with messages spanning packets. */
-#if 0
-#define MTU 128u /* <= 253 (cos of pos, spos, serst) */
+/* Maximum number of peers one node can have (that is, the network
+   may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0,
+   it becomes a client rather than as a peer */
+#define MAX_PEERS 12
+#if MAX_PEERS < 255
+typedef uint8_t peeridx_t;
 #else
-#define MTU 20u
+#error "MAX_PEERS is too large for 8-bit peer idx"
 #endif
+#define PEERIDX_INVALID ((peeridx_t)-1)
+
+#define N_IN_CONDUITS 3
+#define N_OUT_CONDUITS 3
 
 /* Transmit window size, each reliable message is prefixed by its size in a single byte. */
 #define XMITW_BYTES 384u
@@ -42,7 +46,11 @@
 
 typedef uint16_t seq_t;   /* type internally used for representing sequence numbers */
 typedef int16_t sseq_t;   /* signed version of seq_t */
+#if TRANSPORT_MTU < 254
 typedef uint8_t zmsize_t; /* type used for representing the size of an XRCE message */
+#else
+typedef uint16_t zmsize_t;
+#endif
 
 /* There is not a fundamental limit on the number of conduits, but there are some places
    where a conduit id is assumed to fit in a single byte in message processing, and there

@@ -1,18 +1,17 @@
 #include <assert.h>
 #include "binheap.h"
+#include "zeno-config-int.h"
+
+/* for seq_l() */
+#include "zeno.h"
+#include "zeno-int.h"
 
 /* so can safely use "native" unsigneds for indexing */
 struct static_assertions {
     char sizeof_unsigned_geq_sizeof_peeridx[sizeof(unsigned) >= sizeof(peeridx_t) ? 1 : -1];
 };
 
-/* FIXME: this is a copy of zeno.c:seq_lt */
-static int seq_lt(seq_t a, seq_t b)
-{
-    return (sseq_t) (a - b) < 0;
-}
-
-static void minseqheap_heapify(unsigned j, peeridx_t n, peeridx_t *p, const seq_t *v)
+static void minseqheap_heapify(unsigned j, peeridx_t n, peeridx_t * restrict p, minseqheap_idx_t * restrict q, const seq_t * restrict v)
 {
     unsigned k;
     for (k = 2*j+1; k < n; j = k, k += k + 1) {
@@ -22,75 +21,68 @@ static void minseqheap_heapify(unsigned j, peeridx_t n, peeridx_t *p, const seq_
         if (seq_lt(v[p[k]], v[p[j]])) {
             peeridx_t t;
             t = p[j]; p[j] = p[k]; p[k] = t;
+            q[p[j]].i = j; q[p[k]].i = k;
         }
     }
 }
 
-#if 0
-void minseqheap_build(peeridx_t n, peeridx_t *permute, const seq_t *values)
+void minseqheap_insert(peeridx_t peeridx, struct minseqheap * const h)
 {
     unsigned i;
-    for (i = 0; i < n; i++) {
-        permute[i] = i;
+#ifndef NDEBUG
+    for (peeridx_t j = 0; j < h->n; j++) {
+        assert(h->hx[j] != peeridx);
     }
-    i = n / 2;
-    while (i > 0) {
-        minseqheap_heapify(--i, n, permute, values);
-    }
-}
 #endif
-
-void minseqheap_insert(peeridx_t k, peeridx_t *n, peeridx_t *permute, const seq_t *values)
-{
-    unsigned i = (*n)++;
-    while (i > 0 && seq_lt(values[k], values[permute[(i-1)/2]])) {
-        permute[i] = permute[(i-1)/2];
+    i = h->n++;
+    while (i > 0 && seq_lt(h->vs[peeridx], h->vs[h->hx[(i-1)/2]])) {
+        h->hx[i] = h->hx[(i-1)/2];
+        h->ix[h->hx[i]].i = i;
         i = (i-1)/2;
     }
-    permute[i] = k;
+    h->hx[i] = peeridx;
 }
 
-seq_t minseqheap_get_min(peeridx_t n, const peeridx_t *permute, const seq_t *values)
+seq_t minseqheap_get_min(struct minseqheap const * const h)
 {
-    assert (n > 0);
-    return values[permute[0]];
+    assert (h->n > 0);
+    return h->vs[h->hx[0]];
 }
 
-#if 0
-void minseqheap_decreased_key(peeridx_t i, peeridx_t *permute, const seq_t *values)
+seq_t minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_discarded, struct minseqheap * const h)
 {
-    if (i > 0 && seq_lt(values[permute[i]], values[permute[(i-1)/2]])) {
-        peeridx_t k = permute[i];
-        seq_t v = values[k];
-        do {
-            permute[i] = permute[(i-1)/2];
-            i = (i-1)/2;
-        } while (i > 0 && seq_lt(v, values[permute[(i-1)/2]]));
-        permute[i] = k;
+    /* peeridx must be contained in heap and new seqbase must be >= h->vs[peeridx] */
+    if (h->ix[peeridx].i == PEERIDX_INVALID || seq_le(seqbase, h->vs[peeridx])) {
+        return seqbase_if_discarded;
+    } else {
+        assert(h->hx[h->ix[peeridx].i] == peeridx);
+        minseqheap_heapify(h->ix[peeridx].i, h->n, h->hx, h->ix, h->vs);
+        return h->vs[h->hx[0]];
     }
 }
 
-seq_t minseqheap_extract_min(peeridx_t *n, peeridx_t *permute, const seq_t *values)
+int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
 {
-    seq_t min;
-    assert (*n > 0);
-    min = values[permute[0]];
-    (*n)--;
-    permute[0] = permute[*n];
-    minseqheap_heapify(0, *n, permute, values);
-    return min;
-}
+    /* returns 0 if peeridx not contained in heap; 1 if it is contained */
+    const peeridx_t i = h->ix[peeridx].i;
+    if (i == PEERIDX_INVALID) {
+#ifndef NDEBUG
+        for (peeridx_t j = 0; j < h->n; j++) {
+            assert(h->hx[j] != peeridx);
+        }
 #endif
-
-seq_t minseqheap_increased_key(peeridx_t i, peeridx_t n, peeridx_t *permute, const seq_t *values)
-{
-    minseqheap_heapify(0, n, permute, values);
-    return values[permute[0]];
+        return 0;
+    } else {
+        assert(h->hx[i] == peeridx);
+        h->ix[peeridx].i = PEERIDX_INVALID;
+        h->hx[i] = h->hx[--h->n];
+        h->ix[h->hx[i]].i = i;
+        minseqheap_heapify(i, h->n, h->hx, h->ix, h->vs);
+        return 1;
+    }
 }
 
-void minseqheap_delete(peeridx_t i, peeridx_t *n, peeridx_t *permute, const seq_t *values)
+int minseqheap_isempty(struct minseqheap const * const h)
 {
-    (*n)--;
-    permute[i] = permute[*n];
-    minseqheap_heapify(0, *n, permute, values);
+    return h->n == 0;
 }

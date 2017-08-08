@@ -77,14 +77,35 @@ void pack_text(zpsize_t n, const char *text)
 
 void pack_mscout(zeno_address_t *dst)
 {
-    pack_reserve(dst ,2);
-    pack2(MSFLAG | MSCOUT, MSCOUT_BROKER);
+    /* Client mode should only look for a broker, but a peer should look for peers and brokers
+       (because a broker really can be considered a peer).
+       FIXME: I ought to make this a parameter and do it zeno.c ... */
+#if MAX_PEERS == 0
+    const uint8_t mask = MSCOUT_BROKER;
+#else
+    const uint8_t mask = MSCOUT_BROKER | MSCOUT_PEER;
+#endif
+    pack_reserve(dst, NULL, 2);
+    pack2(MSFLAG | MSCOUT, mask);
+}
+
+void pack_mhello(zeno_address_t *dst)
+{
+    /* FIXME: format is header, mask (vle), locs, props - this is rather too limited */
+#if MAX_PEERS == 0
+    const uint8_t mask = MSCOUT_CLIENT;
+#else
+    const uint8_t mask = MSCOUT_PEER;
+#endif
+    pack_reserve(dst, NULL, 2);
+    pack2(MHELLO, mask);
+    pack2(0, 0);
 }
 
 void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, zmsize_t peeridlen, const void *peerid, uint32_t lease_dur)
 {
     const size_t sizeof_auth = 0;
-    pack_reserve(dst, 2 + pack_vle16req(peeridlen) + peeridlen + pack_vle32req(lease_dur) + pack_vle16req(sizeof_auth) + sizeof_auth);
+    pack_reserve(dst, NULL, 2 + pack_vle16req(peeridlen) + peeridlen + pack_vle32req(lease_dur) + pack_vle16req(sizeof_auth) + sizeof_auth);
     pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZENO_VERSION);
     pack_vec(peeridlen, peerid);
     pack_vle32(lease_dur);
@@ -96,16 +117,17 @@ void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, zmsize_t peeridlen, cons
 
 void pack_mclose(zeno_address_t *dst, uint8_t reason, zmsize_t peeridlen, const void *peerid)
 {
-    pack_reserve(dst, 2 + pack_vle16req(peeridlen) + peeridlen);
+    pack_reserve(dst, NULL, 2 + pack_vle16req(peeridlen) + peeridlen);
     pack1(MSFLAG | MCLOSE);
     pack_vec(peeridlen, peerid);
     pack1(reason);
 }
 
-void pack_reserve_mconduit(zeno_address_t *dst, cid_t cid, zpsize_t cnt)
+void pack_reserve_mconduit(zeno_address_t *dst, struct out_conduit *oc, cid_t cid, zpsize_t cnt)
 {
     unsigned cid_size = (cid > 0) + (cid > 4);
-    pack_reserve(dst, cid_size + cnt);
+    assert (oc == NULL || oc_get_cid(oc) == cid);
+    pack_reserve(dst, oc, cid_size + cnt);
     if (cid > 4) {
         pack2(MCONDUIT, cid);
     } else if (cid > 0) {
@@ -116,7 +138,7 @@ void pack_reserve_mconduit(zeno_address_t *dst, cid_t cid, zpsize_t cnt)
 
 void pack_msynch(zeno_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt)
 {
-    pack_reserve_mconduit(dst, cid, 4 + pack_vle16req(cnt));
+    pack_reserve_mconduit(dst, NULL, cid, 4 + pack_vle16req(cnt));
     pack1(MRFLAG | sflag | MSYNCH);
     pack_seq(seqbase);
     pack_seq(cnt);
@@ -124,7 +146,7 @@ void pack_msynch(zeno_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, s
 
 void pack_macknack(zeno_address_t *dst, cid_t cid, seq_t seq, uint32_t mask)
 {
-    pack_reserve_mconduit(dst, cid, 4 + (mask ? pack_vle32req(mask) : 0));
+    pack_reserve_mconduit(dst, NULL, cid, 4 + (mask ? pack_vle32req(mask) : 0));
     pack1(MSFLAG | (mask == 0 ? 0 : MMFLAG) | MACKNACK);
     pack_seq(seq);
     if (mask != 0) {
@@ -136,21 +158,21 @@ void pack_macknack(zeno_address_t *dst, cid_t cid, seq_t seq, uint32_t mask)
 
 void pack_mping(zeno_address_t *dst, uint16_t hash)
 {
-    pack_reserve(dst, 3);
+    pack_reserve(dst, NULL, 3);
     pack1(MSFLAG | MPING);
     pack_u16(hash);
 }
 
 void pack_mpong(zeno_address_t *dst, uint16_t hash)
 {
-    pack_reserve(dst, 3);
+    pack_reserve(dst, NULL, 3);
     pack1(MPONG);
     pack_u16(hash);
 }
 
 void pack_mkeepalive(zeno_address_t *dst, zmsize_t peeridlen, const void *peerid)
 {
-    pack_reserve(dst, 1 + pack_vle16req(peeridlen) + peeridlen);
+    pack_reserve(dst, NULL, 1 + pack_vle16req(peeridlen) + peeridlen);
     pack1(MKEEPALIVE);
     pack_vec(peeridlen, peerid);
 }
