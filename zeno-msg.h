@@ -46,10 +46,11 @@
 
 #define DPFLAG           0x80
 
-#define CREAS_INVALID_AUTH  1
-#define CREAS_UNSUPP_PROTO  2
-#define CREAS_OUT_OF_RES    3
-#define CREAS_UNSUPP_SEQLEN 4
+#define CLR_INVALID_AUTH    1
+#define CLR_UNSUPP_PROTO    2
+#define CLR_OUT_OF_RES      3
+#define CLR_UNSUPP_SEQLEN   4
+#define CLR_ERROR         255
 
 #define MSCOUT_BROKER       1
 #define MSCOUT_DURABILITY   2

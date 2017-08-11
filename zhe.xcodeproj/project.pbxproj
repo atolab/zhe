@@ -32,7 +32,7 @@
 /* Begin PBXFileReference section */
 		030445FD1F322DFE00883BFF /* transport-udp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "transport-udp.c"; sourceTree = "<group>"; };
 		030445FE1F322DFE00883BFF /* transport-udp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "transport-udp.h"; sourceTree = "<group>"; };
-		030587661EF92BEB0040F446 /* . */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; name = zhe; path = zhe; sourceTree = BUILT_PRODUCTS_DIR; };
+		030587661EF92BEB0040F446 /* zhe */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = zhe; sourceTree = BUILT_PRODUCTS_DIR; };
 		030587691EF92BEB0040F446 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		030587701EF92CEC0040F446 /* zeno-msg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-msg.h"; sourceTree = "<group>"; };
 		030587711EF92CEC0040F446 /* zeno-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-config.h"; sourceTree = "<group>"; };
@@ -76,7 +76,7 @@
 		030587671EF92BEB0040F446 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				030587661EF92BEB0040F446 /* . */,
+				030587661EF92BEB0040F446 /* zhe */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -126,7 +126,7 @@
 			);
 			name = zhe;
 			productName = zhe;
-			productReference = 030587661EF92BEB0040F446 /* . */;
+			productReference = 030587661EF92BEB0040F446 /* zhe */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -272,6 +272,7 @@
 		0305876E1EF92BEB0040F446 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = "$(inherited)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;

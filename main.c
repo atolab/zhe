@@ -22,8 +22,20 @@ static ztime_t now(void)
 
 int main(int argc, const char **argv)
 {
+    unsigned char ownid[16];
+    FILE *fp;
+    if ((fp = fopen("/dev/urandom", "rb")) == NULL) {
+        perror("can't open /dev/urandom\n");
+        return 1;
+    }
+    if (fread(ownid, sizeof(ownid), 1, fp) != 1) {
+        fprintf(stderr, "can't read %zu random bytes from /dev/urandom\n", sizeof(ownid));
+        fclose(fp);
+        return 1;
+    }
+    fclose(fp);
     (void)clock_gettime(CLOCK_MONOTONIC, &toffset);
-    (void)zeno_init();
+    (void)zeno_init(now(), sizeof(ownid), ownid);
     zeno_loop_init(now());
     do {
         const struct timespec sl = { 0, 10000000 };

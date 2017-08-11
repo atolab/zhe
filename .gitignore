@@ -53,3 +53,5 @@ dkms.conf
 
 # Build directory for xcodebuild
 build/
+zhe.xcodeproj/project.xcworkspace/xcuserdata/
+zhe.xcodeproj/xcuserdata/

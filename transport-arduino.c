@@ -1,4 +1,4 @@
-#if defined ARDUINO || defined __APPLE__
+#ifdef ARDUINO
 
 #include <assert.h>
 #include <string.h>
@@ -6,7 +6,8 @@
 #include "zeno-config.h"
 #include "transport-arduino.h"
 
-#ifndef ARDUINO
+#ifdef __APPLE__ /* fake it if not a real Arduino */
+static unsigned millis(void) { static unsigned m; return m++; }
 static void serial_begin(int baud) { }
 static void serial_write(uint8_t octet) { }
 static void serial_println(void) { }
@@ -27,10 +28,37 @@ static struct {
 };
 #endif
 
+/* The arduino client code is not that important to me right now, so just take the FSM from the old code
+   for draining the input on startup */
+#define STATE_WAITINPUT    0
+#define STATE_DRAININPUT   1
+#define STATE_OPERATIONAL  2
+
 static struct zeno_transport *arduino_new(const struct zeno_config *config, zeno_address_t *scoutaddr)
 {
+    uint8_t state = STATE_WAITINPUT;
+    ztime_t t_state_changed = millis();
+
     memset(scoutaddr, 0, sizeof(*scoutaddr));
     Serial.begin(115200);
+
+    /* FIXME: perhaps shouldn't take this time here, but before one calls zeno_init(); for now however, it is safe to do it here */
+    while (state != STATE_OPERATIONAL) {
+        /* On startup, wait up to 5s for some input, and if some is received, drain
+           the input until nothing is received for 1s.  For some reason, garbage
+           seems to come in a few seconds after waking up.  */
+        ztime_t tnow = millis();
+        ztime_t timeout = (state == STATE_WAITINPUT) ? 5000 : 1000;
+        if ((ztimediff_t)(tnow - t_state_changed) >= timeout) {
+            state = STATE_OPERATIONAL;
+            t_state_changed = tnow;
+        } else if (Serial.available()) {
+            (void)Serial.read();
+            state = STATE_DRAININPUT;
+            t_state_changed = tnow;
+        }
+    }
+
     return (struct zeno_transport *)&Serial;
 }
 

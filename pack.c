@@ -91,35 +91,47 @@ void pack_mscout(zeno_address_t *dst)
 
 void pack_mhello(zeno_address_t *dst)
 {
-    /* FIXME: format is header, mask (vle), locs, props - this is rather too limited */
+    /* FIXME: format is header, mask (vle), locs, props - this implementation for constructing a hello message is rather too limited */
 #if MAX_PEERS == 0
     const uint8_t mask = MSCOUT_CLIENT;
 #else
     const uint8_t mask = MSCOUT_PEER;
 #endif
-    pack_reserve(dst, NULL, 2);
+    pack_reserve(dst, NULL, 4);
     pack2(MHELLO, mask);
     pack2(0, 0);
 }
 
-void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, zmsize_t peeridlen, const void *peerid, uint32_t lease_dur)
+void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, uint32_t lease_dur)
 {
     const size_t sizeof_auth = 0;
-    pack_reserve(dst, NULL, 2 + pack_vle16req(peeridlen) + peeridlen + pack_vle32req(lease_dur) + pack_vle16req(sizeof_auth) + sizeof_auth);
+    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(lease_dur) + pack_vle16req(sizeof_auth) + sizeof_auth + 1 /*empty locs*/ + (seqnumlen != 14 ? 1 : 0));
     pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZENO_VERSION);
-    pack_vec(peeridlen, peerid);
+    pack_vec(ownid->len, ownid->id);
     pack_vle32(lease_dur);
     pack_text(0, NULL); /* auth */
+    pack1(0); /* FIXME: empty locator set */
     if (seqnumlen != 14) {
         pack1(seqnumlen);
     }
 }
 
-void pack_mclose(zeno_address_t *dst, uint8_t reason, zmsize_t peeridlen, const void *peerid)
+void pack_maccept(zeno_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, uint32_t lease_dur)
 {
-    pack_reserve(dst, NULL, 2 + pack_vle16req(peeridlen) + peeridlen);
+    const size_t sizeof_auth = 0;
+    pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len + pack_vle16req(peerid->len) + peerid->len + pack_vle32req(lease_dur) + pack_vle16req(sizeof_auth) + sizeof_auth);
+    pack1(MACCEPT);
+    pack_vec(peerid->len, peerid->id);
+    pack_vec(ownid->len, ownid->id);
+    pack_vle32(lease_dur);
+    pack_text(0, NULL); /* auth */
+}
+
+void pack_mclose(zeno_address_t *dst, uint8_t reason, const struct peerid *ownid)
+{
+    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len);
     pack1(MSFLAG | MCLOSE);
-    pack_vec(peeridlen, peerid);
+    pack_vec(ownid->len, ownid->id);
     pack1(reason);
 }
 
@@ -170,11 +182,11 @@ void pack_mpong(zeno_address_t *dst, uint16_t hash)
     pack_u16(hash);
 }
 
-void pack_mkeepalive(zeno_address_t *dst, zmsize_t peeridlen, const void *peerid)
+void pack_mkeepalive(zeno_address_t *dst, const struct peerid *ownid)
 {
-    pack_reserve(dst, NULL, 1 + pack_vle16req(peeridlen) + peeridlen);
+    pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len);
     pack1(MKEEPALIVE);
-    pack_vec(peeridlen, peerid);
+    pack_vec(ownid->len, ownid->id);
 }
 
 int oc_pack_msdata(struct out_conduit *c, int relflag, rid_t rid, zpsize_t payloadlen)

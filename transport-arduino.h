@@ -1,4 +1,4 @@
-#if defined ARDUINO || defined __APPLE__
+#if defined ARDUINO
 
 #ifndef TRANSPORT_ARDUINO_H
 #define TRANSPORT_ARDUINO_H

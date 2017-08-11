@@ -7,6 +7,7 @@
 #include "zeno.h"
 #include "zeno-config-int.h"
 #include "zeno-msg.h"
+#include "zeno-int.h"
 #include "pack.h"
 #include "unpack.h"
 #include "bitset.h"
@@ -21,7 +22,7 @@ struct zeno_config { char dummy; }; /* FIXME: flesh out config */
 #error "transport configuration did not set MTU properly"
 #endif
 
-void close_connection_and_scout(void); /* FIXME: not for p2p */
+void close_connection_and_scout(ztime_t tnow); /* FIXME: not for p2p */
 void reset_pubs_to_declare(void); /* FIXME: sort out close in p2p */
 void reset_subs_to_declare(void); /* FIXME: sort out close in p2p */
 void pre_panic_handler(void) {} /* FIXME: decide how to do this sort of thing */
@@ -43,9 +44,10 @@ void xrce_panic(uint16_t line, uint16_t code)
 #define WC_DPUB_SIZE        6 /* pub: header, rid (not using properties) */
 #define WC_DSUB_SIZE        7 /* sub: header, rid, mode (neither properties nor periodic modes) */
 
-#define PEERST_UNKNOWN      0
-#define PEERST_OPENING      1
-#define PEERST_ESTABLISHED  2
+#define PEERST_UNKNOWN       0
+#define PEERST_OPENING_MIN   1
+#define PEERST_OPENING_MAX  10
+#define PEERST_CONNECTED   255
 
 
 #define STATE_WAITINPUT      0
@@ -63,11 +65,12 @@ void xrce_panic(uint16_t line, uint16_t code)
 
 uint8_t zeno_state = 0;
 ztime_t t_state_changed = 0;
-#if TRANSPORT_MODE == TRANSPORT_STREAM
-ztime_t t_progress;
-#endif
 
-const uint8_t peerid[] = { 'z', 'b', 'o', 't' };
+union {
+    const struct peerid v;
+    struct peerid v_nonconst;
+} ownid_union;
+#define ownid (ownid_union.v)
 const unsigned lease_dur = 300; /* 30 seconds */
 
 struct in_conduit {
@@ -85,18 +88,18 @@ struct out_conduit {
     uint16_t spos;                /* starting pos of current sample for patching in size */
     uint16_t firstpos;            /* starting pos (actually, size) of oldest sample in window */
     ztime_t  tsynch;              /* next time to send out a SYNCH because of unack'd messages */
-    uint8_t  nsamples;            /* number of samples in window */
     cid_t    cid;                 /* conduit id */
     uint8_t  rbuf[XMITW_BYTES];   /* reliable samples (or declarations); prepended by size (of type zmsize_t) */
 };
 
+/* FIXME: add a mask of mconduits that the peer listens to, with the set determined from the multicast locators in the discovery phase */
 struct peer {
     uint8_t state;                /* connection state for this peer */
-    ztime_t tlease;               /* peer must send something before tlease or we'll close the session */
+    ztime_t tlease;               /* peer must send something before tlease or we'll close the session | next time for scout/open msg */
+    ztime_t lease_dur;            /* lease duration in ms */
     struct out_conduit oc;        /* conduit 0, unicast to this peer */
     struct in_conduit ic[N_IN_CONDUITS]; /* one slot for each out conduit from this peer */
-    uint8_t id[PEERID_SIZE];      /* peer id */
-    zpsize_t idlen;               /* length of peer id */
+    struct peerid id;             /* peer id */
 };
 
 #if MAX_PEERS > 1 && (N_OUT_CONDUITS < 2 || N_IN_CONDUITS < 2)
@@ -147,12 +150,19 @@ zeno_address_t *outdst;           /* destination address: &scoutaddr, &peer.oc.a
 ztime_t outdeadline;              /* pack until destination change, packet full, or this time passed */
 #endif
 
-/* In client mode, we pretend the broker is peer 0 (and the only peer at that).  It isn't really a peer, 
+/* In client mode, we pretend the broker is peer 0 (and the only peer at that). It isn't really a peer,
    but the data structures we need are identical, only the discovery behaviour and (perhaps) session
    handling is a bit different. */
 #define MAX_PEERS_1 (MAX_PEERS == 0 ? 1 : MAX_PEERS)
 struct peer peers[MAX_PEERS_1];
 peeridx_t npeers;
+
+#if MAX_PEERS > 0
+/* In peer mode, always send scouts periodically, with tnextscout giving the time for the next scout 
+   message to go out. In client mode, scouting is conditional upon the state of the broker, in that
+   case scouts only go out if peers[0].state = UNKNOWN, and we use peers[0].tlease to time them. */
+ztime_t tnextscout;
+#endif
 
 void remove_acked_messages(struct out_conduit * const c, seq_t seq);
 
@@ -160,7 +170,6 @@ void oc_reset_transmit_window(struct out_conduit * const oc)
 {
     oc->seqbase = oc->seq;
     oc->firstpos = oc->spos;
-    oc->nsamples = 0;
 }
 
 void oc_setup1(struct out_conduit * const oc, uint8_t cid)
@@ -168,7 +177,7 @@ void oc_setup1(struct out_conduit * const oc, uint8_t cid)
     memset(&oc->addr, 0, sizeof(oc->addr));
     oc->cid = cid;
     oc->seq = 0; /* FIXME: reset seq, or send SYNCH? the latter, I think */
-    oc->useq = 0; /* FIXME: reset or SYNCH? -- SYNCH doesn't even cover at the moment */
+    oc->useq = 0; /* FIXME: reset or SYNCH? -- SYNCH doesn't even cover unreliable at the moment */
     oc->pos = sizeof(zmsize_t);
     oc->spos = 0;
     oc_reset_transmit_window(oc);
@@ -183,7 +192,7 @@ void reset_outbuf(void)
     outdst = NULL;
 }
 
-void reset_peer(peeridx_t peeridx)
+void reset_peer(peeridx_t peeridx, ztime_t tnow)
 {
     struct peer * const p = &peers[peeridx];
     /* If data destined for this peer, drop it it */
@@ -210,6 +219,9 @@ void reset_peer(peeridx_t peeridx)
        accepting the peer) */
     memset(p, 0xee, sizeof(*p));
 #endif
+    if (p->state == PEERST_CONNECTED) {
+        npeers--;
+    }
     p->state = PEERST_UNKNOWN;
     oc_setup1(&p->oc, 0);
     for (cid_t i = 0; i < N_IN_CONDUITS; i++) {
@@ -219,9 +231,8 @@ void reset_peer(peeridx_t peeridx)
     }
 }
 
-void init_globals(void)
+void init_globals(ztime_t tnow)
 {
-    npeers = 0;
 #if N_OUT_CONDUITS > 1
     /* Need to reset out_mconduits[.].seqbase.ix[i] before reset_peer(i) may be called */
     for (cid_t i = 1; i < N_OUT_CONDUITS; i++) {
@@ -236,8 +247,9 @@ void init_globals(void)
     }
 #endif
     for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
-        reset_peer(i);
+        reset_peer(i, tnow);
     }
+    npeers = 0;
     reset_outbuf();
     /* FIXME: keep incoming packet buffer? I guess in packet mode that's ok, for streaming would probably need MAX_PEERS_1 */
 #if TRANSPORT_MODE == TRANSPORT_STREAM
@@ -245,6 +257,9 @@ void init_globals(void)
 #endif
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
     outdeadline = 0;
+#endif
+#if MAX_PEERS > 0
+    tnextscout = tnow;
 #endif
 }
 
@@ -264,6 +279,11 @@ uint16_t xmitw_bytesused(const struct out_conduit *c)
     res = c->pos - c->firstpos + (c->pos < c->firstpos ? XMITW_BYTES : 0);
     assert(res <= XMITW_BYTES);
     return res;
+}
+
+seq_t oc_get_nsamples(struct out_conduit const * const c)
+{
+    return (c->seq - c->seqbase) >> SEQNUM_SHIFT;
 }
 
 void pack_msend(void)
@@ -349,7 +369,7 @@ cid_t oc_get_cid(struct out_conduit *c)
 void oc_pack_copyrel(struct out_conduit *c, zmsize_t from)
 {
     while (from < outp) {
-        assert(c->pos != c->firstpos || c->nsamples == 0);
+        assert(c->pos != c->firstpos || c->seq == c->seqbase);
         c->rbuf[c->pos] = outbuf[from++];
         c->pos = xmitw_pos_add(c->pos, 1);
     }
@@ -361,11 +381,9 @@ zmsize_t oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, z
     if (!relflag) {
         pack_reserve_mconduit(&c->addr, NULL, c->cid, sz);
         *s = c->useq;
-        c->useq += SEQNUM_UNIT;
     } else {
         pack_reserve_mconduit(&c->addr, c, c->cid, sz);
         *s = c->seq;
-        c->seq += SEQNUM_UNIT;
         outspos = outp;
     }
     return outp;
@@ -389,15 +407,18 @@ void oc_pack_payload(struct out_conduit *c, int relflag, zpsize_t sz, const void
 
 void oc_pack_payload_done(struct out_conduit *c, int relflag)
 {
-    if (relflag) {
+    if (!relflag) {
+        c->useq += SEQNUM_UNIT;
+    } else {
         zmsize_t len = (zmsize_t) (c->pos - c->spos + (c->pos < c->spos ? XMITW_BYTES : 0) - sizeof(zmsize_t));
         memcpy(&c->rbuf[c->spos], &len, sizeof(len));
         c->spos = c->pos;
         c->pos = xmitw_pos_add(c->pos, sizeof(zmsize_t));
-        if (c->nsamples++ == 0) {
+        if (c->seq == c->seqbase) {
             /* first unack'd sample, schedule SYNCH */
             c->tsynch = millis() + MSYNCH_INTERVAL;
         }
+        c->seq += SEQNUM_UNIT;
     }
 }
 
@@ -546,8 +567,10 @@ zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER;
+    const int state_ok = (peers[peeridx].state == PEERST_UNKNOWN);
 #else
     const uint32_t lookfor = MSCOUT_CLIENT;
+    const int state_ok = 1;
 #endif
     const uint8_t *data0 = data;
     uint8_t hdr;
@@ -558,8 +581,8 @@ zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
     }
     /* For a client all activity is really client-initiated, so we can get away
        with not responding to a SCOUT; for a peer it is different */
-    if (mask & lookfor) {
-        printf("got a scout! should say hello\n");
+    if ((mask & lookfor) && state_ok) {
+        printf("got a scout! sending a hello\n");
         pack_mhello(&peers[peeridx].oc.addr);
         pack_msend();
     }
@@ -568,6 +591,13 @@ zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
 
 zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
 {
+#if MAX_PEERS > 0
+    const uint32_t lookfor = MSCOUT_PEER | MSCOUT_BROKER;
+    const int state_ok = (peers[peeridx].state == PEERST_UNKNOWN || peers[peeridx].state == PEERST_CONNECTED);
+#else
+    const uint32_t lookfor = MSCOUT_BROKER;
+    const int state_ok = (peers[peeridx].state == PEERST_UNKNOWN);
+#endif
     const uint8_t *data0 = data;
     uint8_t hdr;
     uint32_t mask;
@@ -577,67 +607,188 @@ zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
         !unpack_props(&sz, &data)) {
         return 0;
     }
-    printf("got a hello! should consider sending an open\n");
-    if (zeno_state == STATE_SCOUT_SENT && (mask & MSCOUT_BROKER)) {
-        zeno_state = STATE_OPENING_MIN;
-        t_state_changed = millis();
+    if ((mask & lookfor) && state_ok) {
+        printf("got a hello! sending an open\n");
+        if (peers[peeridx].state != PEERST_CONNECTED) {
+            peers[peeridx].state = PEERST_OPENING_MIN;
+            peers[peeridx].tlease = millis(); /* FIXME: which timer to use ...? */
+        }
+        /* FIXME: what parts of peers[peeridx] need to be initialised here */
+        pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
+        pack_msend();
     }
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mopen(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restrict id)
+{
+    /* FIXME: peeridx can now change while processing a message ... so should pass peeridx by reference in all message handling */
+
+    /* keepalive, open, accept and close contain a peer id, and can be used to switch source address;
+       peeridx on input is the peeridx determined using the source address, on return it will be the
+       peeridx of the known peer with this id (if any) and otherwise just the same idx */
+
+    if (peers[peeridx].state == PEERST_CONNECTED) {
+        /* assume there is no foul play and this is the same peer */
+        return peeridx;
+    }
+
+    for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
+        if (peers[i].state != PEERST_CONNECTED) {
+            continue;
+        }
+        if (peers[i].id.len == idlen && memcmp(peers[i].id.id, id, idlen) == 0) {
+            char olda[TRANSPORT_ADDRSTRLEN], newa[TRANSPORT_ADDRSTRLEN];
+            transport_ops.addr2string(olda, sizeof(olda), &peers[i].oc.addr);
+            transport_ops.addr2string(newa, sizeof(newa), &peers[peeridx].oc.addr);
+            printf("peer %u changed address from %s to %s\n", (unsigned)i, olda, newa);
+            peers[i].oc.addr = peers[peeridx].oc.addr;
+            return i;
+        }
+    }
+    return peeridx;
+}
+
+static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restrict id, ztime_t lease_dur, ztime_t tnow)
+{
+    struct peer * const p = &peers[peeridx];
+    char astr[TRANSPORT_ADDRSTRLEN];
+    char idstr[3*PEERID_SIZE];
+    assert(p->state != PEERST_CONNECTED);
+    assert(idlen > 0 && idlen <= PEERID_SIZE);
+    transport_ops.addr2string(astr, sizeof(astr), &p->oc.addr);
+
+    for (int i = 0; i < PEERID_SIZE; i++) {
+        sprintf(idstr+3*i-(i>0), "%s%02hhx", i == 0 ? "" : ":", id[i]);
+    }
+    printf("accept peer %s %s @ %u\n", idstr, astr, peeridx);
+
+    p->state = PEERST_CONNECTED;
+    p->id.len = idlen;
+    memcpy(p->id.id, id, idlen);
+    p->lease_dur = lease_dur;
+    p->tlease = tnow + p->lease_dur;
+    npeers++;
+}
+
+zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     const uint8_t *data0 = data;
+    uint8_t hdr, version;
+    uint16_t seqsize;
+    zpsize_t idlen;
+    uint8_t id[PEERID_SIZE];
     zpsize_t dummy;
-    if (!unpack_skip(&sz, &data, 3) ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL) ||
-        !unpack_skip(&sz, &data, 1) ||
-        !unpack_vle32(&sz, &data, NULL) ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL)) {
+    uint8_t reason;
+    uint32_t ldur;
+    struct peer *p;
+    if (!unpack_byte(&sz, &data, &hdr) ||
+        !unpack_byte(&sz, &data, &version) /* version */ ||
+        !unpack_vec(&sz, &data, sizeof(id), &idlen, id) /* peer id */ ||
+        !unpack_vle32(&sz, &data, &ldur) /* lease duration */ ||
+        !unpack_vec(&sz, &data, 0, &dummy, NULL) /* auth */ ||
+        !unpack_locs(&sz, &data)) {
         return 0;
     }
+    if (!(hdr & MLFLAG)) {
+        seqsize = 14;
+    } else if (!unpack_vle16(&sz, &data, &seqsize)) {
+        return 0;
+    } else if (seqsize != SEQNUM_LEN) {
+        printf("got an open with an unsupported sequence number size (%hu)\n", seqsize);
+        reason = CLR_UNSUPP_SEQLEN;
+        goto reject;
+    }
+    if (version != ZENO_VERSION) {
+        printf("got an open with an unsupported version (%hhu)\n", version);
+        reason = CLR_UNSUPP_PROTO;
+        goto reject;
+    }
+    if (idlen == 0 || idlen > PEERID_SIZE) {
+        printf("got an open with an under- or oversized id (%hu)\n", idlen);
+        reason = CLR_ERROR;
+        goto reject;
+    }
+    if (ldur > UINT32_MAX / 100) {
+        printf("got an open with a lease duration that is not representable here\n");
+        reason = CLR_ERROR;
+        goto reject;
+    }
+    if (idlen == ownid.len && memcmp(ownid.id, id, idlen) == 0) {
+        printf("got an open with my own peer id\n");
+        goto reject_no_close;
+    }
+
+    *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
+
+    p = &peers[*peeridx];
+    if (p->state != PEERST_CONNECTED) {
+        accept_peer(*peeridx, idlen, id, 100 * ldur, tnow);
+    }
+    pack_maccept(&p->oc.addr, &ownid, &p->id, lease_dur);
+    pack_msend();
+
     return (zmsize_t)(data - data0);
+
+reject:
+    pack_mclose(&peers[*peeridx].oc.addr, reason, &ownid);
+    /* don't want anything to do with the other anymore; calling reset on one that is already in UNKNOWN is harmless */
+    reset_peer(*peeridx, tnow);
+    /* no point in interpreting following messages in packet */
+reject_no_close:
+    return 0;
 }
 
-zmsize_t handle_maccept(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+zmsize_t handle_maccept(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     zpsize_t idlen;
     uint8_t id[PEERID_SIZE];
-    uint32_t lease;
+    uint32_t ldur;
     zpsize_t dummy;
     int forme;
     if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_vec(&sz, &data, sizeof (id), &idlen, id)) {
+        !unpack_vec(&sz, &data, sizeof(id), &idlen, id)) {
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        close_connection_and_scout();
-        return 0;
+        printf("got an open with an under- or oversized id (%hu)\n", idlen);
+        goto reject_no_close;
     }
-    forme = (idlen == sizeof (peerid) && memcmp(id, peerid, sizeof (peerid)) == 0);
+    forme = (idlen == ownid.len && memcmp(id, ownid.id, idlen) == 0);
     if (!unpack_vec(&sz, &data, sizeof (id), &idlen, id) ||
-        !unpack_vle32(&sz, &data, &lease) ||
+        !unpack_vle32(&sz, &data, &ldur) ||
         !unpack_vec(&sz, &data, 0, &dummy, NULL)) {
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        close_connection_and_scout();
-        return 0;
+        printf("got an open with an under- or oversized id (%hu)\n", idlen);
+        goto reject_no_close;
     }
-    if (forme && zeno_state >= STATE_OPENING_MIN && zeno_state <= STATE_OPENING_MAX) {
-        peers[0].idlen = idlen;
-        memcpy(peers[0].id, id, sizeof(id));
-        peers[0].tlease = lease;
-        zeno_state = STATE_CONNECTED;
-        t_state_changed = millis();
+    if (forme) {
+        if (ldur > UINT32_MAX / 100) {
+            printf("got an open with a lease duration that is not representable here\n");
+            goto reject;
+        }
+        *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
+        if (peers[*peeridx].state >= PEERST_OPENING_MIN && peers[*peeridx].state <= PEERST_OPENING_MAX) {
+            accept_peer(*peeridx, idlen, id, ldur, tnow);
+        }
     }
     return (zmsize_t)(data - data0);
+
+reject:
+    pack_mclose(&peers[*peeridx].oc.addr, CLR_ERROR, &ownid);
+    /* don't want anything to do with the other anymore; calling reset on one that is already in UNKNOWN is harmless */
+    reset_peer(*peeridx, tnow);
+    /* no point in interpreting following messages in packet */
+reject_no_close:
+    return 0;
 }
 
-void close_connection_and_scout(void)
+void close_connection_and_scout(ztime_t tnow)
 {
-    reset_peer(0);
+    reset_peer(0, tnow);
     rsub_clear();
     reset_pubs_to_declare();
     reset_subs_to_declare();
@@ -645,17 +796,26 @@ void close_connection_and_scout(void)
     t_state_changed = millis();
 }
 
-zmsize_t handle_mclose(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+zmsize_t handle_mclose(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     /* FIXME: should check id of sender */
-    zpsize_t dummy;
+    zpsize_t idlen;
+    uint8_t id[PEERID_SIZE];
     uint8_t reason;
     if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL) ||
+        !unpack_vec(&sz, &data, sizeof(id), &idlen, id) ||
         !unpack_byte(&sz, &data, &reason)) {
         return 0;
     }
-    close_connection_and_scout();
+    if (idlen == 0 || idlen > PEERID_SIZE) {
+        printf("got a close with an under- or oversized id (%hu)\n", idlen);
+        close_connection_and_scout(tnow);
+        return 0;
+    }
+    *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
+    if (peers[*peeridx].state != PEERST_UNKNOWN) {
+        close_connection_and_scout(tnow);
+    }
     return 0;
 }
 
@@ -1040,26 +1200,17 @@ void remove_acked_messages(struct out_conduit *c, seq_t seq)
 #endif
         while (c->seqbase != seq) {
             zmsize_t len;
-            assert(c->nsamples > 0);
             assert(cnt > 0);
 #ifndef NDEBUG
             cnt--;
 #endif
             c->seqbase += SEQNUM_UNIT;
-            c->nsamples--;
             memcpy(&len, &c->rbuf[c->firstpos], sizeof(len));
             c->firstpos = xmitw_pos_add(c->firstpos, len + sizeof(zmsize_t));
         }
         assert(cnt == 0);
-        assert(((c->firstpos + sizeof(zmsize_t)) % XMITW_BYTES == c->pos) == (c->nsamples == 0));
-        assert((c->seqbase == c->seq) == (c->nsamples == 0));
+        assert(((c->firstpos + sizeof(zmsize_t)) % XMITW_BYTES == c->pos) == (c->seq == c->seqbase));
     }
-}
-
-void oc_pack_msynch(struct out_conduit * const c, uint8_t sflag)
-{
-    seq_t cnt = (c->seq - c->seqbase) >> SEQNUM_SHIFT;
-    pack_msynch(&c->addr, sflag, c->cid, c->seqbase, cnt);
 }
 
 zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t cid)
@@ -1098,7 +1249,7 @@ zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ui
         /* If the broker ACKs stuff we have dropped already, or if it NACKs stuff we have not
            even sent yet, send a SYNCH without the S flag (i.e., let the broker decide what to
            do with it) */
-        oc_pack_msynch(c, 0);
+        pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c));
     } else {
         /* Retransmits can always be performed because they do not require buffering new
            messages, all we need to do is push out the buffered messages.  We want the S bit
@@ -1182,7 +1333,7 @@ zmsize_t handle_mpong(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mkeepalive(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+zmsize_t handle_mkeepalive(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     zpsize_t idlen;
@@ -1193,10 +1344,12 @@ zmsize_t handle_mkeepalive(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        close_connection_and_scout();
+        close_connection_and_scout(tnow);
         return 0;
     }
-    frombroker = (idlen == peers[0].idlen && memcmp(id, peers[0].id, idlen) == 0);
+    *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
+    /* FIXME: frombroker should be generalized */
+    frombroker = (idlen == peers[*peeridx].id.len && memcmp(id, peers[*peeridx].id.id, idlen) == 0);
     if (zeno_state >= STATE_CONNECTED && frombroker) {
         /* Nothing to do really, because we consider any message coming in as a proof of
            liveliness of the broker. */
@@ -1204,7 +1357,7 @@ zmsize_t handle_mkeepalive(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t *cid)
+zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t *cid, ztime_t tnow)
 {
     /* FIXME: should check id of sender */
     uint8_t hdr;
@@ -1216,13 +1369,13 @@ zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ui
         return 0;
     }
     if (*cid >= N_IN_CONDUITS) {
-        close_connection_and_scout();
+        close_connection_and_scout(tnow);
         return 0;
     }
     return 1;
 }
 
-uint8_t *handle_packet(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+uint8_t *handle_packet(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
 {
     zmsize_t ncons;
     uint8_t cid = 0;
@@ -1231,17 +1384,17 @@ uint8_t *handle_packet(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
         switch (kind) {
             case MSCOUT:     ncons = handle_mscout(peeridx, sz, data); break;
             case MHELLO:     ncons = handle_mhello(peeridx, sz, data); break;
-            case MOPEN:      ncons = handle_mopen(peeridx, sz, data); break;
-            case MACCEPT:    ncons = handle_maccept(peeridx, sz, data); break;
-            case MCLOSE:     ncons = handle_mclose(peeridx, sz, data); break;
+            case MOPEN:      ncons = handle_mopen(&peeridx, sz, data, tnow); break;
+            case MACCEPT:    ncons = handle_maccept(&peeridx, sz, data, tnow); break;
+            case MCLOSE:     ncons = handle_mclose(&peeridx, sz, data, tnow); break;
             case MDECLARE:   ncons = handle_mdeclare(peeridx, sz, data, cid); break;
             case MSDATA:     ncons = handle_msdata(peeridx, sz, data, cid); break;
             case MPING:      ncons = handle_mping(peeridx, sz, data); break;
             case MPONG:      ncons = handle_mpong(peeridx, sz, data); break;
             case MSYNCH:     ncons = handle_msynch(peeridx, sz, data, cid); break;
             case MACKNACK:   ncons = handle_macknack(peeridx, sz, data, cid); break;
-            case MKEEPALIVE: ncons = handle_mkeepalive(peeridx, sz, data); break;
-            case MCONDUIT:   ncons = handle_mconduit(peeridx, sz, data, &cid); break;
+            case MKEEPALIVE: ncons = handle_mkeepalive(&peeridx, sz, data, tnow); break;
+            case MCONDUIT:   ncons = handle_mconduit(peeridx, sz, data, &cid, tnow); break;
             default:         ncons = 0; break;
         }
         sz -= ncons;
@@ -1367,9 +1520,9 @@ void flush_output(ztime_t tnow)
 
 static void send_msync_oc(struct out_conduit * const oc, ztime_t tnow)
 {
-    if (oc->nsamples && (ztimediff_t)(tnow - oc->tsynch) >= 0) {
-        oc_pack_msynch(oc, MSFLAG);
+    if (oc->seq != oc->seqbase && (ztimediff_t)(tnow - oc->tsynch) >= 0) {
         oc->tsynch = tnow + MSYNCH_INTERVAL;
+        pack_msynch(&oc->addr, MSFLAG, oc->cid, oc->seqbase, oc_get_nsamples(oc));
         pack_msend();
     }
 }
@@ -1426,11 +1579,16 @@ void send_declares(ztime_t tnow)
     }
 }
 
-int zeno_init(void)
+int zeno_init(ztime_t tnow, zpsize_t idlen, const void *id)
 {
     /* FIXME: is there a way to make the transport pluggable at run-time without dynamic allocation? I don't think so, not with the MTU so important ... */
     static struct zeno_config config;
-    init_globals();
+    if (idlen == 0 || idlen > PEERID_SIZE) {
+        return -1;
+    }
+    ownid_union.v_nonconst.len = idlen;
+    memcpy(ownid_union.v_nonconst.id, id, idlen);
+    init_globals(tnow);
     transport = transport_ops.new(&config, &scoutaddr);
     if (transport == NULL) {
         return -1;
@@ -1447,47 +1605,142 @@ int zeno_init(void)
 void zeno_loop_init(ztime_t tnow)
 {
     t_state_changed = tnow - SCOUT_INTERVAL;
+    tnextscout = tnow - SCOUT_INTERVAL;
+}
+
+static void maybe_send_scout(ztime_t tnow)
+{
+#if MAX_PEERS == 0
+    if (peers[0].state == PEERST_UNKNOWN && (ztimediff_t)(tnow - peers[0].tlease) >= 0) {
+        peers[0].tlease = tnow + SCOUT_INTERVAL;
+        pack_mscout(&scoutaddr);
+        pack_msend();
+    }
+    /* FIXME: send keepalive if connected to a broker? */
+#else
+    if ((ztimediff_t)(tnow - tnextscout) >= 0) {
+        tnextscout = tnow + SCOUT_INTERVAL;
+        pack_mscout(&scoutaddr);
+        if (npeers > 0) {
+            /* Scout messages are ignored by peers that have established a session with the source
+               of the scout message, and then there is also the issue of potentially changing source
+               addresses ... so we combine the scout with a keepalive if we know some peers */
+            pack_mkeepalive(&scoutaddr, &ownid);
+        }
+        pack_msend();
+    }
+#endif
+}
+
+#if TRANSPORT_MODE == TRANSPORT_PACKET
+static void handle_input_packet(ztime_t tnow)
+{
+    zeno_address_t insrc;
+    ssize_t recvret;
+    char addrstr[TRANSPORT_ADDRSTRLEN];
+    if ((recvret = transport_ops.recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
+        peeridx_t peeridx, free_peeridx = PEERIDX_INVALID;
+        for (peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
+            if (transport_ops.addr_eq(&insrc, &peers[peeridx].oc.addr)) {
+                break;
+            } else if (peers[peeridx].state == PEERST_UNKNOWN && free_peeridx == PEERIDX_INVALID) {
+                free_peeridx = peeridx;
+            }
+        }
+        (void)transport_ops.addr2string(addrstr, sizeof(addrstr), &insrc);
+        if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
+            printf("possible new peer %s @ %u\n", addrstr, free_peeridx);
+            peeridx = free_peeridx;
+            peers[peeridx].oc.addr = insrc;
+        }
+        if (peeridx < MAX_PEERS_1) {
+            printf("handle message from %s @ %u\n", addrstr, peeridx);
+            if (peers[peeridx].state == PEERST_CONNECTED) {
+                peers[peeridx].tlease = tnow;
+            }
+            handle_packet(peeridx, (zmsize_t)recvret, inbuf, tnow);
+            /* peeridx need no longer be correct */
+        } else {
+            printf("message from %s dropped: no available peeridx\n", addrstr);
+        }
+    } else if (recvret < 0) {
+        PANIC0;
+    }
+}
+#endif
+
+#if TRANSPORT_MODE == TRANSPORT_STREAM
+#if MAX_PEERS != 0
+#error "stream currently only implemented for client mode"
+#endif
+static void handle_input_stream(ztime_t tnow)
+{
+    static ztime_t t_progress;
+    uint8_t read_something = 0;
+    zeno_address_t insrc;
+    ssize_t recvret;
+    recvret = transport_ops.recv(transport, inbuf + inp, sizeof(inbuf) - inp, &insrc);
+    if (recvret > 0) {
+        inp += recvret;
+        read_something = 1;
+    }
+    if (recvret < 0) {
+        PANIC0;
+    }
+    if (inp == 0) {
+        t_progress = tnow;
+    } else {
+        /* No point in repeatedly trying to decode the same incomplete data */
+        if (read_something) {
+            uint8_t *datap = handle_packet(0, inp, inbuf, tnow);
+            /* peeridx need no longer be correct */
+            zmsize_t cons = (zmsize_t) (datap - inbuf);
+            if (cons > 0) {
+                t_progress = tnow;
+                if (zeno_state == STATE_OPERATIONAL) {
+                    /* any packet is considered proof of liveliness of the broker (the
+                       state of course doesn't really change ...) */
+                    t_state_changed = t_progress;
+                }
+                if (cons < inp) {
+                    memmove(inbuf, datap, inp - cons);
+                }
+                inp -= cons;
+            }
+        }
+
+        if (inp == sizeof(inbuf) || (inp > 0 && (ztimediff_t)(tnow - 300) > t_progress)) {
+            /* No progress: discard whatever we have buffered and hope for the best. */
+            inp = 0;
+        }
+    }
+}
+#endif
+
+static void maybe_retry_open(ztime_t tnow)
+{
+    /* FIXME: obviously, this is far too big a waste of CPU time if MAX_PEERS is biggish */
+    for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
+        if (peers[i].state == PEERST_UNKNOWN || peers[i].state == PEERST_CONNECTED) {
+            continue;
+        }
+        if ((ztimediff_t)(tnow - peers[i].tlease) > OPEN_INTERVAL) {
+            if (peers[i].state == PEERST_OPENING_MAX) {
+                /* maximum number of attempts reached, forget it */
+                reset_peer(i, tnow);
+            } else {
+                peers[i].state++;
+                pack_mopen(&peers[i].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
+                pack_msend();
+            }
+        }
+    }
 }
 
 ztime_t zeno_loop(ztime_t tnow)
 {
+#if 0
     switch (zeno_state) {
-        case STATE_WAITINPUT:
-        case STATE_DRAININPUT:
-            {
-                /* On startup, wait up to 5s for some input, and if some is received, drain
-                   the input until nothing is received for 1s.  For some reason, garbage
-                   seems to come in a few seconds after waking up.  */
-                ztime_t timeout = (zeno_state == STATE_WAITINPUT) ? 5000 : 1000;
-                if ((ztimediff_t)(tnow - t_state_changed) >= timeout) {
-                    zeno_state = STATE_SCOUT;
-                    t_state_changed = tnow;
-                } else if (0 /*Serial.available()*/) { /* FIXME */
-                    //(void)Serial.read();
-                    zeno_state = STATE_DRAININPUT;
-                    t_state_changed = tnow;
-                }
-            }
-            break;
-
-        case STATE_SCOUT:
-            /* SCOUT sends the first scout message, SCOUT_SENT sends it periodically.  The
-               distinction exists solely to guarantee scouting starts immediately after
-               transitioning to the scouting state without having to worry mess with
-               t_state_changed. */
-            pack_mscout(&scoutaddr);
-            pack_msend();
-            zeno_state = STATE_SCOUT_SENT;
-            t_state_changed = tnow;
-            break;
-        case STATE_SCOUT_SENT:
-            if ((ztimediff_t)(tnow - t_state_changed) >= SCOUT_INTERVAL) {
-                pack_mscout(&scoutaddr);
-                pack_msend();
-                t_state_changed = tnow;
-            }
-            break;
-
         case STATE_CONNECTED:
             /* After a connection to broker has been established, send initial
                declarations; initially just one sub listening for the resource id to use.
@@ -1512,7 +1765,7 @@ ztime_t zeno_loop(ztime_t tnow)
 
         case STATE_OPERATIONAL:
             if ((ztimediff_t)(tnow - t_state_changed) / 100 > peers[0].tlease) {
-                close_connection_and_scout();
+                close_connection_and_scout(tnow);
                 break;
             }
             send_msynch(tnow);
@@ -1535,75 +1788,18 @@ ztime_t zeno_loop(ztime_t tnow)
             }
             break;
     }
+#endif
 
-    if (zeno_state >= STATE_SCOUT) {
 #if TRANSPORT_MODE == TRANSPORT_PACKET
-        zeno_address_t insrc;
-        ssize_t recvret;
-        char addrstr[TRANSPORT_ADDRSTRLEN];
-        if ((recvret = transport_ops.recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
-            peeridx_t peeridx, free_peeridx = MAX_PEERS_1;
-            /* FIXME: MAX_PEERS = 0 case */
-            for (peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
-                if (transport_ops.addr_eq(&insrc, &peers[peeridx].oc.addr)) {
-                    break;
-                } else if (peers[peeridx].state == STATE_WAITINPUT && free_peeridx == MAX_PEERS_1) {
-                    free_peeridx = peeridx;
-                }
-            }
-            (void)transport_ops.addr2string(addrstr, sizeof(addrstr), &insrc);
-            if (peeridx == MAX_PEERS_1 && free_peeridx < MAX_PEERS_1) {
-                printf("possible new peer %s @ %u\n", addrstr, free_peeridx);
-                peeridx = free_peeridx;
-                peers[peeridx].oc.addr = insrc;
-            }
-            if (peeridx < MAX_PEERS_1) {
-                /* unconditionally renew lease: even if we don't know this other node (and will never
-                   do anything with it, it still does no harm) */
-                printf("handle message from %s @ %u\n", addrstr, peeridx);
-                peers[peeridx].tlease = tnow;
-                handle_packet(peeridx, (zmsize_t)recvret, inbuf);
-            } else {
-                printf("message from %s dropped: no available peeridx\n", addrstr);
-            }
-        } else if (recvret < 0) {
-            PANIC0;
-        }
+    handle_input_packet(tnow);
 #elif TRANSPORT_MODE == TRANSPORT_STREAM
-        uint8_t read_something = 0;
-        while (inp < sizeof (inbuf) /*&& Serial.available()*/) {
-            inbuf[inp++] = 0;//Serial.read();
-            read_something = 1;
-        }
-        if (inp == 0) {
-            t_progress = tnow;
-        } else {
-            /* No point in repeatedly trying to decode the same incomplete data */
-            if (read_something) {
-                uint8_t *datap = handle_packet(0, inp, inbuf); /* FIXME: need peer idx */
-                zmsize_t cons = (zmsize_t) (datap - inbuf);
-                if (cons > 0) {
-                    t_progress = tnow;
-                    if (zeno_state == STATE_OPERATIONAL) {
-                        /* any packet is considered proof of liveliness of the broker (the
-                           state of course doesn't really change ...) */
-                        t_state_changed = t_progress;
-                    }
-                    if (cons < inp) {
-                        memmove(inbuf, datap, inp - cons);
-                    }
-                    inp -= cons;
-                }
-            }
-
-            if (inp == sizeof(inbuf) || (inp > 0 && (ztimediff_t)(tnow - 300) > t_progress)) {
-                /* No progress: discard whatever we have buffered and hope for the best. */
-                inp = 0;
-            }
-        }
+    handle_input_stream(ztime_t tnow)
 #else
 #error "TRANSPORT_MODE not handled"
 #endif
-    }
+
+    maybe_send_scout(tnow);
+    maybe_retry_open(tnow);
+
     return tnow + 1; /* FIXME: need to keep track of next event */
 }

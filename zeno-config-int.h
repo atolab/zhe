@@ -4,25 +4,42 @@
 
 #include "zeno-config.h"
 
+/********** Arduino Hack Alert ***********/
+
+#ifndef ARDUINO
+
 #include "transport-udp.h"
-//#include "transport-arduino.h"
 
 /* Maximum number of peers one node can have (that is, the network
    may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0,
    it becomes a client rather than as a peer */
 #define MAX_PEERS 12
+
+#define N_IN_CONDUITS 3
+#define N_OUT_CONDUITS 3
+
+/* Transmit window size, each reliable message is prefixed by its size in a single byte. */
+#define XMITW_BYTES 16384u
+
+#else /* defined ARDUINO -- just to check it builds */
+
+#include "transport-arduino.h"
+
+#define MAX_PEERS 0
+#define N_IN_CONDUITS 2
+#define N_OUT_CONDUITS 1
+#define XMITW_BYTES 384u
+
+#endif /* defined ARDUINO */
+
+/********** End of Arduino Hack ***********/
+
 #if MAX_PEERS < 255
 typedef uint8_t peeridx_t;
 #else
 #error "MAX_PEERS is too large for 8-bit peer idx"
 #endif
 #define PEERIDX_INVALID ((peeridx_t)-1)
-
-#define N_IN_CONDUITS 3
-#define N_OUT_CONDUITS 3
-
-/* Transmit window size, each reliable message is prefixed by its size in a single byte. */
-#define XMITW_BYTES 384u
 
 /* Setting a latency budget globally for now, though it could be done per-publisher as well.
    Packets will go out when full or when LATENCY_BUDGET milliseconds passed since we started
@@ -55,10 +72,12 @@ typedef uint16_t zmsize_t;
 /* There is not a fundamental limit on the number of conduits, but there are some places
    where a conduit id is assumed to fit in a single byte in message processing, and there
    are some places where a signed integer is used to index either conduit or peer. */
-#if N_OUT_CONDUITS <= 255 && N_IN_CONDUITS <= 255 && MAX_PEERS <= 65535
-typedef int16_t cid_t;    /* type used for representing a conduit id */
+#if N_OUT_CONDUITS <= 127 && N_IN_CONDUITS <= 127 && MAX_PEERS <= 127
+typedef int8_t cid_t;
+#elif N_OUT_CONDUITS <= 127 && N_IN_CONDUITS <= 127 && MAX_PEERS <= 32767
+typedef int16_t cid_t;
 #else
-#error "Conduits are limited to 255 because their ids are represented as signed 8-bit integers here"
+#error "Conduits are limited to 127 because the VLE encoding is short-circuited"
 #endif
 
 /* zmsize_t is the type capable of representing the maximum size of a message and may not
