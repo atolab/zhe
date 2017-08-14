@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
+#include "zeno-tracing.h"
 #include "transport-udp.h"
 
 #define MAX_SELF 16
@@ -63,15 +64,14 @@ static struct zeno_transport *udp_new(const struct zeno_config *config, zeno_add
                 struct zeno_address za = { *a };
                 char str[TRANSPORT_ADDRSTRLEN];
                 udp_addr2string(str, sizeof(str), &za);
-                printf("%s: %s", c->ifa_name, str);
                 if (a->sin_addr.s_addr == htonl(INADDR_ANY) || a->sin_addr.s_addr == htonl(INADDR_NONE)) {
-                    printf (" (not interesting)");
+                    ZT(TRANSPORT, ("%s: %s (not interesting)", c->ifa_name, str));
                 } else if (udp->nself < MAX_SELF) {
+                    ZT(TRANSPORT, ("%s: %s", c->ifa_name, str));
                     udp->self[udp->nself++] = a->sin_addr.s_addr;
                 } else {
-                    printf(" (no space left)");
+                    ZT(TRANSPORT, ("%s: %s (no space left)", c->ifa_name, str));
                 }
-                printf("\n");
             }
         }
         freeifaddrs(ifa);
@@ -200,10 +200,10 @@ static ssize_t udp_send(struct zeno_transport * restrict tp, const void * restri
     assert(size <= TRANSPORT_MTU);
     ret = sendto(udp->s[0], buf, size, 0, (const struct sockaddr *)&dst->a, sizeof(dst->a));
     if (ret > 0) {
-        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), dst); printf("send %zu to %s\n", size, tmp); }
+        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), dst); ZT(TRANSPORT, ("send %zu to %s", size, tmp)); }
         return ret;
     } else if (ret == -1 && errno == EAGAIN) {
-        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), dst); printf("send(EAGAIN) %zu to %s\n", size, tmp); }
+        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), dst); ZT(TRANSPORT, ("send(EAGAIN) %zu to %s", size, tmp)); }
         return 0;
     } else {
         return SENDRECV_ERROR;
@@ -216,13 +216,13 @@ static ssize_t udp_recv1(struct udp * restrict udp, void * restrict buf, size_t 
     ssize_t ret;
     ret = recvfrom(udp->s[udp->next], buf, size, 0, (struct sockaddr *)&src->a, &srclen);
     if (ret > 0) {
-        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), src); printf("recv[%d] %zu from %s\n", udp->next, ret, tmp); }
+        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), src); ZT(TRANSPORT, ("recv[%d] %zu from %s", udp->next, ret, tmp)); }
         udp->next = 1 - udp->next;
         return ret;
     } else if (ret == -1 && errno == EAGAIN) {
         ret = recvfrom(udp->s[1 - udp->next], buf, size, 0, (struct sockaddr *)&src->a, &srclen);
         if (ret > 0) {
-            { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), src); printf("recv[%d] %zu from %s\n", 1 - udp->next, ret, tmp); }
+            { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), src); ZT(TRANSPORT, ("recv[%d] %zu from %s", 1 - udp->next, ret, tmp)); }
             return ret;
         } else if (ret == -1 && errno == EAGAIN) {
             return 0;

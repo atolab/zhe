@@ -26,7 +26,7 @@ static void minseqheap_heapify(unsigned j, peeridx_t n, peeridx_t * restrict p, 
     }
 }
 
-void minseqheap_insert(peeridx_t peeridx, struct minseqheap * const h)
+void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h)
 {
     unsigned i;
 #ifndef NDEBUG
@@ -34,6 +34,7 @@ void minseqheap_insert(peeridx_t peeridx, struct minseqheap * const h)
         assert(h->hx[j] != peeridx);
     }
 #endif
+    h->vs[peeridx] = seqbase;
     i = h->n++;
     while (i > 0 && seq_lt(h->vs[peeridx], h->vs[h->hx[(i-1)/2]])) {
         h->hx[i] = h->hx[(i-1)/2];
@@ -41,6 +42,7 @@ void minseqheap_insert(peeridx_t peeridx, struct minseqheap * const h)
         i = (i-1)/2;
     }
     h->hx[i] = peeridx;
+    h->ix[h->hx[i]].i = i;
 }
 
 seq_t minseqheap_get_min(struct minseqheap const * const h)

@@ -11,6 +11,8 @@
 		0305876A1EF92BEB0040F446 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587691EF92BEB0040F446 /* main.c */; };
 		030587741EF92CEC0040F446 /* zeno.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587731EF92CEC0040F446 /* zeno.c */; };
 		030587771EFB8FAF0040F446 /* pack.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587761EFB8FAF0040F446 /* pack.c */; };
+		0347E8FE1F41AC3B00E0A136 /* zeno-tracing.c in Sources */ = {isa = PBXBuildFile; fileRef = 0347E8FC1F41AC3B00E0A136 /* zeno-tracing.c */; };
+		0347E9011F41C42200E0A136 /* zeno-time-posix.c in Sources */ = {isa = PBXBuildFile; fileRef = 0347E8FF1F41C42200E0A136 /* zeno-time-posix.c */; };
 		0349B4B71F2FBB9600C6B95D /* unpack.c in Sources */ = {isa = PBXBuildFile; fileRef = 0349B4B51F2FBB9600C6B95D /* unpack.c */; };
 		038D6C641F25DD380045040D /* bitset.c in Sources */ = {isa = PBXBuildFile; fileRef = 038D6C621F25DD380045040D /* bitset.c */; };
 		038D6C671F2F080A0045040D /* binheap.c in Sources */ = {isa = PBXBuildFile; fileRef = 038D6C651F2F080A0045040D /* binheap.c */; };
@@ -42,6 +44,10 @@
 		030587761EFB8FAF0040F446 /* pack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pack.c; sourceTree = "<group>"; };
 		030587781EFB90DF0040F446 /* pack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pack.h; sourceTree = "<group>"; };
 		030587791EFB914E0040F446 /* zeno-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-int.h"; sourceTree = "<group>"; };
+		0347E8FC1F41AC3B00E0A136 /* zeno-tracing.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "zeno-tracing.c"; sourceTree = SOURCE_ROOT; };
+		0347E8FD1F41AC3B00E0A136 /* zeno-tracing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-tracing.h"; sourceTree = SOURCE_ROOT; };
+		0347E8FF1F41C42200E0A136 /* zeno-time-posix.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "zeno-time-posix.c"; sourceTree = SOURCE_ROOT; };
+		0347E9001F41C42200E0A136 /* zeno-time.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-time.h"; sourceTree = SOURCE_ROOT; };
 		0349B4B51F2FBB9600C6B95D /* unpack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = unpack.c; sourceTree = "<group>"; };
 		0349B4B61F2FBB9600C6B95D /* unpack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = unpack.h; sourceTree = "<group>"; };
 		038D6C621F25DD380045040D /* bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = bitset.c; sourceTree = "<group>"; };
@@ -104,6 +110,10 @@
 				03A5AB141F3301B400F78438 /* transport.h */,
 				03A5AB151F330CA300F78438 /* transport-arduino.c */,
 				03A5AB161F330CA300F78438 /* transport-arduino.h */,
+				0347E8FC1F41AC3B00E0A136 /* zeno-tracing.c */,
+				0347E8FD1F41AC3B00E0A136 /* zeno-tracing.h */,
+				0347E8FF1F41C42200E0A136 /* zeno-time-posix.c */,
+				0347E9001F41C42200E0A136 /* zeno-time.h */,
 			);
 			name = zhe;
 			path = .;
@@ -168,12 +178,14 @@
 			files = (
 				03A5AB171F330CA300F78438 /* transport-arduino.c in Sources */,
 				038D6C641F25DD380045040D /* bitset.c in Sources */,
+				0347E9011F41C42200E0A136 /* zeno-time-posix.c in Sources */,
 				030587771EFB8FAF0040F446 /* pack.c in Sources */,
 				0305876A1EF92BEB0040F446 /* main.c in Sources */,
 				0349B4B71F2FBB9600C6B95D /* unpack.c in Sources */,
 				030587741EF92CEC0040F446 /* zeno.c in Sources */,
 				038D6C671F2F080A0045040D /* binheap.c in Sources */,
 				030445FF1F322DFE00883BFF /* transport-udp.c in Sources */,
+				0347E8FE1F41AC3B00E0A136 /* zeno-tracing.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

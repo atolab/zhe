@@ -47,13 +47,13 @@ typedef uint8_t peeridx_t;
    stops packing when the MTU is reached and generally requires explicit flushing.  Both edge
    cases eliminate the latency budget handling and state from the code, saving a whopping 4
    bytes of RAM!  */
-#define LATENCY_BUDGET_INF (4294967295u)
-#define LATENCY_BUDGET 0 /* ms */
+#define LATENCY_BUDGET_INF   (4294967295u)
+#define LATENCY_BUDGET     100 /* ms */
 
 /* Send a SYNCH message set every MSYNCH_INTERVAL ms when unack'd messages are present in the
    transmit window.  Ideally would base this on measured round-trip time.  Messages with the S
    bit set also reset this. */
-#define MSYNCH_INTERVAL 300 /* ms */
+#define MSYNCH_INTERVAL    300 /* ms */
 
 #define SCOUT_INTERVAL    3000 /* millis */
 #define OPEN_INTERVAL     3000 /* millis */

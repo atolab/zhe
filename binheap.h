@@ -13,7 +13,7 @@ struct minseqheap {
 };
 
 int minseqheap_isempty(struct minseqheap const * const h);
-void minseqheap_insert(peeridx_t peeridx, struct minseqheap * const h);
+void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h);
 seq_t minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_discarded, struct minseqheap * const h);
 int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h);
 seq_t minseqheap_get_min(struct minseqheap const * const h);

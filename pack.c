@@ -102,13 +102,15 @@ void pack_mhello(zeno_address_t *dst)
     pack2(0, 0);
 }
 
-void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, uint32_t lease_dur)
+void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, ztimediff_t lease_dur)
 {
     const size_t sizeof_auth = 0;
-    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(lease_dur) + pack_vle16req(sizeof_auth) + sizeof_auth + 1 /*empty locs*/ + (seqnumlen != 14 ? 1 : 0));
+    const uint32_t ld100 = lease_dur / 100;
+    assert(lease_dur >= 0);
+    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth + 1 /*empty locs*/ + (seqnumlen != 14 ? 1 : 0));
     pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZENO_VERSION);
     pack_vec(ownid->len, ownid->id);
-    pack_vle32(lease_dur);
+    pack_vle32(ld100);
     pack_text(0, NULL); /* auth */
     pack1(0); /* FIXME: empty locator set */
     if (seqnumlen != 14) {
@@ -116,14 +118,16 @@ void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *own
     }
 }
 
-void pack_maccept(zeno_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, uint32_t lease_dur)
+void pack_maccept(zeno_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, ztimediff_t lease_dur)
 {
     const size_t sizeof_auth = 0;
-    pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len + pack_vle16req(peerid->len) + peerid->len + pack_vle32req(lease_dur) + pack_vle16req(sizeof_auth) + sizeof_auth);
+    const uint32_t ld100 = lease_dur / 100;
+    assert(lease_dur >= 0);
+    pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len + pack_vle16req(peerid->len) + peerid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth);
     pack1(MACCEPT);
     pack_vec(peerid->len, peerid->id);
     pack_vec(ownid->len, ownid->id);
-    pack_vle32(lease_dur);
+    pack_vle32(ld100);
     pack_text(0, NULL); /* auth */
 }
 
