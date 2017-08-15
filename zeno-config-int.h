@@ -74,8 +74,10 @@ typedef uint16_t zmsize_t;
    are some places where a signed integer is used to index either conduit or peer. */
 #if N_OUT_CONDUITS <= 127 && N_IN_CONDUITS <= 127 && MAX_PEERS <= 127
 typedef int8_t cid_t;
+#define MAX_CID_T 127
 #elif N_OUT_CONDUITS <= 127 && N_IN_CONDUITS <= 127 && MAX_PEERS <= 32767
 typedef int16_t cid_t;
+#define MAX_CID_T 32767
 #else
 #error "Conduits are limited to 127 because the VLE encoding is short-circuited"
 #endif

@@ -18,9 +18,9 @@ void pack_vle16(uint16_t x)
     } while (x);
 }
 
-size_t pack_vle16req(uint16_t x)
+zpsize_t pack_vle16req(uint16_t x)
 {
-    size_t n = 0;
+    zpsize_t n = 0;
     do { n++; x >>= 7; } while (x != 0);
     return n;
 }
@@ -33,9 +33,9 @@ void pack_vle32(uint32_t x)
     } while (x);
 }
 
-size_t pack_vle32req(uint32_t x)
+zpsize_t pack_vle32req(uint32_t x)
 {
-    size_t n = 0;
+    zpsize_t n = 0;
     do { n++; x >>= 7; } while (x != 0);
     return n;
 }
@@ -48,9 +48,9 @@ void pack_vle64(uint64_t x)
     } while (x);
 }
 
-size_t pack_vle64req(uint64_t x)
+zpsize_t pack_vle64req(uint64_t x)
 {
-    size_t n = 0;
+    zpsize_t n = 0;
     do { n++; x >>= 7; } while (x != 0);
     return n;
 }
@@ -60,7 +60,7 @@ void pack_seq(seq_t x)
     pack_vle16(x >> SEQNUM_SHIFT);
 }
 
-size_t pack_seqreq(seq_t x)
+zpsize_t pack_seqreq(seq_t x)
 {
     return pack_vle16req(x >> SEQNUM_SHIFT);
 }
@@ -70,7 +70,7 @@ void pack_rid(rid_t x)
     SUFFIX_WITH_SIZE(pack_vle, RID_T_SIZE) (x);
 }
 
-size_t pack_ridreq(rid_t x)
+zpsize_t pack_ridreq(rid_t x)
 {
     return INFIX_WITH_SIZE(pack_vle, RID_T_SIZE, req) (x);
 }
@@ -109,9 +109,9 @@ void pack_mhello(zeno_address_t *dst)
 
 void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, ztimediff_t lease_dur)
 {
-    const size_t sizeof_auth = 0;
-    const uint32_t ld100 = lease_dur / 100;
     assert(lease_dur >= 0);
+    const zpsize_t sizeof_auth = 0;
+    const uint32_t ld100 = (uint32_t)(lease_dur / 100);
     pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth + 1 /*empty locs*/ + (seqnumlen != 14 ? 1 : 0));
     pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZENO_VERSION);
     pack_vec(ownid->len, ownid->id);
@@ -125,9 +125,9 @@ void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *own
 
 void pack_maccept(zeno_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, ztimediff_t lease_dur)
 {
-    const size_t sizeof_auth = 0;
-    const uint32_t ld100 = lease_dur / 100;
     assert(lease_dur >= 0);
+    const zpsize_t sizeof_auth = 0;
+    const uint32_t ld100 = (uint32_t)(lease_dur / 100);
     pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len + pack_vle16req(peerid->len) + peerid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth);
     pack1(MACCEPT);
     pack_vec(peerid->len, peerid->id);
@@ -146,13 +146,18 @@ void pack_mclose(zeno_address_t *dst, uint8_t reason, const struct peerid *ownid
 
 void pack_reserve_mconduit(zeno_address_t *dst, struct out_conduit *oc, cid_t cid, zpsize_t cnt)
 {
-    unsigned cid_size = (cid > 0) + (cid > 4);
-    assert (oc == NULL || oc_get_cid(oc) == cid);
+    zpsize_t cid_size = (cid > 0) + (cid > 4);
+    assert(cid >= 0);
+    assert(cid < N_OUT_CONDUITS);
+#if N_OUT_CONDUITS > 127
+#error "N_OUT_CONDUITS must be <= 127 or unconditionally packing a CID into a byte won't work"
+#endif
+    assert(oc == NULL || oc_get_cid(oc) == cid);
     pack_reserve(dst, oc, cid_size + cnt);
     if (cid > 4) {
-        pack2(MCONDUIT, cid);
+        pack2(MCONDUIT, (uint8_t)cid);
     } else if (cid > 0) {
-        uint8_t eid = (cid - 1) << 5;
+        uint8_t eid = (uint8_t)((cid - 1) << 5);
         pack1(MCONDUIT | MZFLAG | eid);
     }
 }
@@ -258,10 +263,11 @@ void oc_pack_mdeclare_done(struct out_conduit *c)
 
 void pack_dresource(rid_t rid, const char *res)
 {
-    zpsize_t ressz = strlen(res);
+    size_t ressz = strlen(res);
+    assert(ressz <= (zpsize_t)-1);
     pack1(DRESOURCE);
     pack_rid(rid);
-    pack_text(ressz, res);
+    pack_text((zpsize_t)ressz, res);
 }
 
 /* FIXME: do I need DELETE? Not yet anyway */

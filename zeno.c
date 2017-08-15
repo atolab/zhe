@@ -26,22 +26,6 @@ struct zeno_config { char dummy; }; /* FIXME: flesh out config */
 #error "transport configuration did not set MTU properly"
 #endif
 
-//void close_connection_and_scout(ztime_t tnow); /* FIXME: not for p2p */
-void reset_pubs_to_declare(void); /* FIXME: sort out close in p2p */
-void reset_subs_to_declare(void); /* FIXME: sort out close in p2p */
-void pre_panic_handler(void) {} /* FIXME: decide how to do this sort of thing */
-
-void xrce_panic(uint16_t line, uint16_t code)
-{
-    pre_panic_handler();
-    assert(0);
-}
-
-#define PANIC(code) do { xrce_panic(__LINE__, (code)); } while (0)
-#define PANIC0 PANIC(0)
-
-//////////////////////////////////////////////////////////////////////////////////////
-
 #define WC_DRESULT_SIZE     8 /* worst-case result size: header, commitid, status, rid */
 #define WC_DCOMMIT_SIZE     2 /* commit: header, commitid */
 #define WC_DPUB_SIZE        6 /* pub: header, rid (not using properties) */
@@ -51,24 +35,6 @@ void xrce_panic(uint16_t line, uint16_t code)
 #define PEERST_OPENING_MIN   1
 #define PEERST_OPENING_MAX   5
 #define PEERST_ESTABLISHED 255
-
-#if 0
-#define STATE_WAITINPUT      0
-#define STATE_DRAININPUT     1
-#define STATE_SCOUT          2
-#define STATE_SCOUT_SENT     3
-#define STATE_OPENING_MIN    4
-#define STATE_OPENING_MAX  253
-#define STATE_CONNECTED    254
-#define STATE_OPERATIONAL  255
-
-#if STATE_OPENING_MIN + OPEN_RETRIES > STATE_OPENING_MAX
-#error "OPEN_RETRIES too large"
-#endif
-
-uint8_t zeno_state = 0;
-ztime_t t_state_changed = 0;
-#endif
 
 union {
     const struct peerid v;
@@ -172,15 +138,15 @@ peeridx_t npeers;
 ztime_t tnextscout;
 #endif
 
-void remove_acked_messages(struct out_conduit * const c, seq_t seq);
+static void remove_acked_messages(struct out_conduit * const c, seq_t seq);
 
-void oc_reset_transmit_window(struct out_conduit * const oc)
+static void oc_reset_transmit_window(struct out_conduit * const oc)
 {
     oc->seqbase = oc->seq;
     oc->firstpos = oc->spos;
 }
 
-void oc_setup1(struct out_conduit * const oc, uint8_t cid)
+static void oc_setup1(struct out_conduit * const oc, cid_t cid)
 {
     memset(&oc->addr, 0, sizeof(oc->addr));
     oc->cid = cid;
@@ -191,7 +157,7 @@ void oc_setup1(struct out_conduit * const oc, uint8_t cid)
     oc_reset_transmit_window(oc);
 }
 
-void reset_outbuf(void)
+static void reset_outbuf(void)
 {
     /* FIXME: keep outgoing packet builder as is? */
     outspos = OUTSPOS_UNSET;
@@ -200,7 +166,7 @@ void reset_outbuf(void)
     outdst = NULL;
 }
 
-void reset_peer(peeridx_t peeridx, ztime_t tnow)
+static void reset_peer(peeridx_t peeridx, ztime_t tnow)
 {
     /* FIXME: remote declares */
 
@@ -295,12 +261,12 @@ uint16_t xmitw_bytesavail(const struct out_conduit *c)
     return res;
 }
 
-seq_t oc_get_nsamples(struct out_conduit const * const c)
+static seq_t oc_get_nsamples(struct out_conduit const * const c)
 {
     return (c->seq - c->seqbase) >> SEQNUM_SHIFT;
 }
 
-void pack_msend(void)
+static void pack_msend(void)
 {
     assert ((outspos == OUTSPOS_UNSET) == (outc == NULL));
     assert (outdst != NULL);
@@ -313,7 +279,7 @@ void pack_msend(void)
         }
     }
     if (transport_ops.send(transport, outbuf, outp, outdst) < 0) {
-        PANIC0;
+        assert(0);
     }
     outp = 0;
     outspos = OUTSPOS_UNSET;
@@ -383,10 +349,12 @@ cid_t oc_get_cid(struct out_conduit *c)
     return c->cid;
 }
 
+#if N_OUT_CONDUITS > 1
 int ocm_have_peers(const struct out_mconduit *mc)
 {
     return !minseqheap_isempty(&mc->seqbase);
 }
+#endif
 
 void oc_pack_copyrel(struct out_conduit *c, zmsize_t from)
 {
@@ -590,7 +558,7 @@ void rsub_clear(void)
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+static zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER;
@@ -616,7 +584,7 @@ zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
+static zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER | MSCOUT_BROKER;
@@ -687,6 +655,7 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     transport_ops.addr2string(astr, sizeof(astr), &p->oc.addr);
 
     assert(idlen <= PEERID_SIZE);
+    assert(lease_dur >= 0);
     for (int i = 0; i < idlen; i++) {
         sprintf(idstr+3*i-(i>0), "%s%02hhx", i == 0 ? "" : ":", id[i]);
     }
@@ -696,7 +665,7 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     p->id.len = idlen;
     memcpy(p->id.id, id, idlen);
     p->lease_dur = lease_dur;
-    p->tlease = tnow + p->lease_dur;
+    p->tlease = tnow + (ztime_t)p->lease_dur;
 #if N_OUT_CONDUITS > 1
     /* FIXME: only for conduits that the peer is interested in */
     for (cid_t cid = 1; cid < N_OUT_CONDUITS; cid++) {
@@ -707,7 +676,7 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     npeers++;
 }
 
-zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     uint8_t hdr, version;
@@ -759,7 +728,7 @@ zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t *
 
     p = &peers[*peeridx];
     if (p->state != PEERST_ESTABLISHED) {
-        accept_peer(*peeridx, idlen, id, 100 * ld100, tnow);
+        accept_peer(*peeridx, idlen, id, 100 * (ztimediff_t)ld100, tnow);
     }
     pack_maccept(&p->oc.addr, &ownid, &p->id, lease_dur);
     pack_msend();
@@ -775,7 +744,7 @@ reject_no_close:
     return 0;
 }
 
-zmsize_t handle_maccept(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static zmsize_t handle_maccept(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     zpsize_t idlen;
@@ -808,7 +777,7 @@ zmsize_t handle_maccept(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t
         }
         *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
         if (peers[*peeridx].state >= PEERST_OPENING_MIN && peers[*peeridx].state <= PEERST_OPENING_MAX) {
-            accept_peer(*peeridx, idlen, id, 100 * ld100, tnow);
+            accept_peer(*peeridx, idlen, id, 100 * (ztimediff_t)ld100, tnow);
         }
     }
     return (zmsize_t)(data - data0);
@@ -822,17 +791,7 @@ reject_no_close:
     return 0;
 }
 
-#if 0
-void close_connection_and_scout(ztime_t tnow)
-{
-    reset_peer(0, tnow);
-    rsub_clear();
-    reset_pubs_to_declare();
-    reset_subs_to_declare();
-}
-#endif
-
-zmsize_t handle_mclose(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static zmsize_t handle_mclose(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     /* FIXME: should check id of sender */
     zpsize_t idlen;
@@ -855,7 +814,7 @@ zmsize_t handle_mclose(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t 
     return 0;
 }
 
-zmsize_t handle_dresource(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_dresource(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     /* No use for a broker declaring its resources, but we don't bug out over it */
     const uint8_t *data0 = data;
@@ -872,7 +831,7 @@ zmsize_t handle_dresource(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, i
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_dpub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_dpub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     /* No use for a broker declaring its publications, but we don't bug out over it */
     const uint8_t *data0 = data;
@@ -887,7 +846,7 @@ zmsize_t handle_dpub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int in
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_dsub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_dsub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     const uint8_t *data0 = data;
     rid_t rid;
@@ -914,7 +873,7 @@ zmsize_t handle_dsub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int in
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_dselection(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_dselection(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     /* FIXME: support selections? */
     const uint8_t *data0 = data;
@@ -938,7 +897,7 @@ zmsize_t handle_dselection(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, 
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_dbindid(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_dbindid(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     /* FIXME: support bindings?  I don't think there's a need. */
     const uint8_t *data0 = data;
@@ -957,7 +916,7 @@ zmsize_t handle_dbindid(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_dcommit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_dcommit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     const uint8_t *data0 = data;
     uint8_t commitid;
@@ -992,7 +951,7 @@ zmsize_t handle_dcommit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_dresult(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_dresult(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     const uint8_t *data0 = data;
     uint8_t commitid, status;
@@ -1012,12 +971,12 @@ zmsize_t handle_dresult(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int
 
            Also note that we're not looking at the commit id at all, I am not sure yet what
            problems that may cause ... */
-        PANIC(status);
+        assert(0);
     }
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_ddeleteres(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static zmsize_t handle_ddeleteres(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
 {
     const uint8_t *data0 = data;
     uint8_t hdr;
@@ -1045,7 +1004,7 @@ int seq_le(seq_t a, seq_t b)
     return (sseq_t) (a - b) <= 0;
 }
 
-int ic_may_deliver_seq(struct in_conduit *ic, uint8_t hdr, seq_t seq)
+static int ic_may_deliver_seq(struct in_conduit *ic, uint8_t hdr, seq_t seq)
 {
     if (hdr & MRFLAG) {
         return (ic->seq == seq);
@@ -1054,7 +1013,7 @@ int ic_may_deliver_seq(struct in_conduit *ic, uint8_t hdr, seq_t seq)
     }
 }
 
-void ic_update_seq (struct in_conduit *ic, uint8_t hdr, seq_t seq)
+static void ic_update_seq (struct in_conduit *ic, uint8_t hdr, seq_t seq)
 {
     assert(ic_may_deliver_seq(ic, hdr, seq));
     if (hdr & MRFLAG) {
@@ -1066,7 +1025,7 @@ void ic_update_seq (struct in_conduit *ic, uint8_t hdr, seq_t seq)
     }
 }
 
-void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, ztime_t tnow)
+static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, ztime_t tnow)
 {
     seq_t cnt = (peers[peeridx].ic[cid].lseqpU - peers[peeridx].ic[cid].seq) >> SEQNUM_SHIFT;
     uint32_t mask;
@@ -1089,7 +1048,7 @@ void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, ztime_t tnow)
     }
 }
 
-zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t cid, ztime_t tnow)
+static zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
 {
     /* Note 1: not buffering data received out-of-order, so but need to decode everything to
        find next message, which we may "have to" interpret - we don't really "have to", but to
@@ -1100,7 +1059,8 @@ zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ui
        further input processing, until space is available again, the inelegant one is to verify
        we have space beforehand, and pretend we never received the DECLARE if we don't. */
     const uint8_t *data0 = data;
-    uint8_t hdr, ncons;
+    uint8_t hdr;
+    zmsize_t ncons;
     uint16_t ndecls;
     seq_t seq;
     int intp;
@@ -1150,7 +1110,7 @@ zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ui
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t cid, ztime_t tnow)
+static zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     uint8_t hdr;
@@ -1165,7 +1125,7 @@ zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint
         ZT(RELIABLE, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt));
         if (seq_lt(peers[peeridx].ic[cid].seq, seqbase) || !peers[peeridx].ic[cid].synched) {
             peers[peeridx].ic[cid].seq = seqbase;
-            peers[peeridx].ic[cid].lseqpU = seqbase + (cnt << SEQNUM_SHIFT);
+            peers[peeridx].ic[cid].lseqpU = seqbase + (seq_t)(cnt << SEQNUM_SHIFT);
             peers[peeridx].ic[cid].synched = 1;
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
@@ -1173,7 +1133,7 @@ zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t cid, ztime_t tnow)
+static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     uint8_t hdr;
@@ -1218,7 +1178,7 @@ zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint
             } else if (subs[k].xmitneed > 0 && xmitw_bytesavail(subs[k].oc) < subs[k].xmitneed) {
                 /* Not enough space available -- do note that "xmitneed" had better include
                  overhead! */
-                PANIC0; /* FIXME: panicking where we could calmly continue, just so I know it when it happens */
+                assert(0); /* FIXME: panicking where we could calmly continue, just so I know it when it happens */
             } else {
                 subs[k].handler(prid, paysz, pay, subs[k].arg);
                 ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
@@ -1234,7 +1194,7 @@ zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint
     return (zmsize_t)(data - data0);
 }
 
-void remove_acked_messages(struct out_conduit *c, seq_t seq)
+static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
 {
     ZT(RELIABLE, ("remove_acked_messages cid %u %p seq %u", c->cid, (void*)c, seq >> SEQNUM_SHIFT));
 
@@ -1264,7 +1224,7 @@ void remove_acked_messages(struct out_conduit *c, seq_t seq)
     }
 }
 
-zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t cid, ztime_t tnow)
+static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
 {
     const uint8_t *data0 = data;
 #if N_OUT_CONDUITS > 1
@@ -1393,7 +1353,7 @@ zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ui
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mping(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+static zmsize_t handle_mping(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data)
 {
     const uint8_t *data0 = data;
     uint16_t hash;
@@ -1406,7 +1366,7 @@ zmsize_t handle_mping(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mpong(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+static zmsize_t handle_mpong(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data)
 {
     const uint8_t *data0 = data;
     if (!unpack_skip(&sz, &data, 3)) {
@@ -1415,7 +1375,7 @@ zmsize_t handle_mpong(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mkeepalive(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static zmsize_t handle_mkeepalive(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     zpsize_t idlen;
@@ -1432,15 +1392,20 @@ zmsize_t handle_mkeepalive(peeridx_t * restrict peeridx, zmsize_t sz, const uint
     return (zmsize_t)(data - data0);
 }
 
-zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, uint8_t *cid, ztime_t tnow)
+static zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t * restrict cid, ztime_t tnow)
 {
-    uint8_t hdr;
+    uint8_t hdr, cid_byte;
     if (!unpack_byte(&sz, &data, &hdr)) {
         return 0;
     } else if (hdr & MZFLAG) {
         *cid = 1 + ((hdr >> 5) & 0x3);
-    } else if (!unpack_byte(&sz, &data, cid)) {
+    } else if (!unpack_byte(&sz, &data, &cid_byte)) {
         return 0;
+    } else if (cid_byte > MAX_CID_T) {
+        reset_peer(peeridx, tnow);
+        return 0;
+    } else {
+        *cid = (cid_t)cid_byte;
     }
     if (*cid >= N_IN_CONDUITS) {
         reset_peer(peeridx, tnow);
@@ -1449,10 +1414,10 @@ zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ui
     return 1;
 }
 
-uint8_t *handle_packet(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
+static uint8_t *handle_packet(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
 {
     zmsize_t ncons;
-    uint8_t cid = 0;
+    cid_t cid = 0;
     do {
         uint8_t kind = *data & MKIND;
         switch (kind) {
@@ -1528,7 +1493,11 @@ pubidx_t publish(rid_t rid, int reliable)
     assert(!bitset_test(pubs_isrel, i));
     pubs[i].rid = rid;
     /* FIXME: don't just use first mc conduit */
+#if N_OUT_CONDUITS > 1
     pubs[i].oc = &out_mconduits[0].oc;
+#else
+    pubs[i].oc = &peers[0].oc;
+#endif
     if (reliable) {
         bitset_set(pubs_isrel, i);
     }
@@ -1601,7 +1570,7 @@ void send_declares(ztime_t tnow)
             assert(pubs[first].rid != 0);
             pack_dpub(pubs[first].rid);
             oc_pack_mdeclare_done(oc);
-            bitset_clear(pubs_to_declare, first);
+            bitset_clear(pubs_to_declare, (unsigned)first);
             must_commit = 1;
         }
     } else if ((first = bitset_findfirst(subs_to_declare, MAX_SUBS)) >= 0) {
@@ -1609,7 +1578,7 @@ void send_declares(ztime_t tnow)
             assert(subs[first].rid != 0);
             pack_dsub(subs[first].rid);
             oc_pack_mdeclare_done(oc);
-            bitset_clear(subs_to_declare, first);
+            bitset_clear(subs_to_declare, (unsigned)first);
             must_commit = 1;
         }
     } else if (must_commit && oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE)) {
@@ -1710,7 +1679,7 @@ static int handle_input_packet(ztime_t tnow)
         }
         return 1;
     } else if (recvret < 0) {
-        PANIC0;
+        assert(0);
         return 0;
     } else {
         return 0;
@@ -1734,7 +1703,7 @@ static int handle_input_stream(ztime_t tnow)
         read_something = 1;
     }
     if (recvret < 0) {
-        PANIC0;
+        assert(0);
         return 0;
     }
     if (inp == 0) {
@@ -1749,10 +1718,10 @@ static int handle_input_stream(ztime_t tnow)
             zmsize_t cons = (zmsize_t) (datap - inbuf);
             if (cons > 0) {
                 t_progress = tnow;
-                if (zeno_state == STATE_OPERATIONAL) {
+                if (peers[0].state == PEERST_ESTABLISHED) {
                     /* any packet is considered proof of liveliness of the broker (the
                        state of course doesn't really change ...) */
-                    t_state_changed = t_progress;
+                    peers[0].tlease = t_progress;
                 }
                 if (cons < inp) {
                     memmove(inbuf, datap, inp - cons);
@@ -1847,56 +1816,6 @@ ztime_t zeno_loop(void)
 {
     ztime_t tnow = zeno_time();
     int r;
-
-#if 0
-    switch (zeno_state) {
-        case STATE_CONNECTED:
-            /* After a connection to broker has been established, send initial
-               declarations; initially just one sub listening for the resource id to use.
-               Note that "oc_pack_mdeclare" necessarily succeeds because the transmit
-               window and the remote subscriptions have both been reset, and therefore no
-               one can be using any space in the reliable transmit window yet.  That also
-               means we transition to OPERATIONAL really quickly and there is no need to
-               check leases here.
-
-               FIXME: should publish all declarations (or reset pubs_to_declare so that it will
-               happen automagically afterward) */
-            if (!oc_pack_mdeclare(&peers[0].oc, 2, WC_DSUB_SIZE + WC_DCOMMIT_SIZE)) {
-                PANIC0;
-            }
-            pack_dsub(1);
-            pack_dcommit(gcommitid++);
-            oc_pack_mdeclare_done(&peers[0].oc);
-            pack_msend();
-            zeno_state = STATE_OPERATIONAL;
-            t_state_changed = tnow;
-            break;
-
-        case STATE_OPERATIONAL:
-            if ((ztimediff_t)(tnow - t_state_changed) > peers[0].tlease) {
-                close_connection_and_scout(tnow);
-                break;
-            }
-            flush_output(tnow);
-            send_declares(tnow);
-            break;
-
-        default:
-            /* opening: repeatedly send open until accepted, closed or timeout */
-            assert(zeno_state >= STATE_OPENING_MIN && zeno_state <= STATE_OPENING_MAX);
-            if (zeno_state == STATE_OPENING_MIN || (ztimediff_t)(tnow - t_state_changed) > OPEN_INTERVAL) {
-                if (zeno_state == STATE_OPENING_MIN + OPEN_RETRIES) {
-                    zeno_state = STATE_SCOUT;
-                } else {
-                    pack_mopen(&peers[0].oc.addr, SEQNUM_LEN, sizeof(peerid), peerid, lease_dur);
-                    pack_msend();
-                    zeno_state++;
-                }
-                t_state_changed = tnow;
-            }
-            break;
-    }
-#endif
 
     do {
 #if TRANSPORT_MODE == TRANSPORT_PACKET

@@ -12,7 +12,6 @@ struct peerid {
     zpsize_t len;
 };
 
-void xrce_panic(uint16_t line, uint16_t code);
 uint16_t xmitw_pos_add(uint16_t p, uint16_t a);
 uint16_t xmitw_bytesavail(const struct out_conduit *c);
 void pack_reserve(zeno_address_t *dst, struct out_conduit *oc, zpsize_t cnt);
@@ -35,8 +34,6 @@ void rsub_precommit_curpkt_done(void);
 void rsub_clear(void);
 int seq_lt(seq_t a, seq_t b);
 int seq_le(seq_t a, seq_t b);
-int ic_may_deliver_seq(struct in_conduit *ic, uint8_t hdr, seq_t seq);
-void ic_update_seq (struct in_conduit *ic, uint8_t hdr, seq_t seq);
 void reset_pubs_to_declare(void);
 void reset_subs_to_declare(void);
 pubidx_t publish(rid_t rid, int reliable);

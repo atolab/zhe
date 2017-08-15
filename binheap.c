@@ -6,14 +6,9 @@
 #include "zeno.h"
 #include "zeno-int.h"
 
-/* so can safely use "native" unsigneds for indexing */
-struct static_assertions {
-    char sizeof_unsigned_geq_sizeof_peeridx[sizeof(unsigned) >= sizeof(peeridx_t) ? 1 : -1];
-};
-
-static void minseqheap_heapify(unsigned j, peeridx_t n, peeridx_t * restrict p, minseqheap_idx_t * restrict q, const seq_t * restrict v)
+static void minseqheap_heapify(peeridx_t j, peeridx_t n, peeridx_t * restrict p, minseqheap_idx_t * restrict q, const seq_t * restrict v)
 {
-    unsigned k;
+    peeridx_t k;
     for (k = 2*j+1; k < n; j = k, k += k + 1) {
         if (k+1 < n && seq_lt(v[p[k+1]], v[p[k]])) {
             k++;
@@ -28,7 +23,7 @@ static void minseqheap_heapify(unsigned j, peeridx_t n, peeridx_t * restrict p, 
 
 void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h)
 {
-    unsigned i;
+    peeridx_t i;
 #ifndef NDEBUG
     for (peeridx_t j = 0; j < h->n; j++) {
         assert(h->hx[j] != peeridx);

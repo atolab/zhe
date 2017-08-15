@@ -8,7 +8,7 @@
 #include "zeno-tracing.h"
 #include "zeno-time.h"
 
-static size_t getrandomid(unsigned char *ownid, size_t ownidsize)
+static zpsize_t getrandomid(unsigned char *ownid, size_t ownidsize)
 {
     FILE *fp;
     if ((fp = fopen("/dev/urandom", "rb")) == NULL) {
@@ -21,10 +21,10 @@ static size_t getrandomid(unsigned char *ownid, size_t ownidsize)
         exit(1);
     }
     fclose(fp);
-    return ownidsize;
+    return (zpsize_t)ownidsize;
 }
 
-static size_t getidfromarg(unsigned char *ownid, size_t ownidsize, const char *in)
+static zpsize_t getidfromarg(unsigned char *ownid, size_t ownidsize, const char *in)
 {
     size_t i = 0;
     int pos = 0, dpos;
@@ -42,7 +42,7 @@ static size_t getidfromarg(unsigned char *ownid, size_t ownidsize, const char *i
         fprintf(stderr, "junk at end of explicit peer id\n");
         exit(1);
     }
-    return i;
+    return (zpsize_t)i;
 }
 
 static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
@@ -63,7 +63,7 @@ static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
 int main(int argc, char * const *argv)
 {
     unsigned char ownid[16];
-    size_t ownidsize;
+    zpsize_t ownidsize;
     int opt;
     int mode = 0;
 

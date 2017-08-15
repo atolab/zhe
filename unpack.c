@@ -30,7 +30,7 @@ int unpack_u16(zmsize_t * restrict sz, const uint8_t * restrict * restrict data,
         return 0;
     }
     if (u) {
-        *u = (*data)[0] | ((uint16_t)((*data)[1]) << 8);
+        *u = (uint16_t)((*data)[0] | ((uint16_t)((*data)[1]) << 8));
     }
     *sz -= 2;
     *data += 2;
