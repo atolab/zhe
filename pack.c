@@ -60,6 +60,11 @@ void pack_seq(seq_t x)
     pack_vle16(x >> SEQNUM_SHIFT);
 }
 
+size_t pack_seqreq(seq_t x)
+{
+    return pack_vle16req(x >> SEQNUM_SHIFT);
+}
+
 void pack_rid(rid_t x)
 {
     SUFFIX_WITH_SIZE(pack_vle, RID_T_SIZE) (x);
@@ -147,14 +152,14 @@ void pack_reserve_mconduit(zeno_address_t *dst, struct out_conduit *oc, cid_t ci
     if (cid > 4) {
         pack2(MCONDUIT, cid);
     } else if (cid > 0) {
-        uint8_t eid = (cid - 1) << 4;
+        uint8_t eid = (cid - 1) << 5;
         pack1(MCONDUIT | MZFLAG | eid);
     }
 }
 
 void pack_msynch(zeno_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt)
 {
-    pack_reserve_mconduit(dst, NULL, cid, 4 + pack_vle16req(cnt));
+    pack_reserve_mconduit(dst, NULL, cid, 1 + pack_seqreq(seqbase) + pack_seqreq(cnt));
     pack1(MRFLAG | sflag | MSYNCH);
     pack_seq(seqbase);
     pack_seq(cnt);
@@ -162,7 +167,7 @@ void pack_msynch(zeno_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, s
 
 void pack_macknack(zeno_address_t *dst, cid_t cid, seq_t seq, uint32_t mask)
 {
-    pack_reserve_mconduit(dst, NULL, cid, 4 + (mask ? pack_vle32req(mask) : 0));
+    pack_reserve_mconduit(dst, NULL, cid, 1 + pack_seqreq(seq) + (mask ? pack_vle32req(mask) : 0));
     pack1(MSFLAG | (mask == 0 ? 0 : MMFLAG) | MACKNACK);
     pack_seq(seq);
     if (mask != 0) {
@@ -195,12 +200,13 @@ void pack_mkeepalive(zeno_address_t *dst, const struct peerid *ownid)
 
 int oc_pack_msdata(struct out_conduit *c, int relflag, rid_t rid, zpsize_t payloadlen)
 {
-    const zpsize_t sz = 4 + pack_ridreq(rid) + pack_vle16req(payloadlen) + payloadlen;
+    /* FIXME: should use pack_seqreq instead of worst-case of 2 */
+    const zpsize_t sz = 3 + pack_ridreq(rid) + pack_vle16req(payloadlen) + payloadlen;
     uint8_t hdr = MSDATA | (relflag ? MRFLAG : 0);
     zmsize_t from;
     seq_t s;
 
-    if (relflag && XMITW_BYTES - xmitw_bytesused(c) < sizeof(zmsize_t) + sz) {
+    if (relflag && xmitw_bytesavail(c) < sizeof(zmsize_t) + sz) {
         /* Reliable, insufficient space in transmit window (accounting for preceding length byte) */
         return 0;
     }
@@ -231,7 +237,7 @@ int oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen)
     zmsize_t from;
     seq_t s;
     assert(ndecls <= 127);
-    if (XMITW_BYTES - xmitw_bytesused(c) < sizeof(zmsize_t) + 5 + decllen) {
+    if (xmitw_bytesavail(c) < sizeof(zmsize_t) + 5 + decllen) {
         /* no space in transmit window (1 byte size, 5 bytes header, decllen) */
         return 0;
     }

@@ -58,6 +58,7 @@ seq_t minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_d
         return seqbase_if_discarded;
     } else {
         assert(h->hx[h->ix[peeridx].i] == peeridx);
+        h->vs[peeridx] = seqbase;
         minseqheap_heapify(h->ix[peeridx].i, h->n, h->hx, h->ix, h->vs);
         return h->vs[h->hx[0]];
     }

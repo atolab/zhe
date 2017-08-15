@@ -5,6 +5,7 @@
 #define ZTCAT_DEBUG      2u
 #define ZTCAT_PEERDISC   4u
 #define ZTCAT_TRANSPORT  8u
+#define ZTCAT_RELIABLE  16u
 
 #include "zeno-config.h"
 

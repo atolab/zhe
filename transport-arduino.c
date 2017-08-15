@@ -145,13 +145,19 @@ static int arduino_addr_eq(const struct zeno_address *a, const struct zeno_addre
     return 1;
 }
 
+static int arduino_wait(const struct zeno_transport * restrict tp, ztimediff_t timeout)
+{
+    return Serial.available();
+}
+
 zeno_transport_ops_t transport_arduino = {
     .new = arduino_new,
     .free = arduino_free,
     .addr2string = arduino_addr2string,
     .addr_eq = arduino_addr_eq,
     .send = arduino_send,
-    .recv = arduino_recv
+    .recv = arduino_recv,
+    .wait = arduino_wait
 };
 
 #endif

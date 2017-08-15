@@ -48,7 +48,7 @@ typedef uint8_t peeridx_t;
    cases eliminate the latency budget handling and state from the code, saving a whopping 4
    bytes of RAM!  */
 #define LATENCY_BUDGET_INF   (4294967295u)
-#define LATENCY_BUDGET     100 /* ms */
+#define LATENCY_BUDGET       10 /* ms */
 
 /* Send a SYNCH message set every MSYNCH_INTERVAL ms when unack'd messages are present in the
    transmit window.  Ideally would base this on measured round-trip time.  Messages with the S

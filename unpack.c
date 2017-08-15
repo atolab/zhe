@@ -112,9 +112,10 @@ int unpack_seq(zmsize_t * restrict sz, const uint8_t * restrict * restrict data,
 
 const uint8_t *skip_validated_vle(const uint8_t * restrict data)
 {
-    while (*data & 0x80) {
-        data++;
-    }
+    uint8_t d;
+    do {
+        d = *data++;
+    } while (d & 0x80);
     return data;
 }
 

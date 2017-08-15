@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -98,6 +99,7 @@ static struct zeno_transport *udp_new(const struct zeno_config *config, zeno_add
     addr.sin_port = 0;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(udp->s[0], (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+        perror("bind[0]");
         goto err;
     }
     addrlen = sizeof(addr);
@@ -107,21 +109,25 @@ static struct zeno_transport *udp_new(const struct zeno_config *config, zeno_add
     /* MC sockets needs reuse options set, and is bound to the MC address we use at a "well-known" 
        port number */
     if (setsockopt(udp->s[1], SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one)) == -1) {
+        perror("SO_REUSEADDR");
         goto err;
     }
 #ifdef SO_REUSEPORT
     if (setsockopt(udp->s[1], SOL_SOCKET, SO_REUSEPORT, (char *)&one, sizeof(one)) == -1) {
+        perror("SO_REUSEPORT");
         goto err;
     }
 #endif
     addr.sin_port = htons(mcport);
     (void)inet_pton(AF_INET, mcaddr_str, &addr.sin_addr.s_addr);
     if (bind(udp->s[1], (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+        perror("bind[1]");
         goto err;
     }
     mreq.imr_multiaddr = addr.sin_addr;
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     if (setsockopt(udp->s[1], IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) == -1) {
+        perror("IP_ADD_MEMBERSHIP");
         goto err;
     }
 
@@ -200,10 +206,11 @@ static ssize_t udp_send(struct zeno_transport * restrict tp, const void * restri
     assert(size <= TRANSPORT_MTU);
     ret = sendto(udp->s[0], buf, size, 0, (const struct sockaddr *)&dst->a, sizeof(dst->a));
     if (ret > 0) {
-        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), dst); ZT(TRANSPORT, ("send %zu to %s", size, tmp)); }
+        char tmp[TRANSPORT_ADDRSTRLEN];
+        udp_addr2string(tmp, sizeof(tmp), dst);
+        ZT(TRANSPORT, ("send %zu to %s", ret, tmp));
         return ret;
-    } else if (ret == -1 && errno == EAGAIN) {
-        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), dst); ZT(TRANSPORT, ("send(EAGAIN) %zu to %s", size, tmp)); }
+    } else if (ret == -1 && (errno == EAGAIN || errno == ENOBUFS || errno == EHOSTDOWN || errno == EHOSTUNREACH)) {
         return 0;
     } else {
         return SENDRECV_ERROR;
@@ -216,13 +223,11 @@ static ssize_t udp_recv1(struct udp * restrict udp, void * restrict buf, size_t 
     ssize_t ret;
     ret = recvfrom(udp->s[udp->next], buf, size, 0, (struct sockaddr *)&src->a, &srclen);
     if (ret > 0) {
-        { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), src); ZT(TRANSPORT, ("recv[%d] %zu from %s", udp->next, ret, tmp)); }
         udp->next = 1 - udp->next;
         return ret;
     } else if (ret == -1 && errno == EAGAIN) {
         ret = recvfrom(udp->s[1 - udp->next], buf, size, 0, (struct sockaddr *)&src->a, &srclen);
         if (ret > 0) {
-            { char tmp[TRANSPORT_ADDRSTRLEN]; udp_addr2string(tmp, sizeof(tmp), src); ZT(TRANSPORT, ("recv[%d] %zu from %s", 1 - udp->next, ret, tmp)); }
             return ret;
         } else if (ret == -1 && errno == EAGAIN) {
             return 0;
@@ -249,6 +254,11 @@ static ssize_t udp_recv(struct zeno_transport * restrict tp, void * restrict buf
     struct udp *udp = (struct udp *)tp;
     ssize_t ret = udp_recv1(udp, buf, size, src);
     if (ret <= 0 || !is_from_me(udp, src)) {
+        if (ret > 0) {
+            char tmp[TRANSPORT_ADDRSTRLEN];
+            udp_addr2string(tmp, sizeof(tmp), src);
+            ZT(TRANSPORT, ("recv[%d] %zu from %s", 1 - udp->next, ret, tmp));
+        }
         return ret;
     } else {
         return 0;
@@ -260,13 +270,32 @@ static int udp_addr_eq(const struct zeno_address *a, const struct zeno_address *
     return a->a.sin_addr.s_addr == b->a.sin_addr.s_addr && a->a.sin_port == b->a.sin_port;
 }
 
+static int udp_wait(const struct zeno_transport * restrict tp, ztimediff_t timeout)
+{
+    struct udp * const udp = (struct udp *)tp;
+    const int k = (udp->s[0] > udp->s[1]) ? udp->s[0] : udp->s[1];
+    fd_set rs;
+    FD_ZERO(&rs);
+    FD_SET(udp->s[0], &rs);
+    FD_SET(udp->s[1], &rs);
+    if (timeout < 0) {
+        return select(k+1, &rs, NULL, NULL, NULL) > 0;
+    } else {
+        struct timeval tv;
+        tv.tv_sec = timeout / 1000;
+        tv.tv_usec = 1000 * (timeout % 1000);
+        return select(k+1, &rs, NULL, NULL, &tv) > 0;
+    }
+}
+
 zeno_transport_ops_t transport_udp = {
     .new = udp_new,
     .free = udp_free,
     .addr2string = udp_addr2string,
     .addr_eq = udp_addr_eq,
     .send = udp_send,
-    .recv = udp_recv
+    .recv = udp_recv,
+    .wait = udp_wait
 };
 
 #endif

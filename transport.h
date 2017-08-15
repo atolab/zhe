@@ -21,6 +21,7 @@ typedef struct zeno_transport_ops {
     size_t (*addr2string)(char * restrict str, size_t size, const struct zeno_address * restrict addr);
     ssize_t (*send)(struct zeno_transport * restrict tp, const void * restrict buf, size_t size, const struct zeno_address * restrict dst);
     ssize_t (*recv)(struct zeno_transport * restrict tp, void * restrict buf, size_t size, struct zeno_address * restrict src);
+    int (*wait)(const struct zeno_transport * restrict tp, ztimediff_t timeout);
 } zeno_transport_ops_t;
 
 #endif
