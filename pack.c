@@ -9,6 +9,7 @@
 
 #include "pack.h"
 #include "zeno-int.h"
+#include "zeno-tracing.h"
 
 void pack_vle16(uint16_t x)
 {
@@ -162,12 +163,16 @@ void pack_reserve_mconduit(zeno_address_t *dst, struct out_conduit *oc, cid_t ci
     }
 }
 
+unsigned zeno_synch_sent;
+
 void pack_msynch(zeno_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt)
 {
+    ZT(RELIABLE, ("pack_msynch cid %d sflag %u seq %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt));
     pack_reserve_mconduit(dst, NULL, cid, 1 + pack_seqreq(seqbase) + pack_seqreq(cnt));
     pack1(MRFLAG | sflag | MSYNCH);
     pack_seq(seqbase);
     pack_seq(cnt);
+    zeno_synch_sent++;
 }
 
 void pack_macknack(zeno_address_t *dst, cid_t cid, seq_t seq, uint32_t mask)
@@ -213,6 +218,7 @@ int oc_pack_msdata(struct out_conduit *c, int relflag, rid_t rid, zpsize_t paylo
 
     if (relflag && xmitw_bytesavail(c) < sizeof(zmsize_t) + sz) {
         /* Reliable, insufficient space in transmit window (accounting for preceding length byte) */
+        oc_hit_full_window(c);
         return 0;
     }
 

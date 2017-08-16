@@ -199,11 +199,27 @@ static size_t udp_addr2string(char * restrict str, size_t size, const zeno_addre
     }
 }
 
+#if 1
+static void udp_wait_send(int sock)
+{
+    fd_set ws;
+    struct timeval tv;
+    FD_ZERO(&ws);
+    FD_SET(sock, &ws);
+    tv.tv_sec = 0;
+    tv.tv_usec = 10000;
+    (void)select(sock+1, NULL, &ws, NULL, &tv);
+}
+#endif
+
 static ssize_t udp_send(struct zeno_transport * restrict tp, const void * restrict buf, size_t size, const zeno_address_t * restrict dst)
 {
     struct udp *udp = (struct udp *)tp;
     ssize_t ret;
     assert(size <= TRANSPORT_MTU);
+#if 1
+    udp_wait_send(udp->s[0]);
+#endif
     ret = sendto(udp->s[0], buf, size, 0, (const struct sockaddr *)&dst->a, sizeof(dst->a));
     if (ret > 0) {
         char tmp[TRANSPORT_ADDRSTRLEN];

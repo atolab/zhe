@@ -9,7 +9,15 @@
 static void minseqheap_heapify(peeridx_t j, peeridx_t n, peeridx_t * restrict p, minseqheap_idx_t * restrict q, const seq_t * restrict v)
 {
     peeridx_t k;
-    for (k = 2*j+1; k < n; j = k, k += k + 1) {
+    /* j < n/2 term to protect against overflow of k:
+       - for n even: j < n/2 => k < 2*(n/2)+1 = n+1
+       - for n odd:  j < n/2 = (n-1)/2 => k < 2*((n-1)/2)+1 = n 
+       n+1 potentially overflows, but j < n/2 takes care of that
+       --
+       in the loop body k can only be incremented if k+1 < n, 
+       but (1) k < n and (2) n is in range, so k+1 is
+       at most n and therefore also in range */
+    for (k = 2*j+1; j < n/2 && k < n; j = k, k += k + 1) {
         if (k+1 < n && seq_lt(v[p[k+1]], v[p[k]])) {
             k++;
         }

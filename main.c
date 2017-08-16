@@ -45,6 +45,8 @@ static zpsize_t getidfromarg(unsigned char *ownid, size_t ownidsize, const char 
     return (zpsize_t)i;
 }
 
+extern unsigned zeno_delivered, zeno_discarded;
+
 static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
 {
     static ztime_t tprint;
@@ -54,7 +56,7 @@ static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
     if ((k % 16384) == 0) {
         ztime_t tnow = zeno_time();
         if ((ztimediff_t)(tnow - tprint) >= 1000) {
-            printf ("%4u.%03u ** %u\n", tnow / 1000, tnow % 1000, k);
+            printf ("%4u.%03u %u [%u,%u]\n", tnow / 1000, tnow % 1000, k, zeno_delivered, zeno_discarded);
             tprint = tnow;
         }
     }
@@ -76,7 +78,7 @@ int main(int argc, char * const *argv)
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'p': mode = 1; break;
             case 's': mode = -1; break;
-            case 'q': zeno_trace_cats = 0; break;
+            case 'q': zeno_trace_cats = ZTCAT_PEERDISC; break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
@@ -88,13 +90,15 @@ int main(int argc, char * const *argv)
     (void)zeno_init(ownidsize, ownid);
     zeno_loop_init();
     switch (mode) {
-        case 0:
+        case 0: {
+            ztime_t tstart = zeno_time();
             do {
                 const struct timespec sl = { 0, 10000000 };
                 zeno_loop();
                 nanosleep(&sl, NULL);
-            } while(zeno_time() < 20000);
+            } while(zeno_time() - tstart < 20000);
             break;
+        }
         case -1: {
             (void)subscribe(1, 0, shandler, 0);
             while (1) {
@@ -105,7 +109,7 @@ int main(int argc, char * const *argv)
         }
         case 1: {
             uint32_t k = 0;
-            pubidx_t p = publish(1, 1);
+            pubidx_t p = publish(1, 1, 1);
             ztime_t tprint = zeno_time();
             while (1) {
                 int i;
@@ -117,7 +121,8 @@ int main(int argc, char * const *argv)
                         if ((k % 16384) == 0) {
                             ztime_t tnow = zeno_time();
                             if ((ztimediff_t)(tnow - tprint) >= 1000) {
-                                printf ("%4u.%03u ** %u\n", tnow / 1000, tnow % 1000, k);
+                                extern unsigned zeno_synch_sent;
+                                printf ("%4u.%03u %u [%u]\n", tnow / 1000, tnow % 1000, k, zeno_synch_sent);
                                 tprint = tnow;
                             }
                         }

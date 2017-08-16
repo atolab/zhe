@@ -63,6 +63,7 @@ struct out_conduit {
     cid_t    cid;                 /* conduit id */
     ztime_t  last_rexmit;
     seq_t    last_rexmit_seq;
+    unsigned draining_window: 1;
     uint8_t  rbuf[XMITW_BYTES];   /* reliable samples (or declarations); prepended by size (of type zmsize_t) */
 };
 
@@ -144,6 +145,7 @@ static void oc_reset_transmit_window(struct out_conduit * const oc)
 {
     oc->seqbase = oc->seq;
     oc->firstpos = oc->spos;
+    oc->draining_window = 0;
 }
 
 static void oc_setup1(struct out_conduit * const oc, cid_t cid)
@@ -263,7 +265,7 @@ uint16_t xmitw_bytesavail(const struct out_conduit *c)
 
 static seq_t oc_get_nsamples(struct out_conduit const * const c)
 {
-    return (c->seq - c->seqbase) >> SEQNUM_SHIFT;
+    return (seq_t)(c->seq - c->seqbase) >> SEQNUM_SHIFT;
 }
 
 static void pack_msend(void)
@@ -275,7 +277,6 @@ static void pack_msend(void)
         uint16_t cnt = xmitw_bytesavail(outc);
         if (cnt < XMITW_BYTES / 4 && cnt + outspos >= XMITW_BYTES / 4) {
             outbuf[outspos] |= MSFLAG;
-            outc->tsynch = zeno_time() + MSYNCH_INTERVAL;
         }
     }
     if (transport_ops.send(transport, outbuf, outp, outdst) < 0) {
@@ -349,6 +350,15 @@ cid_t oc_get_cid(struct out_conduit *c)
     return c->cid;
 }
 
+void oc_hit_full_window(struct out_conduit *c)
+{
+    c->draining_window = 1;
+    if (outp > 0) {
+        pack_msynch(outdst, MSFLAG, c->cid, c->seqbase, oc_get_nsamples(c));
+        pack_msend();
+    }
+}
+
 #if N_OUT_CONDUITS > 1
 int ocm_have_peers(const struct out_mconduit *mc)
 {
@@ -380,7 +390,7 @@ zmsize_t oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, z
         *s = c->seq;
         outspos = outp;
     }
-    ZT(RELIABLE, ("oc_pack_msdata cid %u %p seq %u", c->cid, (void*)c, *s >> SEQNUM_SHIFT));
+    //ZT(RELIABLE, ("oc_pack_payload_msgprep cid %u %p seq %u sz %u", c->cid, (void*)c, *s >> SEQNUM_SHIFT, (unsigned)sz));
     return outp;
 }
 
@@ -1125,13 +1135,16 @@ static zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
         ZT(RELIABLE, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt));
         if (seq_lt(peers[peeridx].ic[cid].seq, seqbase) || !peers[peeridx].ic[cid].synched) {
             peers[peeridx].ic[cid].seq = seqbase;
-            peers[peeridx].ic[cid].lseqpU = seqbase + (seq_t)(cnt << SEQNUM_SHIFT);
+            peers[peeridx].ic[cid].lseqpU = seqbase + (seq_t)(cnt << SEQNUM_SHIFT) + SEQNUM_UNIT;
             peers[peeridx].ic[cid].synched = 1;
+            ZT(PEERDISC, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt));
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }
     return (zmsize_t)(data - data0);
 }
+
+unsigned zeno_delivered, zeno_discarded;
 
 static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
 {
@@ -1183,8 +1196,10 @@ static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
                 subs[k].handler(prid, paysz, pay, subs[k].arg);
                 ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
             }
+            zeno_delivered++;
         } else {
             ZT(RELIABLE, ("handle_msdata peeridx %u cid %u seq %u %s %u", peeridx, cid, seq >> SEQNUM_SHIFT, (hdr & MRFLAG) ? "!=" : "<", (hdr & MRFLAG) ? (peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT) : (peers[peeridx].ic[cid].useq >> SEQNUM_SHIFT)));
+            zeno_discarded++;
         }
         if ((hdr & (MRFLAG | MSFLAG)) == (MRFLAG | MSFLAG)) {
             /* FIXME: or should this regardless of the S flag? */
@@ -1221,6 +1236,10 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
         }
         assert(cnt == 0);
         assert(((c->firstpos + sizeof(zmsize_t)) % XMITW_BYTES == c->pos) == (c->seq == c->seqbase));
+    }
+
+    if (oc_get_nsamples(c) == 0) {
+        c->draining_window = 0;
     }
 }
 
@@ -1267,7 +1286,15 @@ static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
 
     if (mask == 0) {
         /* Pure ACK - no need to do anything else */
-        ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u ACK", peeridx, cid, seq >> SEQNUM_SHIFT));
+        if (seq != c->seq) {
+            ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u ACK but we have [%u,%u]", peeridx, cid, seq >> SEQNUM_SHIFT, c->seqbase >> SEQNUM_SHIFT, c->seq >> SEQNUM_SHIFT));
+#if 0
+            pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c));
+            pack_msend();
+#endif
+        } else {
+            ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u ACK", peeridx, cid, seq >> SEQNUM_SHIFT));
+        }
     } else if (seq_lt(seq, c->seqbase) || seq_le(c->seq, seq)) {
         /* If the broker ACKs stuff we have dropped already, or if it NACKs stuff we have not
            even sent yet, send a SYNCH without the S flag (i.e., let the broker decide what to
@@ -1478,7 +1505,7 @@ void reset_subs_to_declare(void)
     }
 }
 
-pubidx_t publish(rid_t rid, int reliable)
+pubidx_t publish(rid_t rid, unsigned cid, int reliable)
 {
     /* We will be publishing rid, dynamically allocating a "pubidx" for it and scheduling a
        DECLARE message that informs the broker of this.  By scheduling it, we avoid the having
@@ -1491,12 +1518,13 @@ pubidx_t publish(rid_t rid, int reliable)
     }
     assert(i < MAX_PUBS);
     assert(!bitset_test(pubs_isrel, i));
+    assert(cid < N_OUT_CONDUITS);
     pubs[i].rid = rid;
-    /* FIXME: don't just use first mc conduit */
-#if N_OUT_CONDUITS > 1
-    pubs[i].oc = &out_mconduits[0].oc;
-#else
+#if N_OUT_CONDUITS == 1
     pubs[i].oc = &peers[0].oc;
+#else
+    /* FIXME: quite the hack ... if unicast is chosen, there should be only one (or perhaps I should just allow multiple ...) */
+    pubs[i].oc = (cid == 0) ? &peers[0].oc : &out_mconduits[cid-1].oc;
 #endif
     if (reliable) {
         bitset_set(pubs_isrel, i);
@@ -1535,8 +1563,25 @@ int zeno_write(pubidx_t pubidx, zpsize_t sz, const void *data)
         return 1;
     }
 #endif
+#if 1 /* FIXME */
+    if (oc->cid == 0) {
+        struct peer * const peer = (struct peer *)((char *)oc - offsetof(struct peer, oc));
+        if (peer->state != PEERST_ESTABLISHED) {
+            return 1;
+        }
+    } else {
+        if (minseqheap_isempty(&out_mconduits[oc->cid-1].seqbase)) {
+            return 1;
+        }
+    }
+#endif
 
     relflag = bitset_test(pubs_isrel, pubidx.idx);
+
+    if (oc->draining_window) {
+        return !relflag;
+    }
+
     if (!oc_pack_msdata(oc, relflag, pubs[pubidx.idx].rid, sz)) {
         /* for reliable, a full window means failure; for unreliable it is a non-issue */
         return !relflag;
@@ -1663,19 +1708,19 @@ static int handle_input_packet(ztime_t tnow)
         }
         (void)transport_ops.addr2string(addrstr, sizeof(addrstr), &insrc);
         if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
-            ZT(PEERDISC, ("possible new peer %s @ %u", addrstr, free_peeridx));
+            ZT(DEBUG, ("possible new peer %s @ %u", addrstr, free_peeridx));
             peeridx = free_peeridx;
             peers[peeridx].oc.addr = insrc;
         }
         if (peeridx < MAX_PEERS_1) {
-            ZT(PEERDISC, ("handle message from %s @ %u", addrstr, peeridx));
+            ZT(DEBUG, ("handle message from %s @ %u", addrstr, peeridx));
             if (peers[peeridx].state == PEERST_ESTABLISHED) {
                 peers[peeridx].tlease = tnow;
             }
             handle_packet(peeridx, (zmsize_t)recvret, inbuf, tnow);
             /* peeridx need no longer be correct */
         } else {
-            ZT(PEERDISC, ("message from %s dropped: no available peeridx", addrstr));
+            ZT(DEBUG, ("message from %s dropped: no available peeridx", addrstr));
         }
         return 1;
     } else if (recvret < 0) {
@@ -1800,10 +1845,12 @@ static void housekeeping(ztime_t tnow)
     for (cid_t cid = 1; cid < N_OUT_CONDUITS; cid++) {
         struct out_mconduit * const mc = &out_mconduits[cid-1];
 
+#if 0 /* now not storing anything by checking #peers */
         /* FIXME: should not even store the data temporarily if there are no peers */
         if (minseqheap_isempty(&mc->seqbase)) {
             remove_acked_messages(&mc->oc, mc->oc.seq);
         }
+#endif
 
         maybe_send_msync_oc(&mc->oc, tnow);
     }
@@ -1834,5 +1881,6 @@ ztime_t zeno_loop(void)
 
 void zeno_wait_input(ztimediff_t timeout)
 {
+    (void)zeno_loop();
     transport_ops.wait(transport, timeout);
 }

@@ -39,7 +39,7 @@ int unpack_u16(zmsize_t * restrict sz, const uint8_t * restrict * restrict data,
 
 int unpack_vle16(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint16_t * restrict u)
 {
-    typeof(*u) n;
+    uint16_t n;
     uint8_t shift = 7;
     uint8_t x;
     if (*sz == 0) {
@@ -53,7 +53,7 @@ int unpack_vle16(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
         }
         x = **data; (*data)++; (*sz)--;
         if (shift < CHAR_BIT * sizeof(*u)) { /* else behaviour is undefined */
-            n |= ((typeof(n))(x & 0x7f)) << shift;
+            n |= ((uint16_t)(x & 0x7f)) << shift;
             shift += 7;
         }
     }
@@ -63,7 +63,7 @@ int unpack_vle16(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
 
 int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint32_t * restrict u)
 {
-    typeof(*u) n;
+    uint32_t n;
     uint8_t shift = 7;
     uint8_t x;
     if (*sz == 0) { return 0; }
@@ -73,7 +73,7 @@ int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
         if (*sz == 0) { return 0; }
         x = **data; (*data)++; (*sz)--;
         if (shift < CHAR_BIT * sizeof(*u)) { /* else behaviour is undefined */
-            n |= ((typeof(n))(x & 0x7f)) << shift;
+            n |= ((uint32_t)(x & 0x7f)) << shift;
             shift += 7;
         }
     }
@@ -83,7 +83,7 @@ int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
 
 int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint64_t * restrict u)
 {
-    typeof(*u) n;
+    uint64_t n;
     uint8_t shift = 7;
     uint8_t x;
     if (*sz == 0) { return 0; }
@@ -93,7 +93,7 @@ int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
         if (*sz == 0) { return 0; }
         x = **data; (*data)++; (*sz)--;
         if (shift < CHAR_BIT * sizeof(*u)) { /* else behaviour is undefined */
-            n |= ((typeof(n))(x & 0x7f)) << shift;
+            n |= ((uint64_t)(x & 0x7f)) << shift;
             shift += 7;
         }
     }
