@@ -81,6 +81,7 @@ int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
     return 1;
 }
 
+#if RID_T_SIZE > 32
 int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint64_t * restrict u)
 {
     uint64_t n;
@@ -100,6 +101,7 @@ int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
     if (u) *u = n;
     return 1;
 }
+#endif
 
 int unpack_seq(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, seq_t * restrict u)
 {

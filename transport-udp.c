@@ -1,6 +1,7 @@
 #ifndef ARDUINO
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <assert.h>
 #include <string.h>
@@ -29,6 +30,7 @@ struct udp {
 };
 
 static struct udp gudp;
+long randomthreshold = 0;
 
 static size_t udp_addr2string(char * restrict str, size_t size, const zeno_address_t * restrict addr);
 
@@ -217,6 +219,11 @@ static ssize_t udp_send(struct zeno_transport * restrict tp, const void * restri
     struct udp *udp = (struct udp *)tp;
     ssize_t ret;
     assert(size <= TRANSPORT_MTU);
+#if 1
+    if (randomthreshold && random() < randomthreshold) {
+        return (ssize_t)size;
+    }
+#endif
 #if 1
     udp_wait_send(udp->s[0]);
 #endif

@@ -10,6 +10,8 @@
 
 #include "zeno-config-int.h" /* for N_OUT_CONDUITS */
 
+static uint32_t checkintv = 16384;
+
 static zpsize_t getrandomid(unsigned char *ownid, size_t ownidsize)
 {
     FILE *fp;
@@ -67,7 +69,7 @@ static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
         lastk = k;
         lastk_init = 1;
     }
-    if ((k % 16384) == 0) {
+    if ((k % checkintv) == 0) {
         ztime_t tnow = zeno_time();
         if ((ztimediff_t)(tnow - tprint) >= 1000) {
             printf ("%4u.%03u %u %u [%u,%u]\n", tnow / 1000, tnow % 1000, k, oooc, zeno_delivered, zeno_discarded);
@@ -84,11 +86,14 @@ int main(int argc, char * const *argv)
     int mode = 0;
     unsigned cid = 0;
 
+    extern long randomthreshold; // from UDP code
+    srandomdev();
+
     zeno_time_init();
     ownidsize = getrandomid(ownid, sizeof(ownid));
     zeno_trace_cats = ~0u;
 
-    while((opt = getopt(argc, argv, "c:h:psq")) != EOF) {
+    while((opt = getopt(argc, argv, "C:c:h:psqX:")) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'p': mode = 1; break;
@@ -100,6 +105,8 @@ int main(int argc, char * const *argv)
                 cid = (unsigned)t;
                 break;
             }
+            case 'C': checkintv = (unsigned)atoi(optarg); break;
+            case 'X': randomthreshold = atoi(optarg) * 21474836; break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
@@ -139,7 +146,7 @@ int main(int argc, char * const *argv)
                    number of (non-blocking) recvfrom calls and speeds things up a fair bit */
                 for (i = 0; i < 50; i++) {
                     if (zeno_write(p, sizeof(k), &k)) {
-                        if ((k % 16384) == 0) {
+                        if ((k % checkintv) == 0) {
                             ztime_t tnow = zeno_time();
                             if ((ztimediff_t)(tnow - tprint) >= 1000) {
                                 extern unsigned zeno_synch_sent;
@@ -152,7 +159,7 @@ int main(int argc, char * const *argv)
                         break;
                     }
                 }
-                if (i < 16) {
+                if (i < 50) {
                     /* zeno_write failed => no space in transmit window => must first process incoming
                        packets or expire a lease to make further progress */
                     zeno_wait_input(10);

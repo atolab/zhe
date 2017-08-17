@@ -26,17 +26,6 @@ struct zeno_config { char dummy; }; /* FIXME: flesh out config */
 #  error "transport configuration did not set MTU properly"
 #endif
 
-#if ! HAVE_UNICAST_CONDUIT
-#  define N_OUT_MCONDUITS N_OUT_CONDUITS
-#  define MAX_MULTICAST_CID (N_OUT_CONDUITS - 1)
-#else
-#  define UNICAST_CID (N_OUT_CONDUITS - 1)
-#  if N_OUT_CONDUITS > 1
-#    define N_OUT_MCONDUITS (N_OUT_CONDUITS - 1)
-#    define MAX_MULTICAST_CID (N_OUT_MCONDUITS - 2)
-#  endif
-#endif
-
 #if MAX_PEERS > 1 && N_OUT_MCONDUITS == 0
 #  error "MAX_PEERS > 1 requires presence of multicasting conduit"
 #endif
@@ -94,14 +83,14 @@ struct peer {
     ztimediff_t lease_dur;        /* lease duration in ms */
 #if HAVE_UNICAST_CONDUIT
     struct out_conduit oc;        /* unicast to this peer */
-    uint8_t oc_rbuf[XMITW_BYTES_UNICAST];
 #else
-    struct {
-        zeno_address_t addr;
-    } oc;
+    struct { zeno_address_t addr; } oc;
 #endif
     struct in_conduit ic[N_IN_CONDUITS]; /* one slot for each out conduit from this peer */
     struct peerid id;             /* peer id */
+#if HAVE_UNICAST_CONDUIT
+    uint8_t oc_rbuf[XMITW_BYTES_UNICAST];
+#endif
 };
 
 #if N_OUT_MCONDUITS > 0
@@ -1183,11 +1172,13 @@ static zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {
         ZT(RELIABLE, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT));
-        if (seq_lt(peers[peeridx].ic[cid].seq, seqbase) || !peers[peeridx].ic[cid].synched) {
+        if (seq_le(peers[peeridx].ic[cid].seq, seqbase) || !peers[peeridx].ic[cid].synched) {
+            if (!peers[peeridx].ic[cid].synched) {
+                ZT(PEERDISC, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT));
+            }
             peers[peeridx].ic[cid].seq = seqbase;
             peers[peeridx].ic[cid].lseqpU = seqbase + cnt_shifted;
             peers[peeridx].ic[cid].synched = 1;
-            ZT(PEERDISC, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT));
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }
@@ -1406,8 +1397,12 @@ static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
            the S flag in that final message. Also make sure we send a SYNCH not too long after
            (and so do all that pack_msend would otherwise have done for c). */
         assert(outspos_tmp != OUTSPOS_UNSET);
+#if 1 /* setting the S bit is not the same as a SYNCH */
         outbuf[outspos_tmp] |= MSFLAG;
+#else
+        pack_msynch(&c->addr, MSFLAG, cid, c->seqbase, oc_get_nsamples(c));
         c->tsynch = tnow + MSYNCH_INTERVAL;
+#endif
         pack_msend();
     }
     return (zmsize_t)(data - data0);
@@ -1802,7 +1797,7 @@ static int handle_input_stream(ztime_t tnow)
             }
         }
 
-        if (inp == sizeof(inbuf) || (inp > 0 && (ztimediff_t)(tnow - 300) > t_progress)) {
+        if (inp == sizeof(inbuf) || (inp > 0 && (ztimediff_t)(tnow - t_progress) > 300)) {
             /* No progress: discard whatever we have buffered and hope for the best. */
             inp = 0;
         }

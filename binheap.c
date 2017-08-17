@@ -1,6 +1,9 @@
+#include "zeno-config-int.h"
+
+#if N_OUT_MCONDUITS > 0
+
 #include <assert.h>
 #include "binheap.h"
-#include "zeno-config-int.h"
 
 /* for seq_l() */
 #include "zeno.h"
@@ -33,6 +36,7 @@ void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * con
 {
     peeridx_t i;
 #ifndef NDEBUG
+    assert(h->ix[peeridx].i == PEERIDX_INVALID);
     for (peeridx_t j = 0; j < h->n; j++) {
         assert(h->hx[j] != peeridx);
     }
@@ -81,9 +85,14 @@ int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
     } else {
         assert(h->hx[i] == peeridx);
         h->ix[peeridx].i = PEERIDX_INVALID;
-        h->hx[i] = h->hx[--h->n];
-        h->ix[h->hx[i]].i = i;
-        minseqheap_heapify(i, h->n, h->hx, h->ix, h->vs);
+        if (h->n > 1) {
+            h->hx[i] = h->hx[--h->n];
+            h->ix[h->hx[i]].i = i;
+            minseqheap_heapify(i, h->n, h->hx, h->ix, h->vs);
+        } else {
+            h->n = 0;
+            h->hx[0] = PEERIDX_INVALID;
+        }
         return 1;
     }
 }
@@ -92,3 +101,5 @@ int minseqheap_isempty(struct minseqheap const * const h)
 {
     return h->n == 0;
 }
+
+#endif

@@ -41,6 +41,7 @@ zpsize_t pack_vle32req(uint32_t x)
     return n;
 }
 
+#if RID_T_SIZE > 32
 void pack_vle64(uint64_t x)
 {
     do {
@@ -55,6 +56,7 @@ zpsize_t pack_vle64req(uint64_t x)
     do { n++; x >>= 7; } while (x != 0);
     return n;
 }
+#endif
 
 void pack_seq(seq_t x)
 {

@@ -3,7 +3,6 @@
 
 #include "zeno-config.h"
 
-typedef struct zeno_transport_ops zeno_transport_ops_t;
 typedef struct { uint8_t idx; } pubidx_t;
 typedef struct { uint8_t idx; } subidx_t;
 typedef void (*subhandler_t)(rid_t rid, zpsize_t size, const void *payload, void *arg);

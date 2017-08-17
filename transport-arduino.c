@@ -6,7 +6,7 @@
 #include "zeno-config.h"
 #include "transport-arduino.h"
 
-#ifdef __APPLE__ /* fake it if not a real Arduino */
+#if defined __APPLE__ || defined __linux /* fake it if not a real Arduino */
 static unsigned millis(void) { static unsigned m; return m++; }
 static void serial_begin(int baud) { }
 static void serial_write(uint8_t octet) { }
@@ -48,7 +48,7 @@ static struct zeno_transport *arduino_new(const struct zeno_config *config, zeno
            the input until nothing is received for 1s.  For some reason, garbage
            seems to come in a few seconds after waking up.  */
         ztime_t tnow = millis();
-        ztime_t timeout = (state == STATE_WAITINPUT) ? 5000 : 1000;
+        ztimediff_t timeout = (state == STATE_WAITINPUT) ? 5000 : 1000;
         if ((ztimediff_t)(tnow - t_state_changed) >= timeout) {
             state = STATE_OPERATIONAL;
             t_state_changed = tnow;
@@ -91,7 +91,7 @@ static ssize_t arduino_send(struct zeno_transport * restrict tp, const void * re
 #if TRANSPORT_MODE == TRANSPORT_PACKET
     Serial.println();
 #endif
-    return size;
+    return (ssize_t)size;
 }
 
 #if TRANSPORT_MODE == TRANSPORT_PACKET
@@ -134,7 +134,7 @@ static ssize_t arduino_recv(struct zeno_transport * restrict tp, void * restrict
     while (n < size && Serial.available()) {
         ((uint8_t *) buf)[n++] = Serial.read();
     }
-    return n;
+    return (ssize_t)n;
 #else
 #error "couldn't be bothered to integrate Arduino code fully"
 #endif

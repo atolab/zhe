@@ -37,6 +37,17 @@
 
 /********** End of Arduino Hack ***********/
 
+#if ! HAVE_UNICAST_CONDUIT
+#  define N_OUT_MCONDUITS N_OUT_CONDUITS
+#  define MAX_MULTICAST_CID (N_OUT_CONDUITS - 1)
+#else
+#  define UNICAST_CID (N_OUT_CONDUITS - 1)
+#  if N_OUT_CONDUITS > 1
+#    define N_OUT_MCONDUITS (N_OUT_CONDUITS - 1)
+#    define MAX_MULTICAST_CID (N_OUT_MCONDUITS - 2)
+#  endif
+#endif
+
 #if MAX_PEERS < 255
 typedef uint8_t peeridx_t;
 #else
@@ -56,7 +67,7 @@ typedef uint8_t peeridx_t;
 /* Send a SYNCH message set every MSYNCH_INTERVAL ms when unack'd messages are present in the
    transmit window.  Ideally would base this on measured round-trip time.  Messages with the S
    bit set also reset this. */
-#define MSYNCH_INTERVAL    300 /* ms */
+#define MSYNCH_INTERVAL    100 /* ms */
 
 #define SCOUT_INTERVAL    3000 /* millis */
 #define OPEN_INTERVAL     3000 /* millis */

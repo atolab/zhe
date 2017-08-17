@@ -2,6 +2,7 @@
 #define ZENO_TRANSPORT_H
 
 #include <stddef.h>
+#include <sys/types.h>
 
 /* modes for transport should not include 0 */
 #define TRANSPORT_PACKET 1
