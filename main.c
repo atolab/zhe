@@ -8,6 +8,8 @@
 #include "zeno-tracing.h"
 #include "zeno-time.h"
 
+#include "zeno-config-int.h" /* for N_OUT_CONDUITS */
+
 static zpsize_t getrandomid(unsigned char *ownid, size_t ownidsize)
 {
     FILE *fp;
@@ -68,17 +70,24 @@ int main(int argc, char * const *argv)
     zpsize_t ownidsize;
     int opt;
     int mode = 0;
+    unsigned cid = 1;
 
     zeno_time_init();
     ownidsize = getrandomid(ownid, sizeof(ownid));
     zeno_trace_cats = ~0u;
 
-    while((opt = getopt(argc, argv, "h:psq")) != EOF) {
+    while((opt = getopt(argc, argv, "c:h:psq")) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'p': mode = 1; break;
             case 's': mode = -1; break;
             case 'q': zeno_trace_cats = ZTCAT_PEERDISC; break;
+            case 'c': {
+                unsigned long t = strtoul(optarg, NULL, 0);
+                if (t >= N_OUT_CONDUITS) { fprintf(stderr, "cid %lu out of range\n", t); exit(1); }
+                cid = (unsigned)t;
+                break;
+            }
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
@@ -109,7 +118,7 @@ int main(int argc, char * const *argv)
         }
         case 1: {
             uint32_t k = 0;
-            pubidx_t p = publish(1, 1, 1);
+            pubidx_t p = publish(1, cid, 1);
             ztime_t tprint = zeno_time();
             while (1) {
                 int i;
