@@ -8,27 +8,30 @@
 
 #ifndef ARDUINO
 
-#include "transport-udp.h"
+#  include "transport-udp.h"
 
 /* Maximum number of peers one node can have (that is, the network
    may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0,
    it becomes a client rather than as a peer */
-#define MAX_PEERS 12
+#  define MAX_PEERS 12
 
-#define N_IN_CONDUITS 3
-#define N_OUT_CONDUITS 3
+#  define N_IN_CONDUITS 3
+#  define N_OUT_CONDUITS 3
+#  define HAVE_UNICAST_CONDUIT 1
 
 /* Transmit window size, each reliable message is prefixed by its size in a single byte. */
-#define XMITW_BYTES 16384u
+#  define XMITW_BYTES 16384u
+#  define XMITW_BYTES_UNICAST 384u
 
 #else /* defined ARDUINO -- just to check it builds */
 
-#include "transport-arduino.h"
+#  include "transport-arduino.h"
 
-#define MAX_PEERS 0
-#define N_IN_CONDUITS 2
-#define N_OUT_CONDUITS 1
-#define XMITW_BYTES 384u
+#  define MAX_PEERS 0
+#  define N_IN_CONDUITS 2
+#  define N_OUT_CONDUITS 1
+#  define HAVE_UNICAST_CONDUIT 1
+#  define XMITW_BYTES_UNICAST 384u
 
 #endif /* defined ARDUINO */
 
@@ -37,7 +40,7 @@
 #if MAX_PEERS < 255
 typedef uint8_t peeridx_t;
 #else
-#error "MAX_PEERS is too large for 8-bit peer idx"
+#  error "MAX_PEERS is too large for 8-bit peer idx"
 #endif
 #define PEERIDX_INVALID ((peeridx_t)-1)
 
@@ -74,12 +77,12 @@ typedef uint16_t zmsize_t;
    are some places where a signed integer is used to index either conduit or peer. */
 #if N_OUT_CONDUITS <= 127 && N_IN_CONDUITS <= 127 && MAX_PEERS <= 127
 typedef int8_t cid_t;
-#define MAX_CID_T 127
+#  define MAX_CID_T 127
 #elif N_OUT_CONDUITS <= 127 && N_IN_CONDUITS <= 127 && MAX_PEERS <= 32767
 typedef int16_t cid_t;
-#define MAX_CID_T 32767
+#  define MAX_CID_T 32767
 #else
-#error "Conduits are limited to 127 because the VLE encoding is short-circuited"
+#  error "Conduits are limited to 127 because the VLE encoding is short-circuited"
 #endif
 
 /* zmsize_t is the type capable of representing the maximum size of a message and may not

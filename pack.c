@@ -167,11 +167,12 @@ unsigned zeno_synch_sent;
 
 void pack_msynch(zeno_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt)
 {
+    seq_t cnt_shifted = (seq_t)(cnt << SEQNUM_SHIFT);
     ZT(RELIABLE, ("pack_msynch cid %d sflag %u seq %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt));
-    pack_reserve_mconduit(dst, NULL, cid, 1 + pack_seqreq(seqbase) + pack_seqreq(cnt));
+    pack_reserve_mconduit(dst, NULL, cid, 1 + pack_seqreq(seqbase) + pack_seqreq(cnt_shifted));
     pack1(MRFLAG | sflag | MSYNCH);
     pack_seq(seqbase);
-    pack_seq(cnt);
+    pack_seq(cnt_shifted);
     zeno_synch_sent++;
 }
 

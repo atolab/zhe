@@ -52,13 +52,25 @@ extern unsigned zeno_delivered, zeno_discarded;
 static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
 {
     static ztime_t tprint;
+    static uint32_t lastk;
+    static uint32_t oooc;
+    static int lastk_init;
     uint32_t k;
     assert(size == 4);
     k = *(uint32_t *)payload;
+    if (lastk_init) {
+        if (k != lastk+1) {
+            oooc++;
+        }
+        lastk = k;
+    } else {
+        lastk = k;
+        lastk_init = 1;
+    }
     if ((k % 16384) == 0) {
         ztime_t tnow = zeno_time();
         if ((ztimediff_t)(tnow - tprint) >= 1000) {
-            printf ("%4u.%03u %u [%u,%u]\n", tnow / 1000, tnow % 1000, k, zeno_delivered, zeno_discarded);
+            printf ("%4u.%03u %u %u [%u,%u]\n", tnow / 1000, tnow % 1000, k, oooc, zeno_delivered, zeno_discarded);
             tprint = tnow;
         }
     }
@@ -70,7 +82,7 @@ int main(int argc, char * const *argv)
     zpsize_t ownidsize;
     int opt;
     int mode = 0;
-    unsigned cid = 1;
+    unsigned cid = 0;
 
     zeno_time_init();
     ownidsize = getrandomid(ownid, sizeof(ownid));

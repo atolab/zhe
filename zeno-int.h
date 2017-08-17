@@ -12,7 +12,6 @@ struct peerid {
     zpsize_t len;
 };
 
-uint16_t xmitw_pos_add(uint16_t p, uint16_t a);
 uint16_t xmitw_bytesavail(const struct out_conduit *c);
 void pack_reserve(zeno_address_t *dst, struct out_conduit *oc, zpsize_t cnt);
 void pack1(uint8_t x);
