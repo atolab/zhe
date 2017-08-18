@@ -70,8 +70,27 @@ typedef int16_t cid_t;
  knowing the sequence number size), but they are a multiple of 7 bits to avoid spending a
  byte of which only a few bits will be used.  Sequence numbers are internally represented as
  16-bit unsigned numbers.  */
-#define SEQNUM_LEN          (7u * sizeof(seq_t))
+#if SEQNUM_LEN == 7
+typedef uint8_t seq_t;    /* type internally used for representing sequence numbers */
+typedef int8_t sseq_t;    /* signed version of seq_t */
+#elif SEQNUM_LEN == 14
+typedef uint16_t seq_t;
+typedef int16_t sseq_t;
+#elif SEQNUM_LEN == 28
+typedef uint32_t seq_t;
+typedef int32_t sseq_t;
+#elif SEQNUM_LEN == 56
+typedef uint64_t seq_t;
+typedef int64_t sseq_t;
+#else
+#error "SEQNUM_LEN must be either 7, 14, 28 or 56"
+#endif
 #define SEQNUM_SHIFT        (sizeof(seq_t))
 #define SEQNUM_UNIT         ((seq_t)(1 << SEQNUM_SHIFT))
+
+/* Because the parameterisation is not quite complete yet ... */
+#if ZENO_TIMEBASE != 1000000
+#error "ZENO_TIMEBASE is assumed to be 1000000 in lease calculations and printing"
+#endif
 
 #endif

@@ -1,6 +1,7 @@
 #ifndef ZENO_INT_H
 #define ZENO_INT_H
 
+#include "zeno.h"
 #include "zeno-config-int.h"
 
 #define SUFFIX_WITH_SIZE1(name, size) name##size

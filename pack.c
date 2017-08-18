@@ -41,7 +41,7 @@ zpsize_t pack_vle32req(uint32_t x)
     return n;
 }
 
-#if RID_T_SIZE > 32
+#if RID_T_SIZE > 32 || SEQNUM_LEN > 28
 void pack_vle64(uint64_t x)
 {
     do {
@@ -60,12 +60,32 @@ zpsize_t pack_vle64req(uint64_t x)
 
 void pack_seq(seq_t x)
 {
-    pack_vle16(x >> SEQNUM_SHIFT);
+#if SEQNUM_LEN == 7
+    return pack1(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN == 14
+    return pack_vle16(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN == 28
+    return pack_vle32(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN == 56
+    return pack_vle64(x >> SEQNUM_SHIFT);
+#else
+#error "pack_seq: invalid SEQNUM_LEN"
+#endif
 }
 
 zpsize_t pack_seqreq(seq_t x)
 {
+#if SEQNUM_LEN == 7
+    return 1;
+#elif SEQNUM_LEN == 14
     return pack_vle16req(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN == 28
+    return pack_vle32req(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN == 56
+    return pack_vle64req(x >> SEQNUM_SHIFT);
+#else
+#error "pack_seqreq: invalid SEQNUM_LEN"
+#endif
 }
 
 void pack_rid(rid_t x)

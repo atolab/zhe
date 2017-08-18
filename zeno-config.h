@@ -8,14 +8,25 @@
    id internally (externally it is always variable-length encoded) */
 #define RID_T_SIZE 32
 
-#define ZENO_MAKE_UINT_T1(size) uint##size##_t
-#define ZENO_MAKE_UINT_T(size) ZENO_MAKE_UINT_T1(size)
-
-typedef ZENO_MAKE_UINT_T(RID_T_SIZE) rid_t;
+/* Types for representing timestamps (with an arbitrary reference,
+   no assumed time alignment, and roll-over perfectly acceptable),
+   and the difference of two timestamps (which are, at least in
+   principle, limited by the interval with which zeno_loop() is
+   called and the time intervals configured in zeno-config-int.h
+   and/or used elsewhere. Note that ztimediff_t may be wider than
+   ztime_t. */
 typedef uint32_t ztime_t;
-typedef int32_t ztimediff_t; /* for calculating intervals (may be also be wider than ztime_t) */
-#define ZTIMEDIFF_MAX INT32_MAX /* lease durations are limited to ZTIMEDIFF_MAX ms */ 
+typedef int32_t ztimediff_t;
 
-typedef uint16_t zpsize_t; /* type used for representing payload sizes (including the length of sequences) */
+/* Maximum representable time difference, limiting lease durations.
+   Peers that specify a lease duration longer than ZTIMEDIFF_MAX
+   are, quite simply, ignored. */
+#define ZTIMEDIFF_MAX INT32_MAX
+
+/* The unit of ztime_t / ztimediff_t represents this many nanoseconds */
+#define ZENO_TIMEBASE 1000000
+
+/* Type used for representing payload sizes and sequence lengths (FIXME: not quite completely parameterised yet) */
+typedef uint16_t zpsize_t;
 
 #endif

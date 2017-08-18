@@ -16,7 +16,12 @@
 #include <ifaddrs.h>
 
 #include "zeno-tracing.h"
+#include "zeno-config-int.h"
 #include "transport-udp.h"
+
+#if ZENO_TIMEBASE != 1000000
+#error "UDP transport implementation assumes 1ms resolution for timestamps"
+#endif
 
 #define MAX_SELF 16
 

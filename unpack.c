@@ -83,7 +83,7 @@ int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
     return 1;
 }
 
-#if RID_T_SIZE > 32
+#if RID_T_SIZE > 32 || SEQNUM_LEN > 28
 int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint64_t * restrict u)
 {
     uint64_t n;
@@ -107,7 +107,19 @@ int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
 
 int unpack_seq(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, seq_t * restrict u)
 {
-    if (!unpack_vle16(sz, data, u)) {
+    int res;
+#if SEQNUM_LEN == 7
+    res = unpack_byte(sz, data, u);
+#elif SEQNUM_LEN == 14
+    res = unpack_vle16(sz, data, u);
+#elif SEQNUM_LEN == 28
+    res = unpack_vle32(sz, data, u);
+#elif SEQNUM_LEN == 56
+    res = unpack_vle64(sz, data, u);
+#else
+#error "unpack_seq: invalid SEQNUM_LEN"
+#endif
+    if (!res) {
         return 0;
     }
     *u <<= SEQNUM_SHIFT;

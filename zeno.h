@@ -3,6 +3,11 @@
 
 #include "zeno-config.h"
 
+#define ZENO_MAKE_UINT_T1(size) uint##size##_t
+#define ZENO_MAKE_UINT_T(size) ZENO_MAKE_UINT_T1(size)
+
+typedef ZENO_MAKE_UINT_T(RID_T_SIZE) rid_t;
+
 typedef struct { uint8_t idx; } pubidx_t;
 typedef struct { uint8_t idx; } subidx_t;
 typedef void (*subhandler_t)(rid_t rid, zpsize_t size, const void *payload, void *arg);
