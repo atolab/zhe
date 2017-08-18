@@ -3,6 +3,12 @@
 
 #include "zeno-config-int.h"
 
+#define SUFFIX_WITH_SIZE1(name, size) name##size
+#define SUFFIX_WITH_SIZE(name, size) SUFFIX_WITH_SIZE1(name, size)
+
+#define INFIX_WITH_SIZE1(name, size, suf) name##size##suf
+#define INFIX_WITH_SIZE(name, size, suf) INFIX_WITH_SIZE1(name, size, suf)
+
 struct out_conduit;
 struct out_mconduit;
 struct in_conduit;
@@ -12,12 +18,21 @@ struct peerid {
     zpsize_t len;
 };
 
+extern struct zeno_transport *transport;
+
+#define ZENO_PASTE1(a,b) a##b
+#define ZENO_PASTE(a,b) ZENO_PASTE1(a,b)
+#define transport_ops ZENO_PASTE(transport_, TRANSPORT_NAME)
+extern const struct zeno_transport_ops transport_ops;
+
 uint16_t xmitw_bytesavail(const struct out_conduit *c);
 void pack_reserve(zeno_address_t *dst, struct out_conduit *oc, zpsize_t cnt);
 void pack1(uint8_t x);
 void pack2(uint8_t x, uint8_t y);
 void pack_u16(uint16_t x);
-void pack_vec(zpsize_t n, const uint8_t *buf);
+void pack_vec(zpsize_t n, const void *buf);
+uint16_t pack_locs_calcsize(void);
+void pack_locs(void);
 void oc_hit_full_window(struct out_conduit *c);
 cid_t oc_get_cid(struct out_conduit *c);
 int ocm_have_peers(const struct out_mconduit *mc);

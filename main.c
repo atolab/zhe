@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <assert.h>
 #include <time.h>
 
@@ -85,15 +86,26 @@ int main(int argc, char * const *argv)
     int opt;
     int mode = 0;
     unsigned cid = 0;
+    struct zeno_config cfg;
 
+#ifndef ARDUINO
     extern long randomthreshold; // from UDP code
     srandomdev();
+#endif
 
     zeno_time_init();
     ownidsize = getrandomid(ownid, sizeof(ownid));
     zeno_trace_cats = ~0u;
 
-    while((opt = getopt(argc, argv, "C:c:h:psqX:")) != EOF) {
+    cfg.scoutaddr = "239.255.0.1:7007";
+    const char *mcgroups_join[10] = { "239.255.0.2:7007", "239.255.0.3:7007" };
+    cfg.n_mcgroups_join = 2;
+    cfg.mcgroups_join = mcgroups_join;
+    const char *mconduit_dstaddrs[10] = { "239.255.0.2:7007", "239.255.0.3:7007" };
+    cfg.n_mconduit_dstaddrs = 2;
+    cfg.mconduit_dstaddrs = mconduit_dstaddrs;
+
+    while((opt = getopt(argc, argv, "C:c:h:psqX:S:G:M:")) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'p': mode = 1; break;
@@ -106,7 +118,22 @@ int main(int argc, char * const *argv)
                 break;
             }
             case 'C': checkintv = (unsigned)atoi(optarg); break;
-            case 'X': randomthreshold = atoi(optarg) * 21474836; break;
+            case 'S': cfg.scoutaddr = optarg; break;
+            case 'G': case 'M': {
+                const char **dst = (opt == 'G') ? mcgroups_join : mconduit_dstaddrs;
+                size_t *n = (opt == 'G') ? &cfg.n_mcgroups_join : &cfg.n_mconduit_dstaddrs;
+                char *addr;
+                *n = 0;
+                for (addr = strtok(optarg, ","); addr != NULL; addr = strtok(NULL, ",")) {
+                    dst[(*n)++] = addr;
+                }
+                break;
+            }
+            case 'X':
+#ifndef ARDUINO
+                randomthreshold = atoi(optarg) * 21474836;
+#endif
+                break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
@@ -115,7 +142,13 @@ int main(int argc, char * const *argv)
         exit(1);
     }
 
-    (void)zeno_init(ownidsize, ownid);
+    cfg.id = ownid;
+    cfg.idlen = ownidsize;
+
+    if (zeno_init(&cfg) < 0) {
+        fprintf(stderr, "init failed\n");
+        exit(1);
+    }
     zeno_loop_init();
     switch (mode) {
         case 0: {

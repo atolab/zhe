@@ -7,7 +7,7 @@
 #include <assert.h>
 
 #include "zeno.h"
-#include "zeno-config-int.h"
+#include "zeno-config-deriv.h"
 #include "zeno-msg.h"
 #include "zeno-int.h"
 #include "zeno-tracing.h"
@@ -16,23 +16,6 @@
 #include "unpack.h"
 #include "bitset.h"
 #include "binheap.h"
-
-struct zeno_config { char dummy; }; /* FIXME: flesh out config */
-
-#if TRANSPORT_MODE != TRANSPORT_STREAM && TRANSPORT_MODE != TRANSPORT_PACKET
-#  error "transport configuration did not set MODE properly"
-#endif
-#if TRANSPORT_MTU < 16 || TRANSPORT_MTU > 65534
-#  error "transport configuration did not set MTU properly"
-#endif
-
-#if MAX_PEERS > 1 && N_OUT_MCONDUITS == 0
-#  error "MAX_PEERS > 1 requires presence of multicasting conduit"
-#endif
-
-#if MAX_PEERS <= 1 && ! HAVE_UNICAST_CONDUIT
-#  warning "should use a unicast conduit in a client or if there can be at most one peer"
-#endif
 
 #define WC_DRESULT_SIZE     8 /* worst-case result size: header, commitid, status, rid */
 #define WC_DCOMMIT_SIZE     2 /* commit: header, commitid */
@@ -88,8 +71,8 @@ struct peer {
 #endif
     struct in_conduit ic[N_IN_CONDUITS]; /* one slot for each out conduit from this peer */
     struct peerid id;             /* peer id */
-#if HAVE_UNICAST_CONDUIT
-    uint8_t oc_rbuf[XMITW_BYTES_UNICAST];
+#if N_OUT_MCONDUITS > 0
+    uint8_t mc_member[(N_OUT_MCONDUITS+7)/8]; /* FIXME: what if I want to change the underlying type of a bitset ... should have a better way of declaring this */
 #endif
 };
 
@@ -100,10 +83,10 @@ struct peer {
 struct out_mconduit {
     struct out_conduit oc;        /* same transmit window management as unicast */
     struct minseqheap seqbase;    /* tracks ACKs from peers for computing oc.seqbase as min of them all */
-    uint8_t oc_rbuf[XMITW_BYTES];
 };
 
 struct out_mconduit out_mconduits[N_OUT_MCONDUITS];
+uint8_t out_mconduits_oc_rbuf[N_OUT_MCONDUITS][XMITW_BYTES];
 #endif
 
 #if N_OUT_MCONDUITS == 0
@@ -130,10 +113,10 @@ struct out_mconduit out_mconduits[N_OUT_MCONDUITS];
 zeno_address_t scoutaddr;
 struct zeno_transport *transport;
 
-#define ZENO_PASTE1(a,b) a##b
-#define ZENO_PASTE(a,b) ZENO_PASTE1(a,b)
-#define transport_ops ZENO_PASTE(transport_, TRANSPORT_NAME)
-extern const struct zeno_transport_ops transport_ops;
+#if MAX_MULTICAST_GROUPS > 0
+uint16_t n_multicast_locators;
+zeno_address_t multicast_locators[MAX_MULTICAST_GROUPS];
+#endif
 
 /* FIXME: for packet-based we can do with a single input buffer; for stream-based we will probably need an input buffer per peer */
 #if TRANSPORT_MODE == TRANSPORT_STREAM && MAX_PEERS > 0
@@ -158,9 +141,11 @@ ztime_t outdeadline;              /* pack until destination change, packet full,
 /* In client mode, we pretend the broker is peer 0 (and the only peer at that). It isn't really a peer,
    but the data structures we need are identical, only the discovery behaviour and (perhaps) session
    handling is a bit different. */
-#define MAX_PEERS_1 (MAX_PEERS == 0 ? 1 : MAX_PEERS)
-struct peer peers[MAX_PEERS_1];
 peeridx_t npeers;
+struct peer peers[MAX_PEERS_1];
+#if HAVE_UNICAST_CONDUIT
+uint8_t peers_oc_rbuf[MAX_PEERS_1][XMITW_BYTES_UNICAST];
+#endif
 
 #if MAX_PEERS > 0
 /* In peer mode, always send scouts periodically, with tnextscout giving the time for the next scout 
@@ -217,11 +202,14 @@ static void reset_peer(peeridx_t peeridx, ztime_t tnow)
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
         struct out_mconduit * const mc = &out_mconduits[i];
         if (minseqheap_delete(peeridx, &mc->seqbase)) {
+            assert(bitset_test(p->mc_member, (unsigned)i));
             if (minseqheap_isempty(&mc->seqbase)) {
                 remove_acked_messages(&mc->oc, mc->oc.seq);
             } else {
                 remove_acked_messages(&mc->oc, minseqheap_get_min(&mc->seqbase));
             }
+        } else {
+            assert(!bitset_test(p->mc_member, (unsigned)i));
         }
     }
 #endif
@@ -236,7 +224,7 @@ static void reset_peer(peeridx_t peeridx, ztime_t tnow)
     }
     p->state = PEERST_UNKNOWN;
 #if HAVE_UNICAST_CONDUIT
-    oc_setup1(&p->oc, UNICAST_CID, XMITW_BYTES_UNICAST, p->oc_rbuf);
+    oc_setup1(&p->oc, UNICAST_CID, XMITW_BYTES_UNICAST, peers_oc_rbuf[peeridx]);
 #endif
     for (cid_t i = 0; i < N_IN_CONDUITS; i++) {
         p->ic[i].seq = 0;
@@ -244,6 +232,9 @@ static void reset_peer(peeridx_t peeridx, ztime_t tnow)
         p->ic[i].useq = 0;
         p->ic[i].synched = 0;
     }
+#if N_OUT_MCONDUITS > 0
+    memset(p->mc_member, 0, sizeof(p->mc_member));
+#endif
 }
 
 static void init_globals(void)
@@ -254,7 +245,7 @@ static void init_globals(void)
     /* Need to reset out_mconduits[.].seqbase.ix[i] before reset_peer(i) may be called */
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
         struct out_mconduit * const mc = &out_mconduits[i];
-        oc_setup1(&mc->oc, i, XMITW_BYTES, mc->oc_rbuf);
+        oc_setup1(&mc->oc, i, XMITW_BYTES, out_mconduits_oc_rbuf[i]);
         mc->seqbase.n = 0;
         /* FIXME: seqbase.hx[peeridx] is not a good idea */
         for (peeridx_t j = 0; j < MAX_PEERS; j++) {
@@ -372,13 +363,45 @@ void pack_u16(uint16_t x)
     pack2(x & 0xff, x >> 8);
 }
 
-void pack_vec(zpsize_t n, const uint8_t *buf)
+void pack_vec(zpsize_t n, const void *vbuf)
 {
+    const uint8_t *buf = vbuf;
     pack_vle16(n);
     pack_check_avail(n);
     while (n--) {
         outbuf[outp++] = *buf++;
     }
+}
+
+uint16_t pack_locs_calcsize(void)
+{
+#if MAX_MULTICAST_GROUPS > 0
+    size_t n = pack_vle16req(n_multicast_locators);
+    char tmp[TRANSPORT_ADDRSTRLEN];
+    for (uint16_t i = 0; i < n_multicast_locators; i++) {
+        size_t n1 = transport_ops.addr2string(tmp, sizeof(tmp), &multicast_locators[i]);
+        assert(n1 < UINT16_MAX);
+        n += pack_vle16req((uint16_t)n1) + n1;
+    }
+    assert(n < UINT16_MAX);
+    return (uint16_t)n;
+#else
+    return 1;
+#endif
+}
+
+void pack_locs(void)
+{
+#if MAX_MULTICAST_GROUPS > 0
+    pack_vle16(n_multicast_locators);
+    for (uint16_t i = 0; i < n_multicast_locators; i++) {
+        char tmp[TRANSPORT_ADDRSTRLEN];
+        uint16_t n1 = (uint16_t)transport_ops.addr2string(tmp, sizeof(tmp), &multicast_locators[i]);
+        pack_vec(n1, tmp);
+    }
+#else
+    pack_vle16(0);
+#endif
 }
 
 cid_t oc_get_cid(struct out_conduit *c)
@@ -630,6 +653,30 @@ static zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *dat
     return (zmsize_t)(data - data0);
 }
 
+static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
+{
+    zpsize_t sz;
+    const uint8_t *loc;
+    while (unpack_locs_iter(it, &sz, &loc)) {
+        zeno_address_t addr;
+        if (!transport_ops.octseq2addr(&addr, sz, loc)) {
+            return 0;
+        }
+#if N_OUT_MCONDUITS > 0
+        for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
+            if (transport_ops.addr_eq(&addr, &out_mconduits[cid].oc.addr)) {
+                bitset_set(peers[peeridx].mc_member, (unsigned)cid);
+
+                char tmp[TRANSPORT_ADDRSTRLEN];
+                transport_ops.addr2string(tmp, sizeof(tmp), &addr);
+                ZT(PEERDISC, ("loc %s cid %u", tmp, (unsigned)cid));
+            }
+        }
+#endif
+    }
+    return 1;
+}
+
 static zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
 {
 #if MAX_PEERS > 0
@@ -640,24 +687,34 @@ static zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *dat
     const int state_ok = (peers[peeridx].state == PEERST_UNKNOWN);
 #endif
     const uint8_t *data0 = data;
+    struct unpack_locs_iter locs_it;
     uint8_t hdr;
     uint32_t mask;
     if (!unpack_byte(&sz, &data, &hdr) ||
         !unpack_vle32(&sz, &data, &mask) ||
-        !unpack_locs(&sz, &data) ||
+        !unpack_locs(&sz, &data, &locs_it) ||
         !unpack_props(&sz, &data)) {
         return 0;
     }
     if ((mask & lookfor) && state_ok) {
+        int send_open = 1;
+
         ZT(PEERDISC, ("got a hello! sending an open"));
         if (peers[peeridx].state != PEERST_ESTABLISHED) {
-            peers[peeridx].state = PEERST_OPENING_MIN;
-            peers[peeridx].tlease = tnow;
+            if (!set_peer_mcast_locs(peeridx, &locs_it)) {
+                ZT(PEERDISC, ("'twas but a hello with an invalid locator list ..."));
+                send_open = 0;
+            } else {
+                peers[peeridx].state = PEERST_OPENING_MIN;
+                peers[peeridx].tlease = tnow;
+            }
         }
         /* FIXME: what parts of peers[peeridx] need to be initialised here? */
         /* FIXME: a hello when established indicates a reconnect for the other one => should clear ic[.].synched */
-        pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
-        pack_msend();
+        if (send_open) {
+            pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
+            pack_msend();
+        }
     }
     return (zmsize_t)(data - data0);
 }
@@ -713,10 +770,11 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     p->lease_dur = lease_dur;
     p->tlease = tnow + (ztime_t)p->lease_dur;
 #if N_OUT_MCONDUITS > 0
-    /* FIXME: only for conduits that the peer is interested in */
     for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
-        struct out_mconduit * const mc = &out_mconduits[cid];
-        minseqheap_insert(peeridx, mc->oc.seq, &mc->seqbase);
+        if (bitset_test(p->mc_member, (unsigned)cid)) {
+            struct out_mconduit * const mc = &out_mconduits[cid];
+            minseqheap_insert(peeridx, mc->oc.seq, &mc->seqbase);
+        }
     }
 #endif
     npeers++;
@@ -732,13 +790,14 @@ static zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const ui
     zpsize_t dummy;
     uint8_t reason;
     uint32_t ld100;
+    struct unpack_locs_iter locs_it;
     struct peer *p;
     if (!unpack_byte(&sz, &data, &hdr) ||
         !unpack_byte(&sz, &data, &version) /* version */ ||
         !unpack_vec(&sz, &data, sizeof(id), &idlen, id) /* peer id */ ||
         !unpack_vle32(&sz, &data, &ld100) /* lease duration */ ||
         !unpack_vec(&sz, &data, 0, &dummy, NULL) /* auth */ ||
-        !unpack_locs(&sz, &data)) {
+        !unpack_locs(&sz, &data, &locs_it)) {
         return 0;
     }
     if (!(hdr & MLFLAG)) {
@@ -774,6 +833,11 @@ static zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const ui
 
     p = &peers[*peeridx];
     if (p->state != PEERST_ESTABLISHED) {
+        if (!set_peer_mcast_locs(*peeridx, &locs_it)) {
+            ZT(PEERDISC, ("'twas but an open with an invalid locator list ..."));
+            reason = CLR_ERROR;
+            goto reject;
+        }
         accept_peer(*peeridx, idlen, id, 100 * (ztimediff_t)ld100, tnow);
     }
     pack_maccept(&p->oc.addr, &ownid, &p->id, lease_dur);
@@ -1087,7 +1151,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, ztime_
             mask >>= 32 - cnt;
         }
     }
-    if (wantsack || (mask != 0 && (ztimediff_t)(tnow - peers[peeridx].ic[cid].tack) > 100)) {
+    if (wantsack || (mask != 0 && (ztimediff_t)(tnow - peers[peeridx].ic[cid].tack) > ROUNDTRIP_TIME_ESTIMATE)) {
         /* ACK goes out over unicast path; the conduit used for sending it doesn't have
            much to do with it other than administrative stuff */
         ZT(RELIABLE, ("acknack_if_needed peeridx %u cid %u wantsack %d mask %u seq %u", peeridx, cid, wantsack, mask, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT));
@@ -1326,7 +1390,7 @@ static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
         ZT(RELIABLE, ("handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1));
         pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c));
         pack_msend();
-    } else if ((ztimediff_t)(tnow - c->last_rexmit) <= 100 && seq_lt(seq, c->last_rexmit_seq)) {
+    } else if ((ztimediff_t)(tnow - c->last_rexmit) <= ROUNDTRIP_TIME_ESTIMATE && seq_lt(seq, c->last_rexmit_seq)) {
         ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u mask %08x - suppress", peeridx, cid, seq >> SEQNUM_SHIFT, mask));
     } else {
         /* Retransmits can always be performed because they do not require buffering new
@@ -1655,24 +1719,57 @@ void send_declares(ztime_t tnow)
     }
 }
 
-int zeno_init(zpsize_t idlen, const void *id)
+int zeno_init(const struct zeno_config *config)
 {
     /* FIXME: is there a way to make the transport pluggable at run-time without dynamic allocation? I don't think so, not with the MTU so important ... */
-    static struct zeno_config config;
-    if (idlen == 0 || idlen > PEERID_SIZE) {
+    if (config->idlen == 0 || config->idlen > PEERID_SIZE) {
         return -1;
     }
-    ownid_union.v_nonconst.len = idlen;
-    memcpy(ownid_union.v_nonconst.id, id, idlen);
+    if (config->n_mconduit_dstaddrs != N_OUT_MCONDUITS) {
+        /* these must match */
+        return -1;
+    }
+    if (config->n_mcgroups_join > MAX_MULTICAST_GROUPS) {
+        /* but you don't have to join MAX groups */
+        return -1;
+    }
+
+    ownid_union.v_nonconst.len = (zpsize_t)config->idlen;
+    memcpy(ownid_union.v_nonconst.id, config->id, config->idlen);
+
+    if (!transport_ops.octseq2addr(&scoutaddr, strlen(config->scoutaddr), config->scoutaddr)) {
+        return -1;
+    }
+
     init_globals();
-    transport = transport_ops.new(&config, &scoutaddr);
+    transport = transport_ops.new(config, &scoutaddr);
     if (transport == NULL) {
         return -1;
     }
-    /* FIXME: probably want to make the addresses in the multicast conduits configurable */
+
+#if MAX_MULTICAST_GROUPS > 0
+    n_multicast_locators = (uint16_t)config->n_mcgroups_join;
+    for (size_t i = 0; i < config->n_mcgroups_join; i++) {
+        struct zeno_address *a = &multicast_locators[i];
+        ZT(PEERDISC, ("joining %s ...", config->mcgroups_join[i]));
+        if (!transport_ops.octseq2addr(a, strlen(config->mcgroups_join[i]), config->mcgroups_join[i])) {
+            ZT(PEERDISC, ("invalid address %s", config->mcgroups_join[i]));
+            return -1;
+        }
+        if (!transport_ops.join(transport, a)) {
+            ZT(PEERDISC, ("joining %s failed", config->mcgroups_join[i]));
+            return -1;
+        }
+    }
+#endif
+
 #if N_OUT_MCONDUITS > 0
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
-        out_mconduits[i].oc.addr = scoutaddr;
+        ZT(PEERDISC, ("conduit %u -> %s", (unsigned)i, config->mconduit_dstaddrs[i]));
+        if (!transport_ops.octseq2addr(&out_mconduits[i].oc.addr, strlen(config->mconduit_dstaddrs[i]), config->mconduit_dstaddrs[i])) {
+            ZT(PEERDISC, ("invalid address %s", config->mconduit_dstaddrs[i]));
+            return -1;
+        }
     }
 #endif
     return 0;

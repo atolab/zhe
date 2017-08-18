@@ -1,5 +1,7 @@
 #include <limits.h>
+#include <assert.h>
 #include "unpack.h"
+#include "zeno-int.h"
 
 int unpack_skip(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, zmsize_t n)
 {
@@ -141,19 +143,36 @@ int unpack_vec(zmsize_t * restrict sz, const uint8_t * restrict * restrict data,
     return 1;
 }
 
-int unpack_locs(zmsize_t * restrict sz, const uint8_t * restrict * restrict data)
+int unpack_locs(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, struct unpack_locs_iter *it)
 {
     uint16_t n;
     zpsize_t dummy;
     if (!unpack_vle16(sz, data, &n)) {
         return 0;
     }
+    it->n = n;
+    it->data = *data;
     while (n--) {
         if (!unpack_vec(sz, data, 0, &dummy, NULL)) {
             return 0;
         }
     }
+    it->sz = (zmsize_t)(*data - it->data);
     return 1;
+}
+
+int unpack_locs_iter(struct unpack_locs_iter *it, zpsize_t *sz, const uint8_t **loc)
+{
+    if (it->n == 0) {
+        return 0;
+    } else {
+        int x = unpack_vle16(&it->sz, &it->data, sz);
+        assert(x);
+        *loc = it->data;
+        it->data += *sz;
+        it->n--;
+        return 1;
+    }
 }
 
 int unpack_props(zmsize_t * restrict sz, const uint8_t * restrict * restrict data)

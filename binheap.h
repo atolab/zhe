@@ -3,6 +3,8 @@
 
 #include "zeno-config-int.h"
 
+#if MAX_PEERS > 0
+
 typedef struct { peeridx_t i; } minseqheap_idx_t;
 
 struct minseqheap {
@@ -18,4 +20,5 @@ seq_t minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_d
 int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h);
 seq_t minseqheap_get_min(struct minseqheap const * const h);
 
+#endif
 #endif

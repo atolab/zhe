@@ -34,12 +34,11 @@ static struct {
 #define STATE_DRAININPUT   1
 #define STATE_OPERATIONAL  2
 
-static struct zeno_transport *arduino_new(const struct zeno_config *config, zeno_address_t *scoutaddr)
+static struct zeno_transport *arduino_new(const struct zeno_config *config, const zeno_address_t *scoutaddr)
 {
     uint8_t state = STATE_WAITINPUT;
     ztime_t t_state_changed = millis();
 
-    memset(scoutaddr, 0, sizeof(*scoutaddr));
     Serial.begin(115200);
 
     /* FIXME: perhaps shouldn't take this time here, but before one calls zeno_init(); for now however, it is safe to do it here */
@@ -71,6 +70,12 @@ static size_t arduino_addr2string(char * restrict str, size_t size, const zeno_a
     assert(size > 0);
     str[0] = 0;
     return 0;
+}
+
+static int arduino_octseq2addr(struct zeno_address * restrict addr, size_t sz, const void * restrict octseq)
+{
+    memset(addr, 0, sizeof(*addr));
+    return 1;
 }
 
 static ssize_t arduino_send(struct zeno_transport * restrict tp, const void * restrict buf, size_t size, const zeno_address_t * restrict dst)
@@ -154,10 +159,12 @@ zeno_transport_ops_t transport_arduino = {
     .new = arduino_new,
     .free = arduino_free,
     .addr2string = arduino_addr2string,
+    .octseq2addr = arduino_octseq2addr,
     .addr_eq = arduino_addr_eq,
     .send = arduino_send,
     .recv = arduino_recv,
-    .wait = arduino_wait
+    .wait = arduino_wait,
+    .join = 0
 };
 
 #endif

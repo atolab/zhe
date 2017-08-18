@@ -1,7 +1,7 @@
 #ifndef ZENO_PACK_H
 #define ZENO_PACK_H
 
-#include "zeno-config-int.h"
+#include "zeno-config-deriv.h"
 
 struct out_conduit;
 struct peerid;

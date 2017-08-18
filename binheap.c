@@ -1,12 +1,11 @@
-#include "zeno-config-int.h"
+#include "zeno-config-deriv.h"
 
-#if N_OUT_MCONDUITS > 0
+#if MAX_PEERS > 0
 
 #include <assert.h>
 #include "binheap.h"
 
 /* for seq_l() */
-#include "zeno.h"
 #include "zeno-int.h"
 
 static void minseqheap_heapify(peeridx_t j, peeridx_t n, peeridx_t * restrict p, minseqheap_idx_t * restrict q, const seq_t * restrict v)

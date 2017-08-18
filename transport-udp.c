@@ -33,6 +33,8 @@ static struct udp gudp;
 long randomthreshold = 0;
 
 static size_t udp_addr2string(char * restrict str, size_t size, const zeno_address_t * restrict addr);
+static int udp_octseq2addr(struct zeno_address * restrict addr, size_t sz, const void * restrict octseq);
+static int udp_join(const struct zeno_transport * restrict tp, const struct zeno_address * restrict addr);
 
 static void set_nonblock(int sock)
 {
@@ -41,15 +43,12 @@ static void set_nonblock(int sock)
     (void)fcntl(sock, F_SETFL, flags);
 }
 
-static struct zeno_transport *udp_new(const struct zeno_config *config, zeno_address_t *scoutaddr)
+static struct zeno_transport *udp_new(const struct zeno_config *config, const zeno_address_t *scoutaddr)
 {
-    static const char *mcaddr_str = "239.255.0.2";
-    static const unsigned short mcport = 10350;
     const int one = 1;
     struct udp * const udp = &gudp;
     struct sockaddr_in addr;
     socklen_t addrlen;
-    struct ip_mreq mreq;
     struct ifaddrs *ifa;
 
     /* Get own IP addresses so we know what to filter out -- disabling MC loopback would help if
@@ -120,28 +119,37 @@ static struct zeno_transport *udp_new(const struct zeno_config *config, zeno_add
         goto err;
     }
 #endif
-    addr.sin_port = htons(mcport);
-    (void)inet_pton(AF_INET, mcaddr_str, &addr.sin_addr.s_addr);
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = scoutaddr->a.sin_port;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(udp->s[1], (struct sockaddr *)&addr, sizeof(addr)) == -1) {
         perror("bind[1]");
         goto err;
     }
-    mreq.imr_multiaddr = addr.sin_addr;
-    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-    if (setsockopt(udp->s[1], IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) == -1) {
-        perror("IP_ADD_MEMBERSHIP");
+    if (!udp_join((struct zeno_transport *)udp, scoutaddr)) {
         goto err;
     }
-
-    /* Scout address is simply the multicast address */
-    scoutaddr->a = addr;
-    return (struct zeno_transport *) udp;
+    return (struct zeno_transport *)udp;
 
 err:
     for (size_t i = 0; i < sizeof(udp->s) / sizeof(udp->s[0]); i++) {
         close(udp->s[i]);
     }
     return NULL;
+}
+
+static int udp_join(const struct zeno_transport * restrict tp, const struct zeno_address * restrict addr)
+{
+    struct udp *udp = (struct udp *)tp;
+    struct ip_mreq mreq;
+    mreq.imr_multiaddr = addr->a.sin_addr;
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (setsockopt(udp->s[1], IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq)) == -1) {
+        perror("IP_ADD_MEMBERSHIP");
+        return 0;
+    }
+    return 1;
 }
 
 static void udp_free(struct zeno_transport * restrict tp)
@@ -198,6 +206,35 @@ static size_t udp_addr2string(char * restrict str, size_t size, const zeno_addre
         memcpy(str, tmp, n);
         str[n] = 0;
         return n;
+    }
+}
+
+static int udp_octseq2addr(struct zeno_address * restrict addr, size_t sz, const void * restrict octseq)
+{
+    char tmp[TRANSPORT_ADDRSTRLEN];
+    memset(addr, 0, sizeof(*addr));
+    if (sz > sizeof(tmp) - 1) {
+        /* if all we exchange is standard presentation format as it comes out of addr2string, it has to fit or it is invalid */
+        return 0;
+    } else {
+        char *portstr, *portend;
+        unsigned long port;
+        memcpy(tmp, octseq, sz);
+        tmp[sz] = 0;
+        if ((portstr = strchr(tmp, ':')) == NULL) {
+            return 0;
+        }
+        *portstr++ = 0;
+        addr->a.sin_family = AF_INET;
+        if (inet_pton(AF_INET, tmp, &addr->a.sin_addr.s_addr) != 1) {
+            return 0;
+        }
+        port = strtoul(portstr, &portend, 10);
+        if (*portstr == 0 || *portend != 0 || port > 65535) {
+            return 0;
+        }
+        addr->a.sin_port = htons((uint16_t)port);
+        return 1;
     }
 }
 
@@ -284,6 +321,11 @@ static ssize_t udp_recv(struct zeno_transport * restrict tp, void * restrict buf
         }
         return ret;
     } else {
+        if (is_from_me(udp, src)) {
+            char tmp[TRANSPORT_ADDRSTRLEN];
+            udp_addr2string(tmp, sizeof(tmp), src);
+            ZT(TRANSPORT, ("recv[%d] %zu from %s (self)", 1 - udp->next, ret, tmp));
+        }
         return 0;
     }
 }
@@ -315,10 +357,12 @@ zeno_transport_ops_t transport_udp = {
     .new = udp_new,
     .free = udp_free,
     .addr2string = udp_addr2string,
+    .octseq2addr = udp_octseq2addr,
     .addr_eq = udp_addr_eq,
     .send = udp_send,
     .recv = udp_recv,
-    .wait = udp_wait
+    .wait = udp_wait,
+    .join = udp_join
 };
 
 #endif

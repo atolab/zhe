@@ -105,9 +105,10 @@ void pack_mhello(zeno_address_t *dst)
 #else
     const uint8_t mask = MSCOUT_PEER;
 #endif
-    pack_reserve(dst, NULL, 4);
+    pack_reserve(dst, NULL, 3 + pack_locs_calcsize());
     pack2(MHELLO, mask);
-    pack2(0, 0);
+    pack_locs();
+    pack1(0);
 }
 
 void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, ztimediff_t lease_dur)
@@ -115,12 +116,12 @@ void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *own
     assert(lease_dur >= 0);
     const zpsize_t sizeof_auth = 0;
     const uint32_t ld100 = (uint32_t)(lease_dur / 100);
-    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth + 1 /*empty locs*/ + (seqnumlen != 14 ? 1 : 0));
+    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth + pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0));
     pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZENO_VERSION);
     pack_vec(ownid->len, ownid->id);
     pack_vle32(ld100);
     pack_text(0, NULL); /* auth */
-    pack1(0); /* FIXME: empty locator set */
+    pack_locs();
     if (seqnumlen != 14) {
         pack1(seqnumlen);
     }
