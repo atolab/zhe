@@ -86,6 +86,7 @@ int main(int argc, char * const *argv)
     int opt;
     int mode = 0;
     unsigned cid = 0;
+    int reliable = 1;
     struct zeno_config cfg;
 
 #ifndef ARDUINO
@@ -105,7 +106,7 @@ int main(int argc, char * const *argv)
     cfg.n_mconduit_dstaddrs = 2;
     cfg.mconduit_dstaddrs = mconduit_dstaddrs;
 
-    while((opt = getopt(argc, argv, "C:c:h:psqX:S:G:M:")) != EOF) {
+    while((opt = getopt(argc, argv, "C:c:h:psquX:S:G:M:")) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'p': mode = 1; break;
@@ -117,6 +118,7 @@ int main(int argc, char * const *argv)
                 cid = (unsigned)t;
                 break;
             }
+            case 'u': reliable = 0; break;
             case 'C': checkintv = (unsigned)atoi(optarg); break;
             case 'S': cfg.scoutaddr = optarg; break;
             case 'G': case 'M': {
@@ -170,7 +172,7 @@ int main(int argc, char * const *argv)
         }
         case 1: {
             uint32_t k = 0;
-            pubidx_t p = publish(1, cid, 1);
+            pubidx_t p = publish(1, cid, reliable);
             ztime_t tprint = zeno_time();
             while (1) {
                 int i;

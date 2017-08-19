@@ -39,6 +39,7 @@ struct in_conduit {
     seq_t lseqpU;                 /* latest seq known to exist, plus UNIT */
     seq_t useq;                   /* next unreliable seq to be delivered */
     uint8_t synched: 1;           /* whether a synch was received since (re)establishing the connection */
+    uint8_t usynched: 1;          /* whether some unreliable data was received since (re)establishing the connection */
     ztime_t tack;
 };
 
@@ -231,6 +232,7 @@ static void reset_peer(peeridx_t peeridx, ztime_t tnow)
         p->ic[i].lseqpU = 0;
         p->ic[i].useq = 0;
         p->ic[i].synched = 0;
+        p->ic[i].usynched = 0;
     }
 #if N_OUT_MCONDUITS > 0
     memset(p->mc_member, 0, sizeof(p->mc_member));
@@ -710,7 +712,7 @@ static zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *dat
             }
         }
         /* FIXME: what parts of peers[peeridx] need to be initialised here? */
-        /* FIXME: a hello when established indicates a reconnect for the other one => should clear ic[.].synched */
+        /* FIXME: a hello when established indicates a reconnect for the other one => should clear ic[.].synched, usynched, I think */
         if (send_open) {
             pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
             pack_msend();
@@ -1117,12 +1119,14 @@ int seq_le(seq_t a, seq_t b)
     return (sseq_t) (a - b) <= 0;
 }
 
-static int ic_may_deliver_seq(struct in_conduit *ic, uint8_t hdr, seq_t seq)
+static int ic_may_deliver_seq(const struct in_conduit *ic, uint8_t hdr, seq_t seq)
 {
     if (hdr & MRFLAG) {
         return (ic->seq == seq);
-    } else {
+    } else if (ic->usynched) {
         return seq_le(ic->useq, seq);
+    } else {
+        return 1;
     }
 }
 
@@ -1135,6 +1139,7 @@ static void ic_update_seq (struct in_conduit *ic, uint8_t hdr, seq_t seq)
     } else {
         assert(seq_le(ic->seq, ic->lseqpU));
         ic->useq = seq + SEQNUM_UNIT;
+        ic->usynched = 1;
     }
 }
 
@@ -1251,11 +1256,29 @@ static zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
 
 unsigned zeno_delivered, zeno_discarded;
 
+static int handle_msdata_deliver(rid_t prid, zpsize_t paysz, const uint8_t *pay)
+{
+    uint8_t k;
+    for (k = 0; k < MAX_SUBS; k++) {
+        if (subs[k].rid == prid) {
+            break;
+        }
+    }
+    if (k == MAX_SUBS) {
+        return 1;
+    } else if (subs[k].xmitneed == 0 || subs[k].xmitneed <= xmitw_bytesavail(subs[k].oc)) {
+        /* Do note that "xmitneed" had better include overhead! */
+        subs[k].handler(prid, paysz, pay, subs[k].arg);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
 {
     const uint8_t *data0 = data;
     uint8_t hdr;
-    const uint8_t *pay;
     zpsize_t paysz;
     seq_t seq;
     rid_t rid, prid;
@@ -1269,48 +1292,43 @@ static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
     } else if (!unpack_rid(&sz, &data, &prid)) {
         return 0;
     }
-    /* Attempt to "extract" payload -- we don't extract it but leave it in place to save memory
-       and time.  If it is fully present, datacopy will still point to the payload size and all
+
+    /* Attempt to "extract" payload -- we don't actually extract it but leave it in place to save memory
+       and time.  If it is fully present, pay will still point to the payload size and all
        we need to redo is skip the VLE encoded length in what we know to be a valid buffer */
-    pay = data;
+    const uint8_t * const pay = data;
     if (!unpack_vec(&sz, &data, 0, &paysz, NULL)) {
         return 0;
     }
-    if (peers[peeridx].state == PEERST_ESTABLISHED && peers[peeridx].ic[cid].synched) {
-        pay = skip_validated_vle(pay);
-        if ((hdr & MRFLAG) && seq_le(peers[peeridx].ic[cid].lseqpU, seq)) {
+
+    if (peers[peeridx].state != PEERST_ESTABLISHED) {
+        /* Not accepting data from peers that we haven't (yet) established a connection with */
+        return (zmsize_t)(data - data0);
+    }
+
+    if (!(hdr & MRFLAG)) {
+        if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
+            (void)handle_msdata_deliver(prid, paysz, skip_validated_vle(pay));
+            ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
+        }
+    } else if (peers[peeridx].ic[cid].synched) {
+        if (seq_le(peers[peeridx].ic[cid].lseqpU, seq)) {
             peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
         }
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
-            /* Call the handler synchronously */
-            uint8_t k;
             ZT(RELIABLE, ("handle_msdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT));
-            for (k = 0; k < MAX_SUBS; k++) {
-                if (subs[k].rid == prid) {
-                    break;
-                }
-            }
-            if (k == MAX_SUBS) {
-                /* Not subscribed, ignore */
-                ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
-            } else if (subs[k].xmitneed > 0 && xmitw_bytesavail(subs[k].oc) < subs[k].xmitneed) {
-                /* Not enough space available -- do note that "xmitneed" had better include
-                 overhead! */
-                assert(0); /* FIXME: panicking where we could calmly continue, just so I know it when it happens */
-            } else {
-                subs[k].handler(prid, paysz, pay, subs[k].arg);
+            if (handle_msdata_deliver(prid, paysz, skip_validated_vle(pay))) {
+                /* if failed to deliver, we must retry, which necessitates a retransmit and not updating the conduit state */
                 ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
             }
             zeno_delivered++;
         } else {
-            ZT(RELIABLE, ("handle_msdata peeridx %u cid %u seq %u %s %u", peeridx, cid, seq >> SEQNUM_SHIFT, (hdr & MRFLAG) ? "!=" : "<", (hdr & MRFLAG) ? (peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT) : (peers[peeridx].ic[cid].useq >> SEQNUM_SHIFT)));
+            ZT(RELIABLE, ("handle_msdata peeridx %u cid %u seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT));
             zeno_discarded++;
         }
-        if ((hdr & (MRFLAG | MSFLAG)) == (MRFLAG | MSFLAG)) {
-            /* FIXME: or should this regardless of the S flag? */
-            acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
-        }
+        acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }
+
     return (zmsize_t)(data - data0);
 }
 
@@ -1369,7 +1387,6 @@ static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
         mask = (mask << 1) | 1;
     }
     if (peers[peeridx].state != PEERST_ESTABLISHED) {
-        /* unknown peer, ignore */
         return (zmsize_t)(data - data0);
     }
 
