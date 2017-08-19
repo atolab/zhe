@@ -1,6 +1,7 @@
 #ifndef ZENO_H
 #define ZENO_H
 
+#include <stddef.h>
 #include "zeno-config.h"
 
 #define ZENO_MAKE_UINT_T1(size) uint##size##_t

@@ -4,25 +4,25 @@
 #include "zeno.h"
 #include "zeno-config-deriv.h"
 
-int unpack_skip(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, zmsize_t n);
-int unpack_byte(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint8_t * restrict u);
-int unpack_u16(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint16_t * restrict u);
-int unpack_vle16(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint16_t * restrict u);
-int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint32_t * restrict u);
-int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint64_t * restrict u);
-int unpack_seq(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, seq_t * restrict u);
-const uint8_t *skip_validated_vle(const uint8_t * restrict data);
-int unpack_rid(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, rid_t * restrict u);
-int unpack_vec(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, size_t lim, zpsize_t * restrict u, uint8_t * restrict v);
-int unpack_props(zmsize_t * restrict sz, const uint8_t * restrict * restrict data);
+int unpack_skip(uint8_t const * const end, uint8_t const * * const data, zmsize_t n);
+int unpack_byte(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u);
+int unpack_u16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u);
+int unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u);
+int unpack_vle32(uint8_t const * const end, uint8_t const * * const data, uint32_t * restrict u);
+int unpack_vle64(uint8_t const * const end, uint8_t const * * const data, uint64_t * restrict u);
+int unpack_seq(uint8_t const * const end, uint8_t const * * const data, seq_t * restrict u);
+const uint8_t *skip_validated_vle(const uint8_t *data);
+int unpack_rid(uint8_t const * const end, uint8_t const * * const data, rid_t * restrict u);
+int unpack_vec(uint8_t const * const end, uint8_t const * * const data, size_t lim, zpsize_t * restrict u, uint8_t * restrict v);
+int unpack_props(uint8_t const * const end, uint8_t const * * const data);
 
 struct unpack_locs_iter {
     uint16_t n;
-    zmsize_t sz;
     const uint8_t *data;
+    const uint8_t *end;
 };
 
-int unpack_locs(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, struct unpack_locs_iter *it);
+int unpack_locs(uint8_t const * const end, uint8_t const * * const data, struct unpack_locs_iter *it);
 int unpack_locs_iter(struct unpack_locs_iter *it, zpsize_t *sz, const uint8_t **loc);
 
 #endif

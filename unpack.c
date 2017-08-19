@@ -3,57 +3,54 @@
 #include "unpack.h"
 #include "zeno-int.h"
 
-int unpack_skip(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, zmsize_t n)
+int unpack_skip(uint8_t const * const end, uint8_t const * * const data, zmsize_t n)
 {
-    if (*sz < n) {
+    if (end - *data < n) {
         return 0;
     }
-    *sz -= n;
     *data += n;
     return 1;
 }
 
-int unpack_byte(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint8_t * restrict u)
+int unpack_byte(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u)
 {
-    if (*sz < 1) {
+    if (end - *data < 1) {
         return 0;
     }
     if (u) {
         *u = **data;
     }
-    *sz -= 1;
     *data += 1;
     return 1;
 }
 
-int unpack_u16(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint16_t * restrict u)
+int unpack_u16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
 {
-    if (*sz < 2) {
+    if (end - *data < 2) {
         return 0;
     }
     if (u) {
         *u = (uint16_t)((*data)[0] | ((uint16_t)((*data)[1]) << 8));
     }
-    *sz -= 2;
     *data += 2;
     return 1;
 }
 
-int unpack_vle16(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint16_t * restrict u)
+int unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
 {
     uint16_t n;
     uint8_t shift = 7;
     uint8_t x;
-    if (*sz == 0) {
+    if (end == *data) {
         return 0;
     }
-    x = **data; (*data)++; (*sz)--;
+    x = **data; (*data)++;
     n = x & 0x7f;
     while (x & 0x80) {
-        if (*sz == 0) {
+        if (end == *data) {
             return 0;
         }
-        x = **data; (*data)++; (*sz)--;
+        x = **data; (*data)++;
         if (shift < CHAR_BIT * sizeof(*u)) { /* else behaviour is undefined */
             n |= ((uint16_t)(x & 0x7f)) << shift;
             shift += 7;
@@ -63,17 +60,17 @@ int unpack_vle16(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
     return 1;
 }
 
-int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint32_t * restrict u)
+int unpack_vle32(uint8_t const * const end, uint8_t const * * const data, uint32_t * restrict u)
 {
     uint32_t n;
     uint8_t shift = 7;
     uint8_t x;
-    if (*sz == 0) { return 0; }
-    x = **data; (*data)++; (*sz)--;
+    if (end == *data) { return 0; }
+    x = **data; (*data)++;
     n = x & 0x7f;
     while (x & 0x80) {
-        if (*sz == 0) { return 0; }
-        x = **data; (*data)++; (*sz)--;
+        if (end == *data) { return 0; }
+        x = **data; (*data)++;
         if (shift < CHAR_BIT * sizeof(*u)) { /* else behaviour is undefined */
             n |= ((uint32_t)(x & 0x7f)) << shift;
             shift += 7;
@@ -84,17 +81,17 @@ int unpack_vle32(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
 }
 
 #if RID_T_SIZE > 32 || SEQNUM_LEN > 28
-int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, uint64_t * restrict u)
+int unpack_vle64(uint8_t const * const end, uint8_t const * * const data, uint64_t * restrict u)
 {
     uint64_t n;
     uint8_t shift = 7;
     uint8_t x;
-    if (*sz == 0) { return 0; }
-    x = **data; (*data)++; (*sz)--;
+    if (end == *data) { return 0; }
+    x = **data; (*data)++;
     n = x & 0x7f;
     while (x & 0x80) {
-        if (*sz == 0) { return 0; }
-        x = **data; (*data)++; (*sz)--;
+        if (end == *data) { return 0; }
+        x = **data; (*data)++;
         if (shift < CHAR_BIT * sizeof(*u)) { /* else behaviour is undefined */
             n |= ((uint64_t)(x & 0x7f)) << shift;
             shift += 7;
@@ -105,17 +102,17 @@ int unpack_vle64(zmsize_t * restrict sz, const uint8_t * restrict * restrict dat
 }
 #endif
 
-int unpack_seq(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, seq_t * restrict u)
+int unpack_seq(uint8_t const * const end, uint8_t const * * const data, seq_t * restrict u)
 {
     int res;
 #if SEQNUM_LEN == 7
-    res = unpack_byte(sz, data, u);
+    res = unpack_byte(end, data, u);
 #elif SEQNUM_LEN == 14
-    res = unpack_vle16(sz, data, u);
+    res = unpack_vle16(end, data, u);
 #elif SEQNUM_LEN == 28
-    res = unpack_vle32(sz, data, u);
+    res = unpack_vle32(end, data, u);
 #elif SEQNUM_LEN == 56
-    res = unpack_vle64(sz, data, u);
+    res = unpack_vle64(end, data, u);
 #else
 #error "unpack_seq: invalid SEQNUM_LEN"
 #endif
@@ -126,7 +123,7 @@ int unpack_seq(zmsize_t * restrict sz, const uint8_t * restrict * restrict data,
     return 1;
 }
 
-const uint8_t *skip_validated_vle(const uint8_t * restrict data)
+const uint8_t *skip_validated_vle(const uint8_t *data)
 {
     uint8_t d;
     do {
@@ -135,41 +132,40 @@ const uint8_t *skip_validated_vle(const uint8_t * restrict data)
     return data;
 }
 
-int unpack_rid(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, rid_t * restrict u)
+int unpack_rid(uint8_t const * const end, uint8_t const * * const data, rid_t * restrict u)
 {
-    return SUFFIX_WITH_SIZE(unpack_vle, RID_T_SIZE)(sz, data, u);
+    return SUFFIX_WITH_SIZE(unpack_vle, RID_T_SIZE)(end, data, u);
 }
 
-int unpack_vec(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, size_t lim, zpsize_t * restrict u, uint8_t * restrict v)
+int unpack_vec(uint8_t const * const end, uint8_t const * * const data, size_t lim, zpsize_t * restrict u, uint8_t * restrict v)
 {
     zpsize_t i;
-    if (!unpack_vle16(sz, data, u)) { return 0; }
-    if (*sz < *u) { return 0; }
+    if (!unpack_vle16(end, data, u)) { return 0; }
+    if (end - *data < *u) { return 0; }
     if (*u < lim) { lim = *u; }
     for (i = 0; i < lim; i++) {
         v[i] = **data;
         (*data)++;
     }
     (*data) += *u - lim;
-    (*sz) -= *u;
     return 1;
 }
 
-int unpack_locs(zmsize_t * restrict sz, const uint8_t * restrict * restrict data, struct unpack_locs_iter *it)
+int unpack_locs(uint8_t const * const end, uint8_t const * * const data, struct unpack_locs_iter *it)
 {
     uint16_t n;
     zpsize_t dummy;
-    if (!unpack_vle16(sz, data, &n)) {
+    if (!unpack_vle16(end, data, &n)) {
         return 0;
     }
     it->n = n;
     it->data = *data;
     while (n--) {
-        if (!unpack_vec(sz, data, 0, &dummy, NULL)) {
+        if (!unpack_vec(end, data, 0, &dummy, NULL)) {
             return 0;
         }
     }
-    it->sz = (zmsize_t)(*data - it->data);
+    it->end = *data;
     return 1;
 }
 
@@ -178,7 +174,7 @@ int unpack_locs_iter(struct unpack_locs_iter *it, zpsize_t *sz, const uint8_t **
     if (it->n == 0) {
         return 0;
     } else {
-        int x = unpack_vle16(&it->sz, &it->data, sz);
+        int x = unpack_vle16(it->end, &it->data, sz);
         assert(x);
         *loc = it->data;
         it->data += *sz;
@@ -187,15 +183,15 @@ int unpack_locs_iter(struct unpack_locs_iter *it, zpsize_t *sz, const uint8_t **
     }
 }
 
-int unpack_props(zmsize_t * restrict sz, const uint8_t * restrict * restrict data)
+int unpack_props(uint8_t const * const end, uint8_t const * * const data)
 {
     uint16_t n;
     zpsize_t dummy;
-    if (!unpack_vle16(sz, data, &n)) {
+    if (!unpack_vle16(end, data, &n)) {
         return 0;
     }
     while (n--) {
-        if (!unpack_vec(sz, data, 0, &dummy, NULL) || !unpack_vec(sz, data, 0, &dummy, NULL)) {
+        if (!unpack_vec(end, data, 0, &dummy, NULL) || !unpack_vec(end, data, 0, &dummy, NULL)) {
             return 0;
         }
     }

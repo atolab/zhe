@@ -629,7 +629,7 @@ void rsub_clear(void)
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-static zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *data)
+static const uint8_t *handle_mscout(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER;
@@ -638,11 +638,10 @@ static zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *dat
     const uint32_t lookfor = MSCOUT_CLIENT;
     const int state_ok = 1;
 #endif
-    const uint8_t *data0 = data;
     uint8_t hdr;
     uint32_t mask;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_vle32(&sz, &data, &mask)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_vle32(end, &data, &mask)) {
         return 0;
     }
     /* For a client all activity is really client-initiated, so we can get away
@@ -652,7 +651,7 @@ static zmsize_t handle_mscout(peeridx_t peeridx, zmsize_t sz, const uint8_t *dat
         pack_mhello(&peers[peeridx].oc.addr);
         pack_msend();
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
 static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
@@ -679,7 +678,7 @@ static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
     return 1;
 }
 
-static zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
+static const uint8_t *handle_mhello(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER | MSCOUT_BROKER;
@@ -688,14 +687,13 @@ static zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *dat
     const uint32_t lookfor = MSCOUT_BROKER;
     const int state_ok = (peers[peeridx].state == PEERST_UNKNOWN);
 #endif
-    const uint8_t *data0 = data;
     struct unpack_locs_iter locs_it;
     uint8_t hdr;
     uint32_t mask;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_vle32(&sz, &data, &mask) ||
-        !unpack_locs(&sz, &data, &locs_it) ||
-        !unpack_props(&sz, &data)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_vle32(end, &data, &mask) ||
+        !unpack_locs(end, &data, &locs_it) ||
+        !unpack_props(end, &data)) {
         return 0;
     }
     if ((mask & lookfor) && state_ok) {
@@ -718,7 +716,7 @@ static zmsize_t handle_mhello(peeridx_t peeridx, zmsize_t sz, const uint8_t *dat
             pack_msend();
         }
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
 static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restrict id)
@@ -782,9 +780,8 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     npeers++;
 }
 
-static zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
-    const uint8_t *data0 = data;
     uint8_t hdr, version;
     uint16_t seqsize;
     zpsize_t idlen;
@@ -794,17 +791,17 @@ static zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const ui
     uint32_t ld100;
     struct unpack_locs_iter locs_it;
     struct peer *p;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_byte(&sz, &data, &version) /* version */ ||
-        !unpack_vec(&sz, &data, sizeof(id), &idlen, id) /* peer id */ ||
-        !unpack_vle32(&sz, &data, &ld100) /* lease duration */ ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL) /* auth */ ||
-        !unpack_locs(&sz, &data, &locs_it)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_byte(end, &data, &version) /* version */ ||
+        !unpack_vec(end, &data, sizeof(id), &idlen, id) /* peer id */ ||
+        !unpack_vle32(end, &data, &ld100) /* lease duration */ ||
+        !unpack_vec(end, &data, 0, &dummy, NULL) /* auth */ ||
+        !unpack_locs(end, &data, &locs_it)) {
         return 0;
     }
     if (!(hdr & MLFLAG)) {
         seqsize = 14;
-    } else if (!unpack_vle16(&sz, &data, &seqsize)) {
+    } else if (!unpack_vle16(end, &data, &seqsize)) {
         return 0;
     } else if (seqsize != SEQNUM_LEN) {
         ZT(PEERDISC, ("got an open with an unsupported sequence number size (%hu)", seqsize));
@@ -845,7 +842,7 @@ static zmsize_t handle_mopen(peeridx_t * restrict peeridx, zmsize_t sz, const ui
     pack_maccept(&p->oc.addr, &ownid, &p->id, lease_dur);
     pack_msend();
 
-    return (zmsize_t)(data - data0);
+    return data;
 
 reject:
     pack_mclose(&peers[*peeridx].oc.addr, reason, &ownid);
@@ -856,16 +853,15 @@ reject_no_close:
     return 0;
 }
 
-static zmsize_t handle_maccept(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static const uint8_t *handle_maccept(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
-    const uint8_t *data0 = data;
     zpsize_t idlen;
     uint8_t id[PEERID_SIZE];
     uint32_t ld100;
     zpsize_t dummy;
     int forme;
-    if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_vec(&sz, &data, sizeof(id), &idlen, id)) {
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_vec(end, &data, sizeof(id), &idlen, id)) {
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
@@ -873,9 +869,9 @@ static zmsize_t handle_maccept(peeridx_t * restrict peeridx, zmsize_t sz, const 
         goto reject_no_close;
     }
     forme = (idlen == ownid.len && memcmp(id, ownid.id, idlen) == 0);
-    if (!unpack_vec(&sz, &data, sizeof (id), &idlen, id) ||
-        !unpack_vle32(&sz, &data, &ld100) ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL)) {
+    if (!unpack_vec(end, &data, sizeof (id), &idlen, id) ||
+        !unpack_vle32(end, &data, &ld100) ||
+        !unpack_vec(end, &data, 0, &dummy, NULL)) {
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
@@ -892,7 +888,7 @@ static zmsize_t handle_maccept(peeridx_t * restrict peeridx, zmsize_t sz, const 
             accept_peer(*peeridx, idlen, id, 100 * (ztimediff_t)ld100, tnow);
         }
     }
-    return (zmsize_t)(data - data0);
+    return data;
 
 reject:
     pack_mclose(&peers[*peeridx].oc.addr, CLR_ERROR, &ownid);
@@ -903,15 +899,15 @@ reject_no_close:
     return 0;
 }
 
-static zmsize_t handle_mclose(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static const uint8_t *handle_mclose(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
     /* FIXME: should check id of sender */
     zpsize_t idlen;
     uint8_t id[PEERID_SIZE];
     uint8_t reason;
-    if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_vec(&sz, &data, sizeof(id), &idlen, id) ||
-        !unpack_byte(&sz, &data, &reason)) {
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_vec(end, &data, sizeof(id), &idlen, id) ||
+        !unpack_byte(end, &data, &reason)) {
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
@@ -926,78 +922,74 @@ static zmsize_t handle_mclose(peeridx_t * restrict peeridx, zmsize_t sz, const u
     return 0;
 }
 
-static zmsize_t handle_dresource(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
     /* No use for a broker declaring its resources, but we don't bug out over it */
-    const uint8_t *data0 = data;
     uint8_t hdr;
     zpsize_t dummy;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_rid(&sz, &data, NULL) ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, NULL) ||
+        !unpack_vec(end, &data, 0, &dummy, NULL)) {
         return 0;
     }
-    if ((hdr & DPFLAG) && !unpack_props(&sz, &data)) {
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
         return 0;
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_dpub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_dpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
     /* No use for a broker declaring its publications, but we don't bug out over it */
-    const uint8_t *data0 = data;
     uint8_t hdr;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_rid(&sz, &data, NULL)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, NULL)) {
         return 0;
     }
-    if ((hdr & DPFLAG) && !unpack_props(&sz, &data)) {
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
         return 0;
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_dsub(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_dsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    const uint8_t *data0 = data;
     rid_t rid;
     uint8_t hdr, mode;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_rid(&sz, &data, &rid) ||
-        !unpack_byte(&sz, &data, &mode)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, &rid) ||
+        !unpack_byte(end, &data, &mode)) {
         return 0;
     }
     if (mode == 0 || mode > SUBMODE_MAX) {
         return 0;
     }
     if (mode == SUBMODE_PERIODPULL || mode == SUBMODE_PERIODPUSH) {
-        if (!unpack_vle32(&sz, &data, NULL) ||
-            !unpack_vle32(&sz, &data, NULL))
+        if (!unpack_vle32(end, &data, NULL) ||
+            !unpack_vle32(end, &data, NULL))
             return 0;
     }
-    if ((hdr & DPFLAG) && !unpack_props(&sz, &data)) {
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
         return 0;
     }
     if (interpret) {
         rsub_register(rid, mode);
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_dselection(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_dselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
     /* FIXME: support selections? */
-    const uint8_t *data0 = data;
     rid_t sid;
     uint8_t hdr;
     zpsize_t dummy;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_rid(&sz, &data, &sid) ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, &sid) ||
+        !unpack_vec(end, &data, 0, &dummy, NULL)) {
         return 0;
     }
-    if ((hdr & DPFLAG) && !unpack_props(&sz, &data)) {
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
         return 0;
     }
     if (interpret) {
@@ -1006,17 +998,16 @@ static zmsize_t handle_dselection(peeridx_t peeridx, zmsize_t sz, const uint8_t 
         }
         precommit_curpkt_result |= 4;
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_dbindid(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
     /* FIXME: support bindings?  I don't think there's a need. */
-    const uint8_t *data0 = data;
     rid_t sid;
-    if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_rid(&sz, &data, &sid) ||
-        !unpack_rid(&sz, &data, NULL)) {
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_rid(end, &data, &sid) ||
+        !unpack_rid(end, &data, NULL)) {
         return 0;
     }
     if (interpret) {
@@ -1025,7 +1016,7 @@ static zmsize_t handle_dbindid(peeridx_t peeridx, zmsize_t sz, const uint8_t *da
         }
         precommit_curpkt_result |= 8;
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
 static struct out_conduit *out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
@@ -1035,14 +1026,13 @@ static struct out_conduit *out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
     return c;
 }
 
-static zmsize_t handle_dcommit(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    const uint8_t *data0 = data;
     uint8_t commitid;
     uint8_t res;
     rid_t err_rid;
-    if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_byte(&sz, &data, &commitid)) {
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_byte(end, &data, &commitid)) {
         return 0;
     }
     if (interpret) {
@@ -1063,20 +1053,19 @@ static zmsize_t handle_dcommit(peeridx_t peeridx, zmsize_t sz, const uint8_t *da
             pack_msend();
         }
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_dresult(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_dresult(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    const uint8_t *data0 = data;
     uint8_t commitid, status;
     rid_t rid;
-    if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_byte(&sz, &data, &commitid) ||
-        !unpack_byte(&sz, &data, &status)) {
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_byte(end, &data, &commitid) ||
+        !unpack_byte(end, &data, &status)) {
         return 0;
     }
-    if (status && !unpack_rid(&sz, &data, &rid)) {
+    if (status && !unpack_rid(end, &data, &rid)) {
         return 0;
     }
     if (interpret && status != 0) {
@@ -1088,25 +1077,24 @@ static zmsize_t handle_dresult(peeridx_t peeridx, zmsize_t sz, const uint8_t *da
            problems that may cause ... */
         assert(0);
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_ddeleteres(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, int interpret)
+static const uint8_t *handle_ddeleteres(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    const uint8_t *data0 = data;
     uint8_t hdr;
     zpsize_t dummy;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_vec(&sz, &data, 0, &dummy, NULL)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_vec(end, &data, 0, &dummy, NULL)) {
         return 0;
     }
-    if ((hdr & DPFLAG) && !unpack_props(&sz, &data)) {
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
         return 0;
     }
     if (interpret) {
         precommit_curpkt_result |= 16;
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
 int seq_lt(seq_t a, seq_t b)
@@ -1166,7 +1154,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, ztime_
     }
 }
 
-static zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
+static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, cid_t cid, ztime_t tnow)
 {
     /* Note 1: not buffering data received out-of-order, so but need to decode everything to
        find next message, which we may "have to" interpret - we don't really "have to", but to
@@ -1176,15 +1164,13 @@ static zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
        of a full transmit window in the reliable channel.  The elegant option is to suspend
        further input processing, until space is available again, the inelegant one is to verify
        we have space beforehand, and pretend we never received the DECLARE if we don't. */
-    const uint8_t *data0 = data;
     uint8_t hdr;
-    zmsize_t ncons;
     uint16_t ndecls;
     seq_t seq;
     int intp;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_seq(&sz, &data, &seq) ||
-        !unpack_vle16(&sz, &data, &ndecls)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_seq(end, &data, &seq) ||
+        !unpack_vle16(end, &data, &ndecls)) {
         return 0;
     }
     if (seq_le(peers[peeridx].ic[cid].lseqpU, seq)) {
@@ -1193,24 +1179,21 @@ static zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
     intp = (peers[peeridx].state == PEERST_ESTABLISHED && ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq));
     if (ndecls > 0) {
         do {
-            uint8_t kind = *data & DKIND;
-            switch (kind) {
-                case DRESOURCE:  ncons = handle_dresource(peeridx, sz, data, intp); break;
-                case DPUB:       ncons = handle_dpub(peeridx, sz, data, intp); break;
-                case DSUB:       ncons = handle_dsub(peeridx, sz, data, intp); break;
-                case DSELECTION: ncons = handle_dselection(peeridx, sz, data, intp); break;
-                case DBINDID:    ncons = handle_dbindid(peeridx, sz, data, intp); break;
-                case DCOMMIT:    ncons = handle_dcommit(peeridx, sz, data, intp); break;
-                case DRESULT:    ncons = handle_dresult(peeridx, sz, data, intp); break;
-                case DDELETERES: ncons = handle_ddeleteres(peeridx, sz, data, intp); break;
-                default:         ncons = 0; break;
+            switch (*data & DKIND) {
+                case DRESOURCE:  data = handle_dresource(peeridx, end, data, intp); break;
+                case DPUB:       data = handle_dpub(peeridx, end, data, intp); break;
+                case DSUB:       data = handle_dsub(peeridx, end, data, intp); break;
+                case DSELECTION: data = handle_dselection(peeridx, end, data, intp); break;
+                case DBINDID:    data = handle_dbindid(peeridx, end, data, intp); break;
+                case DCOMMIT:    data = handle_dcommit(peeridx, end, data, intp); break;
+                case DRESULT:    data = handle_dresult(peeridx, end, data, intp); break;
+                case DDELETERES: data = handle_ddeleteres(peeridx, end, data, intp); break;
+                default:         data = 0; break;
             }
-            sz -= ncons;
-            data += ncons;
-            if (ncons > 0) {
+            if (data != 0) {
                 --ndecls;
             }
-        } while (sz > 0 && ncons > 0);
+        } while (data < end && data != 0);
         if (ndecls != 0) {
             rsub_precommit_curpkt_abort();
             return 0;
@@ -1225,18 +1208,17 @@ static zmsize_t handle_mdeclare(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
     }
     /* FIXME: or should it only do this if S flag set? */
     acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
+static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, cid_t cid, ztime_t tnow)
 {
-    const uint8_t *data0 = data;
     uint8_t hdr;
     seq_t cnt_shifted;
     seq_t seqbase;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_seq(&sz, &data, &seqbase) ||
-        !unpack_seq(&sz, &data, &cnt_shifted)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_seq(end, &data, &seqbase) ||
+        !unpack_seq(end, &data, &cnt_shifted)) {
         return 0;
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {
@@ -1251,7 +1233,7 @@ static zmsize_t handle_msynch(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
 unsigned zeno_delivered, zeno_discarded;
@@ -1275,21 +1257,20 @@ static int handle_msdata_deliver(rid_t prid, zpsize_t paysz, const uint8_t *pay)
     }
 }
 
-static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
+static const uint8_t *handle_msdata(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, cid_t cid, ztime_t tnow)
 {
-    const uint8_t *data0 = data;
     uint8_t hdr;
     zpsize_t paysz;
     seq_t seq;
     rid_t rid, prid;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_seq(&sz, &data, &seq) ||
-        !unpack_rid(&sz, &data, &rid)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_seq(end, &data, &seq) ||
+        !unpack_rid(end, &data, &rid)) {
         return 0;
     }
     if (!(hdr & MPFLAG)) {
         prid = rid;
-    } else if (!unpack_rid(&sz, &data, &prid)) {
+    } else if (!unpack_rid(end, &data, &prid)) {
         return 0;
     }
 
@@ -1297,13 +1278,13 @@ static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
        and time.  If it is fully present, pay will still point to the payload size and all
        we need to redo is skip the VLE encoded length in what we know to be a valid buffer */
     const uint8_t * const pay = data;
-    if (!unpack_vec(&sz, &data, 0, &paysz, NULL)) {
+    if (!unpack_vec(end, &data, 0, &paysz, NULL)) {
         return 0;
     }
 
     if (peers[peeridx].state != PEERST_ESTABLISHED) {
         /* Not accepting data from peers that we haven't (yet) established a connection with */
-        return (zmsize_t)(data - data0);
+        return data;
     }
 
     if (!(hdr & MRFLAG)) {
@@ -1329,7 +1310,7 @@ static zmsize_t handle_msdata(peeridx_t peeridx, zmsize_t sz, const uint8_t * re
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }
 
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
 static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
@@ -1366,20 +1347,19 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
     }
 }
 
-static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t cid, ztime_t tnow)
+static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, cid_t cid, ztime_t tnow)
 {
-    const uint8_t *data0 = data;
     struct out_conduit * const c = out_conduit_from_cid(peeridx, cid);
     seq_t seq, seq_ack;
     uint8_t hdr;
     uint32_t mask;
-    if (!unpack_byte(&sz, &data, &hdr) ||
-        !unpack_seq(&sz, &data, &seq)) {
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_seq(end, &data, &seq)) {
         return 0;
     }
     if (!(hdr & MMFLAG)) {
         mask = 0;
-    } else if (!unpack_vle32(&sz, &data, &mask)) {
+    } else if (!unpack_vle32(end, &data, &mask)) {
         return 0;
     } else {
         /* Make the retransmit request for message SEQ implied by the use of an ACKNACK
@@ -1387,7 +1367,7 @@ static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
         mask = (mask << 1) | 1;
     }
     if (peers[peeridx].state != PEERST_ESTABLISHED) {
-        return (zmsize_t)(data - data0);
+        return data;
     }
 
     DO_FOR_UNICAST_OR_MULTICAST(cid, seq_ack = seq, seq_ack = minseqheap_update_seq(peeridx, seq, c->seqbase, &out_mconduits[cid].seqbase));
@@ -1486,56 +1466,53 @@ static zmsize_t handle_macknack(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
 #endif
         pack_msend();
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_mping(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data)
+static const uint8_t *handle_mping(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data)
 {
-    const uint8_t *data0 = data;
     uint16_t hash;
-    if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_u16(&sz, &data, &hash)) {
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_u16(end, &data, &hash)) {
         return 0;
     }
     pack_mpong(&peers[peeridx].oc.addr, hash);
     pack_msend();
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_mpong(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data)
+static const uint8_t *handle_mpong(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data)
 {
-    const uint8_t *data0 = data;
-    if (!unpack_skip(&sz, &data, 3)) {
+    if (!unpack_skip(end, &data, 3)) {
         return 0;
     }
-    return (zmsize_t)(data - data0);
+    return data;
 }
 
-static zmsize_t handle_mkeepalive(peeridx_t * restrict peeridx, zmsize_t sz, const uint8_t * restrict data, ztime_t tnow)
+static const uint8_t *handle_mkeepalive(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
-    const uint8_t *data0 = data;
     zpsize_t idlen;
     uint8_t id[PEERID_SIZE];
-    if (!unpack_skip(&sz, &data, 1) ||
-        !unpack_vec(&sz, &data, sizeof(id), &idlen, id)) {
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_vec(end, &data, sizeof(id), &idlen, id)) {
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
         reset_peer(*peeridx, tnow);
         return 0;
     }
-    *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
-    return (zmsize_t)(data - data0);
+    (void)find_peeridx_by_id(*peeridx, idlen, id);
+    return data;
 }
 
-static zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t * restrict data, cid_t * restrict cid, ztime_t tnow)
+static const uint8_t *handle_mconduit(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, cid_t * restrict cid, ztime_t tnow)
 {
     uint8_t hdr, cid_byte;
-    if (!unpack_byte(&sz, &data, &hdr)) {
+    if (!unpack_byte(end, &data, &hdr)) {
         return 0;
     } else if (hdr & MZFLAG) {
         *cid = 1 + ((hdr >> 5) & 0x3);
-    } else if (!unpack_byte(&sz, &data, &cid_byte)) {
+    } else if (!unpack_byte(end, &data, &cid_byte)) {
         return 0;
     } else if (cid_byte > MAX_CID_T) {
         reset_peer(peeridx, tnow);
@@ -1547,35 +1524,31 @@ static zmsize_t handle_mconduit(peeridx_t peeridx, zmsize_t sz, const uint8_t * 
         reset_peer(peeridx, tnow);
         return 0;
     }
-    return 1;
+    return data;
 }
 
-static uint8_t *handle_packet(peeridx_t peeridx, zmsize_t sz, const uint8_t *data, ztime_t tnow)
+static const uint8_t *handle_packet(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
-    zmsize_t ncons;
     cid_t cid = 0;
     do {
-        uint8_t kind = *data & MKIND;
-        switch (kind) {
-            case MSCOUT:     ncons = handle_mscout(peeridx, sz, data); break;
-            case MHELLO:     ncons = handle_mhello(peeridx, sz, data, tnow); break;
-            case MOPEN:      ncons = handle_mopen(&peeridx, sz, data, tnow); break;
-            case MACCEPT:    ncons = handle_maccept(&peeridx, sz, data, tnow); break;
-            case MCLOSE:     ncons = handle_mclose(&peeridx, sz, data, tnow); break;
-            case MDECLARE:   ncons = handle_mdeclare(peeridx, sz, data, cid, tnow); break;
-            case MSDATA:     ncons = handle_msdata(peeridx, sz, data, cid, tnow); break;
-            case MPING:      ncons = handle_mping(peeridx, sz, data); break;
-            case MPONG:      ncons = handle_mpong(peeridx, sz, data); break;
-            case MSYNCH:     ncons = handle_msynch(peeridx, sz, data, cid, tnow); break;
-            case MACKNACK:   ncons = handle_macknack(peeridx, sz, data, cid, tnow); break;
-            case MKEEPALIVE: ncons = handle_mkeepalive(&peeridx, sz, data, tnow); break;
-            case MCONDUIT:   ncons = handle_mconduit(peeridx, sz, data, &cid, tnow); break;
-            default:         ncons = 0; break;
+        switch (*data & MKIND) {
+            case MSCOUT:     data = handle_mscout(peeridx, end, data); break;
+            case MHELLO:     data = handle_mhello(peeridx, end, data, tnow); break;
+            case MOPEN:      data = handle_mopen(&peeridx, end, data, tnow); break;
+            case MACCEPT:    data = handle_maccept(&peeridx, end, data, tnow); break;
+            case MCLOSE:     data = handle_mclose(&peeridx, end, data, tnow); break;
+            case MDECLARE:   data = handle_mdeclare(peeridx, end, data, cid, tnow); break;
+            case MSDATA:     data = handle_msdata(peeridx, end, data, cid, tnow); break;
+            case MPING:      data = handle_mping(peeridx, end, data); break;
+            case MPONG:      data = handle_mpong(peeridx, end, data); break;
+            case MSYNCH:     data = handle_msynch(peeridx, end, data, cid, tnow); break;
+            case MACKNACK:   data = handle_macknack(peeridx, end, data, cid, tnow); break;
+            case MKEEPALIVE: data = handle_mkeepalive(&peeridx, end, data, tnow); break;
+            case MCONDUIT:   data = handle_mconduit(peeridx, end, data, &cid, tnow); break;
+            default:         data = 0; break;
         }
-        sz -= ncons;
-        data += ncons;
-    } while (ncons > 0 && sz > 0);
-    return (uint8_t *)data;
+    } while (data < end && data != 0);
+    return data;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -1852,7 +1825,7 @@ static int handle_input_packet(ztime_t tnow)
             if (peers[peeridx].state == PEERST_ESTABLISHED) {
                 peers[peeridx].tlease = tnow;
             }
-            handle_packet(peeridx, (zmsize_t)recvret, inbuf, tnow);
+            (void)handle_packet(peeridx, inbuf + recvret, inbuf, tnow);
             /* peeridx need no longer be correct */
         } else {
             ZT(DEBUG, ("message from %s dropped: no available peeridx", addrstr));
@@ -1893,7 +1866,7 @@ static int handle_input_stream(ztime_t tnow)
         /* No point in repeatedly trying to decode the same incomplete data */
         int ret = 0;
         if (read_something) {
-            uint8_t *datap = handle_packet(0, inp, inbuf, tnow);
+            const uint8_t *datap = handle_packet(0, inbuf + inp, inbuf, tnow);
             /* peeridx need no longer be correct */
             zmsize_t cons = (zmsize_t) (datap - inbuf);
             if (cons > 0) {
