@@ -41,7 +41,7 @@ static struct zeno_transport *arduino_new(const struct zeno_config *config, cons
 
     Serial.begin(115200);
 
-    /* FIXME: perhaps shouldn't take this time here, but before one calls zeno_init(); for now however, it is safe to do it here */
+    /* Perhaps shouldn't take this time here, but before one calls zeno_init(); for now however, it is safe to do it here */
     while (state != STATE_OPERATIONAL) {
         /* On startup, wait up to 5s for some input, and if some is received, drain
            the input until nothing is received for 1s.  For some reason, garbage

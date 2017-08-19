@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define DECL_BITSET(name_, size_) uint8_t name_[(size_)+7/8]
+
 unsigned popcnt8(uint8_t x);
 void bitset_set(uint8_t *s, unsigned idx);
 void bitset_clear(uint8_t *s, unsigned idx);

@@ -28,7 +28,6 @@
 struct udp {
     int s[2];
     int next;
-    /* FIXME: there are better ways to do this: */
     uint16_t ucport;
     size_t nself;
     in_addr_t self[MAX_SELF];

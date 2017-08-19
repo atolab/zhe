@@ -11,6 +11,11 @@
 #include "zeno-int.h"
 #include "zeno-tracing.h"
 
+#if (SEQNUM_LEN % 7) != 0
+#error "SEQNUM_LEN is not a multiple of 7 - how can this be?"
+#endif
+#define WORST_CASE_SEQ_SIZE (8 * SEQNUM_LEN / 7)
+
 void pack_vle16(uint16_t x)
 {
     do {
@@ -106,8 +111,7 @@ void pack_text(zpsize_t n, const char *text)
 void pack_mscout(zeno_address_t *dst)
 {
     /* Client mode should only look for a broker, but a peer should look for peers and brokers
-       (because a broker really can be considered a peer).
-       FIXME: I ought to make this a parameter and do it zeno.c ... */
+       (because a broker really can be considered a peer). */
 #if MAX_PEERS == 0
     const uint8_t mask = MSCOUT_BROKER;
 #else
@@ -119,7 +123,6 @@ void pack_mscout(zeno_address_t *dst)
 
 void pack_mhello(zeno_address_t *dst)
 {
-    /* FIXME: format is header, mask (vle), locs, props - this implementation for constructing a hello message is rather too limited */
 #if MAX_PEERS == 0
     const uint8_t mask = MSCOUT_CLIENT;
 #else
@@ -234,8 +237,9 @@ void pack_mkeepalive(zeno_address_t *dst, const struct peerid *ownid)
 
 int oc_pack_msdata(struct out_conduit *c, int relflag, rid_t rid, zpsize_t payloadlen)
 {
-    /* FIXME: should use pack_seqreq instead of worst-case of 2 */
-    const zpsize_t sz = 3 + pack_ridreq(rid) + pack_vle16req(payloadlen) + payloadlen;
+    /* Use worst-case number of bytes for sequence number, instead of getting the sequence number
+       earlier than as an output of oc_pack_payload_msgprep and using the exact value */
+    const zpsize_t sz = 1 + WORST_CASE_SEQ_SIZE + pack_ridreq(rid) + pack_vle16req(payloadlen) + payloadlen;
     uint8_t hdr = MSDATA | (relflag ? MRFLAG : 0);
     zmsize_t from;
     seq_t s;
@@ -269,17 +273,17 @@ void oc_pack_msdata_done(struct out_conduit *c, int relflag)
 
 int oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen)
 {
+    const zpsize_t sz = 1 + WORST_CASE_SEQ_SIZE + pack_vle16req(ndecls) + decllen;
     zmsize_t from;
     seq_t s;
     assert(ndecls <= 127);
-    if (xmitw_bytesavail(c) < sizeof(zmsize_t) + 5 + decllen) {
-        /* no space in transmit window (1 byte size, 5 bytes header, decllen) */
+    if (xmitw_bytesavail(c) < sizeof(zmsize_t) + sz) {
         return 0;
     }
-    from = oc_pack_payload_msgprep(&s, c, 1, 5 + decllen);
+    from = oc_pack_payload_msgprep(&s, c, 1, sz);
     pack1(MRFLAG | MSFLAG | MDECLARE);
     pack_seq(s);
-    pack1(ndecls); /* VLE, but we limit it to 127 so always one byte */
+    pack_vle16(ndecls);
     oc_pack_copyrel(c, from);
     return 1;
 }

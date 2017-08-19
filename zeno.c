@@ -60,7 +60,6 @@ struct out_conduit {
     uint8_t  *rbuf;               /* reliable samples (or declarations); prepended by size (of type zmsize_t) */
 };
 
-/* FIXME: add a mask of mconduits that the peer listens to, with the set determined from the multicast locators in the discovery phase */
 struct peer {
     uint8_t state;                /* connection state for this peer */
     ztime_t tlease;               /* peer must send something before tlease or we'll close the session | next time for scout/open msg */
@@ -73,7 +72,7 @@ struct peer {
     struct in_conduit ic[N_IN_CONDUITS]; /* one slot for each out conduit from this peer */
     struct peerid id;             /* peer id */
 #if N_OUT_MCONDUITS > 0
-    uint8_t mc_member[(N_OUT_MCONDUITS+7)/8]; /* FIXME: what if I want to change the underlying type of a bitset ... should have a better way of declaring this */
+    DECL_BITSET(mc_member, N_OUT_MCONDUITS);
 #endif
 };
 
@@ -119,7 +118,7 @@ uint16_t n_multicast_locators;
 zeno_address_t multicast_locators[MAX_MULTICAST_GROUPS];
 #endif
 
-/* FIXME: for packet-based we can do with a single input buffer; for stream-based we will probably need an input buffer per peer */
+/* For packet-based we can do with a single input buffer; for stream-based we will probably need an input buffer per peer */
 #if TRANSPORT_MODE == TRANSPORT_STREAM && MAX_PEERS > 0
 #error "haven't worked out the details of peer-to-peer with stream-based transports"
 #endif
@@ -168,8 +167,8 @@ static void oc_setup1(struct out_conduit * const oc, cid_t cid, uint16_t xmitw_b
 {
     memset(&oc->addr, 0, sizeof(oc->addr));
     oc->cid = cid;
-    oc->seq = 0; /* FIXME: reset seq, or send SYNCH? the latter, I think */
-    oc->useq = 0; /* FIXME: reset or SYNCH? -- SYNCH doesn't even cover unreliable at the moment */
+    oc->seq = 0;
+    oc->useq = 0;
     oc->pos = sizeof(zmsize_t);
     oc->spos = 0;
     oc->xmitw_bytes = xmitw_bytes;
@@ -179,7 +178,6 @@ static void oc_setup1(struct out_conduit * const oc, cid_t cid, uint16_t xmitw_b
 
 static void reset_outbuf(void)
 {
-    /* FIXME: keep outgoing packet builder as is? */
     outspos = OUTSPOS_UNSET;
     outp = 0;
     outc = NULL;
@@ -249,7 +247,6 @@ static void init_globals(void)
         struct out_mconduit * const mc = &out_mconduits[i];
         oc_setup1(&mc->oc, i, XMITW_BYTES, out_mconduits_oc_rbuf[i]);
         mc->seqbase.n = 0;
-        /* FIXME: seqbase.hx[peeridx] is not a good idea */
         for (peeridx_t j = 0; j < MAX_PEERS; j++) {
             mc->seqbase.hx[j] = PEERIDX_INVALID;
             mc->seqbase.ix[j].i = PEERIDX_INVALID;
@@ -708,9 +705,13 @@ static const uint8_t *handle_mhello(peeridx_t peeridx, const uint8_t * const end
                 peers[peeridx].state = PEERST_OPENING_MIN;
                 peers[peeridx].tlease = tnow;
             }
+        } else {
+            /* FIXME: a hello when established indicates a reconnect for the other one => should at least clear ic[.].synched, usynched - but maybe more if we want some kind of nothing of the event ... */
+            for (cid_t cid = 0; cid < N_IN_CONDUITS; cid++) {
+                peers[peeridx].ic[cid].synched = 0;
+                peers[peeridx].ic[cid].usynched = 0;
+            }
         }
-        /* FIXME: what parts of peers[peeridx] need to be initialised here? */
-        /* FIXME: a hello when established indicates a reconnect for the other one => should clear ic[.].synched, usynched, I think */
         if (send_open) {
             pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
             pack_msend();
@@ -721,8 +722,6 @@ static const uint8_t *handle_mhello(peeridx_t peeridx, const uint8_t * const end
 
 static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restrict id)
 {
-    /* FIXME: peeridx can now change while processing a message ... so should pass peeridx by reference in all message handling */
-
     /* keepalive, open, accept and close contain a peer id, and can be used to switch source address;
        peeridx on input is the peeridx determined using the source address, on return it will be the
        peeridx of the known peer with this id (if any) and otherwise just the same idx */
@@ -901,7 +900,6 @@ reject_no_close:
 
 static const uint8_t *handle_mclose(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
-    /* FIXME: should check id of sender */
     zpsize_t idlen;
     uint8_t id[PEERID_SIZE];
     uint8_t reason;
@@ -1206,7 +1204,6 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
         rsub_precommit_curpkt_done();
         (void)ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
     }
-    /* FIXME: or should it only do this if S flag set? */
     acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     return data;
 }
@@ -1711,7 +1708,7 @@ void send_declares(ztime_t tnow)
 
 int zeno_init(const struct zeno_config *config)
 {
-    /* FIXME: is there a way to make the transport pluggable at run-time without dynamic allocation? I don't think so, not with the MTU so important ... */
+    /* Is there a way to make the transport pluggable at run-time without dynamic allocation? I don't think so, not with the MTU so important ... */
     if (config->idlen == 0 || config->idlen > PEERID_SIZE) {
         return -1;
     }
@@ -1916,7 +1913,7 @@ static void housekeeping(ztime_t tnow)
 {
     maybe_send_scout(tnow);
 
-    /* FIXME: obviously, this is far too big a waste of CPU time if MAX_PEERS is biggish */
+    /* FIXME: obviously, this is a big waste of CPU time if MAX_PEERS is biggish (but worst-case cost isn't affected) */
     for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
         switch(peers[i].state) {
             case PEERST_UNKNOWN:
@@ -1954,14 +1951,6 @@ static void housekeeping(ztime_t tnow)
 #if N_OUT_MCONDUITS > 0
     for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
         struct out_mconduit * const mc = &out_mconduits[cid];
-
-#if 0 /* now not storing anything by checking #peers */
-        /* FIXME: should not even store the data temporarily if there are no peers */
-        if (minseqheap_isempty(&mc->seqbase)) {
-            remove_acked_messages(&mc->oc, mc->oc.seq);
-        }
-#endif
-
         maybe_send_msync_oc(&mc->oc, tnow);
     }
 #endif
