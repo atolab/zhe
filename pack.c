@@ -134,11 +134,16 @@ void pack_mhello(zeno_address_t *dst)
     pack1(0);
 }
 
-void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, ztimediff_t lease_dur)
+static uint32_t conv_ztimediff_to_lease(ztimediff_t lease_dur)
 {
     assert(lease_dur >= 0);
+    return (uint32_t)(lease_dur / (100000000 / ZENO_TIMEBASE));
+}
+
+void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, ztimediff_t lease_dur)
+{
     const zpsize_t sizeof_auth = 0;
-    const uint32_t ld100 = (uint32_t)(lease_dur / 100);
+    const uint32_t ld100 = conv_ztimediff_to_lease(lease_dur);
     pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth + pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0));
     pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZENO_VERSION);
     pack_vec(ownid->len, ownid->id);
@@ -152,9 +157,8 @@ void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *own
 
 void pack_maccept(zeno_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, ztimediff_t lease_dur)
 {
-    assert(lease_dur >= 0);
     const zpsize_t sizeof_auth = 0;
-    const uint32_t ld100 = (uint32_t)(lease_dur / 100);
+    const uint32_t ld100 = conv_ztimediff_to_lease(lease_dur);
     pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len + pack_vle16req(peerid->len) + peerid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth);
     pack1(MACCEPT);
     pack_vec(peerid->len, peerid->id);
@@ -271,25 +275,24 @@ void oc_pack_msdata_done(struct out_conduit *c, int relflag)
     oc_pack_payload_done(c, relflag);
 }
 
-int oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen)
+int oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zmsize_t *from)
 {
     const zpsize_t sz = 1 + WORST_CASE_SEQ_SIZE + pack_vle16req(ndecls) + decllen;
-    zmsize_t from;
     seq_t s;
     assert(ndecls <= 127);
     if (xmitw_bytesavail(c) < sizeof(zmsize_t) + sz) {
         return 0;
     }
-    from = oc_pack_payload_msgprep(&s, c, 1, sz);
-    pack1(MRFLAG | MSFLAG | MDECLARE);
+    *from = oc_pack_payload_msgprep(&s, c, 1, sz);
+    pack1(MRFLAG | MDECLARE);
     pack_seq(s);
     pack_vle16(ndecls);
-    oc_pack_copyrel(c, from);
     return 1;
 }
 
-void oc_pack_mdeclare_done(struct out_conduit *c)
+void oc_pack_mdeclare_done(struct out_conduit *c, zmsize_t from)
 {
+    oc_pack_copyrel(c, from);
     oc_pack_payload_done(c, 1);
 }
 

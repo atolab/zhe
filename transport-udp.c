@@ -16,12 +16,8 @@
 #include <ifaddrs.h>
 
 #include "zeno-tracing.h"
-#include "zeno-config-int.h"
+#include "zeno-config-deriv.h"
 #include "transport-udp.h"
-
-#if ZENO_TIMEBASE != 1000000
-#error "UDP transport implementation assumes 1ms resolution for timestamps"
-#endif
 
 #define MAX_SELF 16
 
@@ -351,8 +347,8 @@ static int udp_wait(const struct zeno_transport * restrict tp, ztimediff_t timeo
         return select(k+1, &rs, NULL, NULL, NULL) > 0;
     } else {
         struct timeval tv;
-        tv.tv_sec = timeout / 1000;
-        tv.tv_usec = 1000 * (timeout % 1000);
+        tv.tv_sec = ZTIME_TO_SECu32(timeout);
+        tv.tv_usec = 1000 * ZTIME_TO_MSECu32(timeout);
         return select(k+1, &rs, NULL, NULL, &tv) > 0;
     }
 }

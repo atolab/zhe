@@ -16,11 +16,7 @@
 #include "unpack.h"
 #include "bitset.h"
 #include "binheap.h"
-
-#define WC_DRESULT_SIZE     8 /* worst-case result size: header, commitid, status, rid */
-#define WC_DCOMMIT_SIZE     2 /* commit: header, commitid */
-#define WC_DPUB_SIZE        6 /* pub: header, rid (not using properties) */
-#define WC_DSUB_SIZE        7 /* sub: header, rid, mode (neither properties nor periodic modes) */
+#include "pubsub.h"
 
 #define PEERST_UNKNOWN       0
 #define PEERST_OPENING_MIN   1
@@ -40,7 +36,7 @@ struct in_conduit {
     seq_t useq;                   /* next unreliable seq to be delivered */
     uint8_t synched: 1;           /* whether a synch was received since (re)establishing the connection */
     uint8_t usynched: 1;          /* whether some unreliable data was received since (re)establishing the connection */
-    ztime_t tack;
+    ztime_t tack;                 /* time of most recent ack sent */
 };
 
 struct out_conduit {
@@ -54,9 +50,9 @@ struct out_conduit {
     uint16_t xmitw_bytes;         /* size of transmit window pointed to by rbuf */
     ztime_t  tsynch;              /* next time to send out a SYNCH because of unack'd messages */
     cid_t    cid;                 /* conduit id */
-    ztime_t  last_rexmit;
-    seq_t    last_rexmit_seq;
-    unsigned draining_window: 1;
+    ztime_t  last_rexmit;         /* time of latest retransmit */
+    seq_t    last_rexmit_seq;     /* latest sequence number retransmitted */
+    uint8_t  draining_window: 1;  /* set to true if draining window (waiting for ACKs) after hitting limit */
     uint8_t  *rbuf;               /* reliable samples (or declarations); prepended by size (of type zmsize_t) */
 };
 
@@ -186,9 +182,9 @@ static void reset_outbuf(void)
 
 static void reset_peer(peeridx_t peeridx, ztime_t tnow)
 {
-    /* FIXME: remote declares */
-
     struct peer * const p = &peers[peeridx];
+    /* FIXME: stupid naming */
+    rsub_clear(peeridx);
     /* If data destined for this peer, drop it it */
 #if HAVE_UNICAST_CONDUIT
     if (outdst == &p->oc.addr) {
@@ -270,6 +266,16 @@ static void init_globals(void)
 #endif
 }
 
+int seq_lt(seq_t a, seq_t b)
+{
+    return (sseq_t) (a - b) < 0;
+}
+
+int seq_le(seq_t a, seq_t b)
+{
+    return (sseq_t) (a - b) <= 0;
+}
+
 static uint16_t xmitw_pos_add(const struct out_conduit *c, uint16_t p, uint16_t a)
 {
     if ((p += a) >= c->xmitw_bytes) {
@@ -294,7 +300,7 @@ static seq_t oc_get_nsamples(struct out_conduit const * const c)
     return (seq_t)(c->seq - c->seqbase) >> SEQNUM_SHIFT;
 }
 
-static void pack_msend(void)
+void pack_msend(void)
 {
     assert ((outspos == OUTSPOS_UNSET) == (outc == NULL));
     assert (outdst != NULL);
@@ -339,7 +345,7 @@ void pack_reserve(zeno_address_t *dst, struct out_conduit *oc, zpsize_t cnt)
            we check, because it is single-threaded and we always complete whatever message we
            start constructing */
         outdeadline = zeno_time() + LATENCY_BUDGET;
-        ZT(DEBUG, ("deadline at %"PRIu32".%0"PRIu32, (uint32_t)outdeadline / 1000u, (uint32_t)outdeadline % 1000u));
+        ZT(DEBUG, ("deadline at %"PRIu32".%0"PRIu32, ZTIME_TO_SECu32(outdeadline), ZTIME_TO_MSECu32(outdeadline)));
     }
 #endif
 }
@@ -417,6 +423,11 @@ void oc_hit_full_window(struct out_conduit *c)
     }
 }
 
+int oc_am_draining_window(const struct out_conduit *c)
+{
+    return c->draining_window;
+}
+
 #if N_OUT_MCONDUITS > 0
 int ocm_have_peers(const struct out_mconduit *mc)
 {
@@ -485,143 +496,177 @@ void oc_pack_payload_done(struct out_conduit *c, int relflag)
     }
 }
 
+struct out_conduit *out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
+{
+    struct out_conduit *c;
+    DO_FOR_UNICAST_OR_MULTICAST(cid, c = &peers[peeridx].oc, c = &out_mconduits[cid].oc);
+    return c;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-#define MAX_SUBS 10
-#define MAX_PUBS 10
-
-struct subtable {
-    /* ID of the resource subscribed to (could also be a SID, actually) */
-    rid_t rid;
-
-    /* Minimum number of bytes that must be available in transmit window in the given conduit
-       before calling, must include message overhead (for writing SDATA -- that is, no PRID
-       present -- worst case is 9 bytes with a payload limit of 127 bytes and 32-bit RIDs) */
-    struct out_conduit *oc;
-    zpsize_t xmitneed;
-
-    /* */
-    void *arg;
-    subhandler_t handler;
-};
-struct subtable subs[MAX_SUBS];
-
-struct pubtable {
-    struct out_conduit *oc;
-    rid_t rid;
-};
-struct pubtable pubs[MAX_PUBS];
-
-/* FIXME: should switch from publisher determines reliability to subscriber determines
-   reliability, i.e., publisher reliability bit gets set to 
-   (foldr or False $ map isReliableSub subs).  Keeping the reliability information
-   separate from pubs has the advantage of saving quite a few bytes. */
-uint8_t pubs_isrel[(MAX_PUBS + 7) / 8];
-uint8_t rsubs[(MAX_PUBS + 7) / 8];
-
-uint8_t precommit_rsubs[(MAX_PUBS + 7) / 8];
-uint8_t precommit_result;
-rid_t precommit_invalid_rid;
-
-uint8_t precommit_curpkt_rsubs[(MAX_PUBS + 7) / 8];
-uint8_t precommit_curpkt_result;
-rid_t precommit_curpkt_invalid_rid;
-
-void rsub_register(rid_t rid, uint8_t submode)
+static const uint8_t *handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    uint8_t pubidx;
-    assert(rid != 0);
-    for (pubidx = 0; pubidx < MAX_PUBS; pubidx++) {
-        if (pubs[pubidx].rid == rid) {
-            break;
-        }
-    }
-    if (submode == SUBMODE_PUSH && pubidx < MAX_PUBS) {
-        bitset_set(precommit_curpkt_rsubs, pubidx);
-    } else {
-        if (precommit_curpkt_result == 0) {
-            precommit_curpkt_invalid_rid = rid;
-        }
-        if (submode != SUBMODE_PUSH) {
-            precommit_curpkt_result |= 1;
-        }
-        if (pubidx >= MAX_PUBS) {
-            precommit_curpkt_result |= 2;
-        }
-    }
-}
-
-uint8_t rsub_precommit(rid_t *err_rid)
-{
-    assert (precommit_curpkt_result == 0);
-    if (precommit_result == 0) {
+    /* No use for a broker declaring its resources, but we don't bug out over it */
+    uint8_t hdr;
+    zpsize_t dummy;
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, NULL) ||
+        !unpack_vec(end, &data, 0, &dummy, NULL)) {
         return 0;
-    } else {
-        size_t i;
-        *err_rid = precommit_invalid_rid;
-        for (i = 0; i < sizeof (precommit_rsubs); i++) {
-            precommit_rsubs[i] = 0;
+    }
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
+        return 0;
+    }
+    return data;
+}
+
+static const uint8_t *handle_dpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
+{
+    /* No use for a broker declaring its publications, but we don't bug out over it */
+    uint8_t hdr;
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, NULL)) {
+        return 0;
+    }
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
+        return 0;
+    }
+    return data;
+}
+
+static const uint8_t *handle_dsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
+{
+    rid_t rid;
+    uint8_t hdr, mode;
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, &rid) ||
+        !unpack_byte(end, &data, &mode)) {
+        return 0;
+    }
+    if (mode == 0 || mode > SUBMODE_MAX) {
+        return 0;
+    }
+    if (mode == SUBMODE_PERIODPULL || mode == SUBMODE_PERIODPUSH) {
+        if (!unpack_vle32(end, &data, NULL) ||
+            !unpack_vle32(end, &data, NULL)) {
+            return 0;
         }
-        precommit_result = 0;
-        precommit_invalid_rid = 0;
-        return precommit_result;
     }
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
+        return 0;
+    }
+    if (interpret) {
+        rsub_register(peeridx, rid, mode);
+    }
+    return data;
 }
 
-void rsub_commit(void)
+static const uint8_t *handle_dselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    size_t i;
-    assert (precommit_result == 0);
-    for (i = 0; i < sizeof (rsubs); i++)
-        rsubs[i] |= precommit_rsubs[i];
-    for (i = 0; i < sizeof (precommit_rsubs); i++) {
-        precommit_rsubs[i] = 0;
+    /* FIXME: support selections? */
+    rid_t sid;
+    uint8_t hdr;
+    zpsize_t dummy;
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_rid(end, &data, &sid) ||
+        !unpack_vec(end, &data, 0, &dummy, NULL)) {
+        return 0;
     }
-    precommit_result = 0;
-    precommit_invalid_rid = 0;
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
+        return 0;
+    }
+    if (interpret) {
+        decl_note_error(4, sid);
+    }
+    return data;
 }
 
-int rsub_exists(uint8_t pubidx)
+static const uint8_t *handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    assert(pubidx < MAX_PUBS);
-    return bitset_test(rsubs, pubidx);
+    /* FIXME: support bindings?  I don't think there's a need. */
+    rid_t sid;
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_rid(end, &data, &sid) ||
+        !unpack_rid(end, &data, NULL)) {
+        return 0;
+    }
+    if (interpret) {
+        decl_note_error(8, sid);
+    }
+    return data;
 }
 
-void rsub_precommit_curpkt_abort(void)
+static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    size_t i;
-    for (i = 0; i < sizeof (precommit_rsubs); i++) {
-        precommit_curpkt_rsubs[i] = 0;
+    uint8_t commitid;
+    uint8_t res;
+    rid_t err_rid;
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_byte(end, &data, &commitid)) {
+        return 0;
     }
-    precommit_curpkt_invalid_rid = 0;
-    precommit_curpkt_result = 0;
+    if (interpret) {
+        /* If we can't reserve space in the transmit window, pretend we never received the
+         DECLARE message and abandon the rest of the packet.  Eventually we'll get a
+         retransmit and retry.  Use worst-case size for result */
+        struct out_conduit * const oc = out_conduit_from_cid(0, 0);
+        zmsize_t from;
+        if (!oc_pack_mdeclare(oc, 1, WC_DRESULT_SIZE, &from)) {
+            return 0;
+        } else {
+            rsub_precommit_curpkt_done(peeridx);
+            if ((res = rsub_precommit(peeridx, &err_rid)) == 0) {
+                rsub_commit(peeridx);
+            }
+            pack_dresult(commitid, res, err_rid);
+            oc_pack_mdeclare_done(oc, from);
+            pack_msend();
+        }
+    }
+    return data;
 }
 
-void rsub_precommit_curpkt_done(void)
+static const uint8_t *handle_dresult(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    size_t i;
-    for (i = 0; i < sizeof (precommit_rsubs); i++) {
-        precommit_rsubs[i] |= precommit_curpkt_rsubs[i];
+    uint8_t commitid, status;
+    rid_t rid = 0;
+    if (!unpack_skip(end, &data, 1) ||
+        !unpack_byte(end, &data, &commitid) ||
+        !unpack_byte(end, &data, &status)) {
+        return 0;
     }
-    if (precommit_invalid_rid == 0) {
-        precommit_invalid_rid = precommit_curpkt_invalid_rid;
+    if (status && !unpack_rid(end, &data, &rid)) {
+        return 0;
     }
-    precommit_result |= precommit_curpkt_result;
-    rsub_precommit_curpkt_abort();
+    ZT(PUBSUB, ("handle_dresult %u intp %d | commitid %u status %u rid %ju", (unsigned)peeridx, interpret, commitid, status, (uintmax_t)rid));
+    if (interpret && status != 0) {
+        /* Don't know what to do when the broker refuses my declarations - although I guess it
+         would make some sense to close the connection and try again.  But even if that is
+         the right thing to do, don't do that just yet, because it shouldn't fail.
+
+         Also note that we're not looking at the commit id at all, I am not sure yet what
+         problems that may cause ... */
+        assert(0);
+    }
+    return data;
 }
 
-void rsub_clear(void)
+static const uint8_t *handle_ddeleteres(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
 {
-    size_t i;
-    for (i = 0; i < sizeof (rsubs); i++) {
-        rsubs[i] = 0;
+    uint8_t hdr;
+    zpsize_t dummy;
+    if (!unpack_byte(end, &data, &hdr) ||
+        !unpack_vec(end, &data, 0, &dummy, NULL)) {
+        return 0;
     }
-    for (i = 0; i < sizeof (precommit_rsubs); i++) {
-        precommit_rsubs[i] = 0;
+    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
+        return 0;
     }
-    precommit_result = 0;
-    precommit_invalid_rid = 0;
-    rsub_precommit_curpkt_abort();
+    if (interpret) {
+        decl_note_error(16, 0);
+    }
+    return data;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -747,11 +792,17 @@ static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zpsize_t idlen, const uin
     return peeridx;
 }
 
+static char tohexdigit(uint8_t x)
+{
+    assert(x <= 15);
+    return (x <= 9) ? (char)('0' + x) : (char)('a' + (x - 10));
+}
+
 static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restrict id, ztimediff_t lease_dur, ztime_t tnow)
 {
     struct peer * const p = &peers[peeridx];
     char astr[TRANSPORT_ADDRSTRLEN];
-    char idstr[3*PEERID_SIZE];
+    char idstr[3*PEERID_SIZE], *idstrp = idstr;
     assert(p->state != PEERST_ESTABLISHED);
     assert(idlen > 0 && idlen <= PEERID_SIZE);
     transport_ops.addr2string(astr, sizeof(astr), &p->oc.addr);
@@ -759,8 +810,14 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     assert(idlen <= PEERID_SIZE);
     assert(lease_dur >= 0);
     for (int i = 0; i < idlen; i++) {
-        sprintf(idstr+3*i-(i>0), "%s%02hhx", i == 0 ? "" : ":", id[i]);
+        if (i > 0) {
+            *idstrp++ = ':';
+        }
+        *idstrp++ = tohexdigit(id[i] >> 4);
+        *idstrp++ = tohexdigit(id[i] & 0xf);
+        assert(idstrp < idstr + sizeof(idstr));
     }
+    *idstrp = 0;
     ZT(PEERDISC, ("accept peer %s %s @ %u; lease = %" PRId32, idstr, astr, peeridx, (int32_t)lease_dur));
 
     p->state = PEERST_ESTABLISHED;
@@ -777,6 +834,19 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     }
 #endif
     npeers++;
+
+    /* FIXME: stupid naming - but we do need to declare everything (again). A much more sophisticated version could use the unicast channels for late joining ones, but we ain't there yet */
+    reset_pubs_to_declare();
+    reset_subs_to_declare();
+}
+
+static int conv_lease_to_ztimediff(ztimediff_t *res, uint32_t ld100)
+{
+    if (ld100 > ZTIMEDIFF_MAX / (100000000 / ZENO_TIMEBASE)) {
+        return 0;
+    }
+    *res = (100000000 / ZENO_TIMEBASE) * (ztimediff_t)ld100;
+    return 1;
 }
 
 static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
@@ -788,6 +858,7 @@ static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t *
     zpsize_t dummy;
     uint8_t reason;
     uint32_t ld100;
+    ztimediff_t ld;
     struct unpack_locs_iter locs_it;
     struct peer *p;
     if (!unpack_byte(end, &data, &hdr) ||
@@ -817,7 +888,7 @@ static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t *
         reason = CLR_ERROR;
         goto reject;
     }
-    if (ld100 > ZTIMEDIFF_MAX / 100) {
+    if (!conv_lease_to_ztimediff(&ld, ld100)) {
         ZT(PEERDISC, ("got an open with a lease duration that is not representable here"));
         reason = CLR_ERROR;
         goto reject;
@@ -836,7 +907,7 @@ static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t *
             reason = CLR_ERROR;
             goto reject;
         }
-        accept_peer(*peeridx, idlen, id, 100 * (ztimediff_t)ld100, tnow);
+        accept_peer(*peeridx, idlen, id, ld, tnow);
     }
     pack_maccept(&p->oc.addr, &ownid, &p->id, lease_dur);
     pack_msend();
@@ -857,6 +928,7 @@ static const uint8_t *handle_maccept(peeridx_t * restrict peeridx, const uint8_t
     zpsize_t idlen;
     uint8_t id[PEERID_SIZE];
     uint32_t ld100;
+    ztimediff_t ld;
     zpsize_t dummy;
     int forme;
     if (!unpack_skip(end, &data, 1) ||
@@ -878,13 +950,13 @@ static const uint8_t *handle_maccept(peeridx_t * restrict peeridx, const uint8_t
         goto reject_no_close;
     }
     if (forme) {
-        if (ld100 > ZTIMEDIFF_MAX / 100) {
+        if (!conv_lease_to_ztimediff(&ld, ld100)) {
             ZT(PEERDISC, ("got an open with a lease duration that is not representable here"));
             goto reject;
         }
         *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
         if (peers[*peeridx].state >= PEERST_OPENING_MIN && peers[*peeridx].state <= PEERST_OPENING_MAX) {
-            accept_peer(*peeridx, idlen, id, 100 * (ztimediff_t)ld100, tnow);
+            accept_peer(*peeridx, idlen, id, ld, tnow);
         }
     }
     return data;
@@ -918,191 +990,6 @@ static const uint8_t *handle_mclose(peeridx_t * restrict peeridx, const uint8_t 
         reset_peer(*peeridx, tnow);
     }
     return 0;
-}
-
-static const uint8_t *handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    /* No use for a broker declaring its resources, but we don't bug out over it */
-    uint8_t hdr;
-    zpsize_t dummy;
-    if (!unpack_byte(end, &data, &hdr) ||
-        !unpack_rid(end, &data, NULL) ||
-        !unpack_vec(end, &data, 0, &dummy, NULL)) {
-        return 0;
-    }
-    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
-        return 0;
-    }
-    return data;
-}
-
-static const uint8_t *handle_dpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    /* No use for a broker declaring its publications, but we don't bug out over it */
-    uint8_t hdr;
-    if (!unpack_byte(end, &data, &hdr) ||
-        !unpack_rid(end, &data, NULL)) {
-        return 0;
-    }
-    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
-        return 0;
-    }
-    return data;
-}
-
-static const uint8_t *handle_dsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    rid_t rid;
-    uint8_t hdr, mode;
-    if (!unpack_byte(end, &data, &hdr) ||
-        !unpack_rid(end, &data, &rid) ||
-        !unpack_byte(end, &data, &mode)) {
-        return 0;
-    }
-    if (mode == 0 || mode > SUBMODE_MAX) {
-        return 0;
-    }
-    if (mode == SUBMODE_PERIODPULL || mode == SUBMODE_PERIODPUSH) {
-        if (!unpack_vle32(end, &data, NULL) ||
-            !unpack_vle32(end, &data, NULL))
-            return 0;
-    }
-    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
-        return 0;
-    }
-    if (interpret) {
-        rsub_register(rid, mode);
-    }
-    return data;
-}
-
-static const uint8_t *handle_dselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    /* FIXME: support selections? */
-    rid_t sid;
-    uint8_t hdr;
-    zpsize_t dummy;
-    if (!unpack_byte(end, &data, &hdr) ||
-        !unpack_rid(end, &data, &sid) ||
-        !unpack_vec(end, &data, 0, &dummy, NULL)) {
-        return 0;
-    }
-    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
-        return 0;
-    }
-    if (interpret) {
-        if (precommit_curpkt_result == 0) {
-            precommit_curpkt_invalid_rid = sid;
-        }
-        precommit_curpkt_result |= 4;
-    }
-    return data;
-}
-
-static const uint8_t *handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    /* FIXME: support bindings?  I don't think there's a need. */
-    rid_t sid;
-    if (!unpack_skip(end, &data, 1) ||
-        !unpack_rid(end, &data, &sid) ||
-        !unpack_rid(end, &data, NULL)) {
-        return 0;
-    }
-    if (interpret) {
-        if (precommit_curpkt_result == 0) {
-            precommit_curpkt_invalid_rid = sid;
-        }
-        precommit_curpkt_result |= 8;
-    }
-    return data;
-}
-
-static struct out_conduit *out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
-{
-    struct out_conduit *c;
-    DO_FOR_UNICAST_OR_MULTICAST(cid, c = &peers[peeridx].oc, c = &out_mconduits[cid].oc);
-    return c;
-}
-
-static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    uint8_t commitid;
-    uint8_t res;
-    rid_t err_rid;
-    if (!unpack_skip(end, &data, 1) ||
-        !unpack_byte(end, &data, &commitid)) {
-        return 0;
-    }
-    if (interpret) {
-        /* If we can't reserve space in the transmit window, pretend we never received the
-           DECLARE message and abandon the rest of the packet.  Eventually we'll get a
-           retransmit and retry.  Use worst-case size for result */
-        struct out_conduit * const oc = out_conduit_from_cid(0, 0);
-        /* FIXME: need to make sure no peer present is ok, too */
-        if (!oc_pack_mdeclare(oc, 1, WC_DRESULT_SIZE)) {
-            return 0;
-        } else {
-            rsub_precommit_curpkt_done();
-            if ((res = rsub_precommit(&err_rid)) == 0) {
-                rsub_commit();
-            }
-            pack_dresult(commitid, res, err_rid);
-            oc_pack_mdeclare_done(oc);
-            pack_msend();
-        }
-    }
-    return data;
-}
-
-static const uint8_t *handle_dresult(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    uint8_t commitid, status;
-    rid_t rid;
-    if (!unpack_skip(end, &data, 1) ||
-        !unpack_byte(end, &data, &commitid) ||
-        !unpack_byte(end, &data, &status)) {
-        return 0;
-    }
-    if (status && !unpack_rid(end, &data, &rid)) {
-        return 0;
-    }
-    if (interpret && status != 0) {
-        /* Don't know what to do when the broker refuses my declarations - although I guess it
-           would make some sense to close the connection and try again.  But even if that is
-           the right thing to do, don't do that just yet, because it shouldn't fail.
-
-           Also note that we're not looking at the commit id at all, I am not sure yet what
-           problems that may cause ... */
-        assert(0);
-    }
-    return data;
-}
-
-static const uint8_t *handle_ddeleteres(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    uint8_t hdr;
-    zpsize_t dummy;
-    if (!unpack_byte(end, &data, &hdr) ||
-        !unpack_vec(end, &data, 0, &dummy, NULL)) {
-        return 0;
-    }
-    if ((hdr & DPFLAG) && !unpack_props(end, &data)) {
-        return 0;
-    }
-    if (interpret) {
-        precommit_curpkt_result |= 16;
-    }
-    return data;
-}
-
-int seq_lt(seq_t a, seq_t b)
-{
-    return (sseq_t) (a - b) < 0;
-}
-
-int seq_le(seq_t a, seq_t b)
-{
-    return (sseq_t) (a - b) <= 0;
 }
 
 static int ic_may_deliver_seq(const struct in_conduit *ic, uint8_t hdr, seq_t seq)
@@ -1171,40 +1058,47 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
         !unpack_vle16(end, &data, &ndecls)) {
         return 0;
     }
-    if (seq_le(peers[peeridx].ic[cid].lseqpU, seq)) {
-        peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
-    }
-    intp = (peers[peeridx].state == PEERST_ESTABLISHED && ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq));
-    if (ndecls > 0) {
-        do {
-            switch (*data & DKIND) {
-                case DRESOURCE:  data = handle_dresource(peeridx, end, data, intp); break;
-                case DPUB:       data = handle_dpub(peeridx, end, data, intp); break;
-                case DSUB:       data = handle_dsub(peeridx, end, data, intp); break;
-                case DSELECTION: data = handle_dselection(peeridx, end, data, intp); break;
-                case DBINDID:    data = handle_dbindid(peeridx, end, data, intp); break;
-                case DCOMMIT:    data = handle_dcommit(peeridx, end, data, intp); break;
-                case DRESULT:    data = handle_dresult(peeridx, end, data, intp); break;
-                case DDELETERES: data = handle_ddeleteres(peeridx, end, data, intp); break;
-                default:         data = 0; break;
-            }
-            if (data != 0) {
-                --ndecls;
-            }
-        } while (data < end && data != 0);
-        if (ndecls != 0) {
-            rsub_precommit_curpkt_abort();
-            return 0;
+    if (!(peers[peeridx].state == PEERST_ESTABLISHED && peers[peeridx].ic[cid].synched)) {
+        intp = 0;
+    } else {
+        if (seq_le(peers[peeridx].ic[cid].lseqpU, seq)) {
+            peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
         }
+        intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq);
+    }
+    ZT(PUBSUB, ("handle_mdeclare %p/%p seq %u peeridx %u ndecls %u intp %d", data, inbuf, seq, peeridx, ndecls, intp));
+    while (ndecls > 0 && data < end && data != 0) {
+        switch (*data & DKIND) {
+            case DRESOURCE:  data = handle_dresource(peeridx, end, data, intp); break;
+            case DPUB:       data = handle_dpub(peeridx, end, data, intp); break;
+            case DSUB:       data = handle_dsub(peeridx, end, data, intp); break;
+            case DSELECTION: data = handle_dselection(peeridx, end, data, intp); break;
+            case DBINDID:    data = handle_dbindid(peeridx, end, data, intp); break;
+            case DCOMMIT:    data = handle_dcommit(peeridx, end, data, intp); break;
+            case DRESULT:    data = handle_dresult(peeridx, end, data, intp); break;
+            case DDELETERES: data = handle_ddeleteres(peeridx, end, data, intp); break;
+            default:         data = 0; break;
+        }
+        if (data != 0) {
+            --ndecls;
+        }
+    }
+    if (intp && ndecls != 0) {
+        ZT(PUBSUB, ("handle_mdeclare %u .. abort", peeridx));
+        rsub_precommit_curpkt_abort(peeridx);
+        return 0;
     }
     if (intp) {
         /* Merge uncommitted declaration state resulting from this DECLARE message into
            uncommitted state accumulator, as we have now completely and successfully processed
            this message.  */
-        rsub_precommit_curpkt_done();
+        ZT(PUBSUB, ("handle_mdeclare %u .. packet done", peeridx));
+        rsub_precommit_curpkt_done(peeridx);
         (void)ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
     }
-    acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
+    if (peers[peeridx].state == PEERST_ESTABLISHED && peers[peeridx].ic[cid].synched) {
+        acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
+    }
     return data;
 }
 
@@ -1234,25 +1128,6 @@ static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end
 }
 
 unsigned zeno_delivered, zeno_discarded;
-
-static int handle_msdata_deliver(rid_t prid, zpsize_t paysz, const uint8_t *pay)
-{
-    uint8_t k;
-    for (k = 0; k < MAX_SUBS; k++) {
-        if (subs[k].rid == prid) {
-            break;
-        }
-    }
-    if (k == MAX_SUBS) {
-        return 1;
-    } else if (subs[k].xmitneed == 0 || subs[k].xmitneed <= xmitw_bytesavail(subs[k].oc)) {
-        /* Do note that "xmitneed" had better include overhead! */
-        subs[k].handler(prid, paysz, pay, subs[k].arg);
-        return 1;
-    } else {
-        return 0;
-    }
-}
 
 static const uint8_t *handle_msdata(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, cid_t cid, ztime_t tnow)
 {
@@ -1548,164 +1423,6 @@ static const uint8_t *handle_packet(peeridx_t peeridx, const uint8_t * const end
     return data;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////
-
-/* Not currently implementing cancelling subscriptions or stopping publishing, but once that is
-   included, should clear pubs_to_declare if it so happens that the publication hasn't been
-   declared yet by the time it is deleted */
-uint8_t pubs_to_declare[(MAX_PUBS + 7) / 8];
-uint8_t subs_to_declare[(MAX_SUBS + 7) / 8];
-uint8_t must_commit;
-uint8_t gcommitid;
-
-void reset_pubs_to_declare(void)
-{
-    uint8_t i;
-    for (i = 0; i < sizeof(pubs_to_declare); i++) {
-        pubs_to_declare[i] = 0;
-    }
-    for (i = 0; i < MAX_PUBS; i++) {
-        if (pubs[i].rid != 0) {
-            bitset_set(pubs_to_declare, i);
-        }
-    }
-}
-
-void reset_subs_to_declare(void)
-{
-    uint8_t i;
-    for (i = 0; i < sizeof(subs_to_declare); i++) {
-        subs_to_declare[i] = 0;
-    }
-    for (i = 0; i < MAX_SUBS; i++) {
-        if (subs[i].rid != 0) {
-            bitset_set(subs_to_declare, i);
-        }
-    }
-}
-
-pubidx_t publish(rid_t rid, unsigned cid, int reliable)
-{
-    /* We will be publishing rid, dynamically allocating a "pubidx" for it and scheduling a
-       DECLARE message that informs the broker of this.  By scheduling it, we avoid the having
-       to send a reliable message when the transmit window is full.  */
-    uint8_t i;
-    for (i = 0; i < MAX_PUBS; i++) {
-        if (pubs[i].rid == 0) {
-            break;
-        }
-    }
-    assert(i < MAX_PUBS);
-    assert(!bitset_test(pubs_isrel, i));
-    assert(cid < N_OUT_CONDUITS);
-    pubs[i].rid = rid;
-    /* FIXME: horrible hack ... */
-    pubs[i].oc = out_conduit_from_cid(0, (cid_t)cid);
-    if (reliable) {
-        bitset_set(pubs_isrel, i);
-    }
-    bitset_set(pubs_to_declare, i);
-    return (pubidx_t){i};
-}
-
-subidx_t subscribe(rid_t rid, zpsize_t xmitneed, subhandler_t handler, void *arg)
-{
-    uint8_t i;
-    for (i = 0; i < MAX_SUBS; i++) {
-        if (subs[i].rid == 0) {
-            break;
-        }
-    }
-    assert(i < MAX_SUBS);
-    subs[i].rid = rid;
-    subs[i].xmitneed = xmitneed;
-    subs[i].handler = handler;
-    subs[i].arg = arg;
-    bitset_set(subs_to_declare, i);
-    return (subidx_t){i};
-}
-
-int zeno_write(pubidx_t pubidx, zpsize_t sz, const void *data)
-{
-    /* returns 0 on failure and 1 on success; the only defined failure case is a full transmit
-     window for reliable pulication while remote subscribers exist */
-    struct out_conduit * const oc = pubs[pubidx.idx].oc;
-    int relflag;
-    assert(pubs[pubidx.idx].rid != 0);
-#if 0 /* FIXME */
-    if (!bitset_test(rsubs, pubidx.idx)) {
-        /* success is assured if there are no subscribers */
-        return 1;
-    }
-#endif
-
-#if 1 /* FIXME: horrible hack alert */
-    DO_FOR_UNICAST_OR_MULTICAST(oc->cid, {
-        struct peer * const peer = (struct peer *)((char *)oc - offsetof(struct peer, oc));
-        if (peer->state != PEERST_ESTABLISHED) {
-            return 1;
-        }
-    }, {
-        if (minseqheap_isempty(&out_mconduits[oc->cid].seqbase)) {
-            return 1;
-        }
-    });
-#endif
-
-    relflag = bitset_test(pubs_isrel, pubidx.idx);
-
-    if (oc->draining_window) {
-        return !relflag;
-    }
-
-    if (!oc_pack_msdata(oc, relflag, pubs[pubidx.idx].rid, sz)) {
-        /* for reliable, a full window means failure; for unreliable it is a non-issue */
-        return !relflag;
-    } else {
-        oc_pack_msdata_payload(oc, relflag, sz, data);
-        oc_pack_msdata_done(oc, relflag);
-#if LATENCY_BUDGET == 0
-        pack_msend();
-#endif
-        /* not flushing to allow packing */
-        return 1;
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-
-void send_declares(ztime_t tnow)
-{
-    struct out_conduit * const oc = out_conduit_from_cid(0, 0);
-    int first;
-
-    /* Push out any pending declarations.  We keep trying until the transmit window has room.
-       It may therefore be a while before the broker is informed of a new publication, and
-       conceivably data could be published that will be lost.  */
-    if ((first = bitset_findfirst(pubs_to_declare, MAX_PUBS)) >= 0) {
-        if (oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE)) {
-            assert(pubs[first].rid != 0);
-            pack_dpub(pubs[first].rid);
-            oc_pack_mdeclare_done(oc);
-            bitset_clear(pubs_to_declare, (unsigned)first);
-            must_commit = 1;
-        }
-    } else if ((first = bitset_findfirst(subs_to_declare, MAX_SUBS)) >= 0) {
-        if (oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE)) {
-            assert(subs[first].rid != 0);
-            pack_dsub(subs[first].rid);
-            oc_pack_mdeclare_done(oc);
-            bitset_clear(subs_to_declare, (unsigned)first);
-            must_commit = 1;
-        }
-    } else if (must_commit && oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE)) {
-        pack_dcommit(gcommitid++);
-        oc_pack_mdeclare_done(oc);
-        pack_msend();
-        must_commit = 0;
-    }
-}
-
 int zeno_init(const struct zeno_config *config)
 {
     /* Is there a way to make the transport pluggable at run-time without dynamic allocation? I don't think so, not with the MTU so important ... */
@@ -1955,6 +1672,8 @@ static void housekeeping(ztime_t tnow)
     }
 #endif
 
+    send_declares();
+    
     flush_output(tnow);
 }
 

@@ -35,25 +35,18 @@ void pack_vec(zpsize_t n, const void *buf);
 uint16_t pack_locs_calcsize(void);
 void pack_locs(void);
 void oc_hit_full_window(struct out_conduit *c);
+int oc_am_draining_window(const struct out_conduit *c);
 cid_t oc_get_cid(struct out_conduit *c);
 int ocm_have_peers(const struct out_mconduit *mc);
+void pack_msend(void);
 zmsize_t oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zpsize_t sz);
 void oc_pack_copyrel(struct out_conduit *c, zmsize_t from);
 void oc_pack_payload(struct out_conduit *c, int relflag, zpsize_t sz, const void *vdata);
 void oc_pack_payload_done(struct out_conduit *c, int relflag);
-void rsub_register(rid_t rid, uint8_t submode);
-uint8_t rsub_precommit(rid_t *err_rid);
-void rsub_commit(void);
-int rsub_exists(uint8_t pubidx);
-void rsub_precommit_curpkt_abort(void);
-void rsub_precommit_curpkt_done(void);
-void rsub_clear(void);
 int seq_lt(seq_t a, seq_t b);
 int seq_le(seq_t a, seq_t b);
-void reset_pubs_to_declare(void);
-void reset_subs_to_declare(void);
 void flush_output(ztime_t tnow);
 void send_msynch(ztime_t tnow);
-void send_declares(ztime_t tnow);
+struct out_conduit *out_conduit_from_cid(peeridx_t peeridx, cid_t cid);
 
 #endif

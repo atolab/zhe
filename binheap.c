@@ -37,7 +37,7 @@ void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * con
 #ifndef NDEBUG
     assert(h->ix[peeridx].i == PEERIDX_INVALID);
     for (peeridx_t j = 0; j < h->n; j++) {
-        assert(h->hx[j] != peeridx);
+        assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
     }
 #endif
     h->vs[peeridx] = seqbase;
@@ -77,7 +77,7 @@ int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
     if (i == PEERIDX_INVALID) {
 #ifndef NDEBUG
         for (peeridx_t j = 0; j < h->n; j++) {
-            assert(h->hx[j] != peeridx);
+            assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
         }
 #endif
         return 0;

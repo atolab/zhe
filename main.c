@@ -3,13 +3,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include <inttypes.h>
 #include <time.h>
 
 #include "zeno.h"
 #include "zeno-tracing.h"
 #include "zeno-time.h"
 
-#include "zeno-config-int.h" /* for N_OUT_CONDUITS */
+#include "zeno-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 
 static uint32_t checkintv = 16384;
 
@@ -72,8 +73,8 @@ static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
     }
     if ((k % checkintv) == 0) {
         ztime_t tnow = zeno_time();
-        if ((ztimediff_t)(tnow - tprint) >= 1000) {
-            printf ("%4u.%03u %u %u [%u,%u]\n", tnow / 1000, tnow % 1000, k, oooc, zeno_delivered, zeno_discarded);
+        if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {
+            printf ("%4"PRIu32".%03"PRIu32" %u %u [%u,%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, oooc, zeno_delivered, zeno_discarded);
             tprint = tnow;
         }
     }
@@ -111,7 +112,7 @@ int main(int argc, char * const *argv)
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'p': mode = 1; break;
             case 's': mode = -1; break;
-            case 'q': zeno_trace_cats = ZTCAT_PEERDISC; break;
+            case 'q': zeno_trace_cats = ZTCAT_PEERDISC | ZTCAT_PUBSUB; break;
             case 'c': {
                 unsigned long t = strtoul(optarg, NULL, 0);
                 if (t >= N_OUT_CONDUITS) { fprintf(stderr, "cid %lu out of range\n", t); exit(1); }
@@ -159,11 +160,11 @@ int main(int argc, char * const *argv)
                 const struct timespec sl = { 0, 10000000 };
                 zeno_loop();
                 nanosleep(&sl, NULL);
-            } while(zeno_time() - tstart < 20000);
+            } while(ZTIME_TO_SECu32(zeno_time() - tstart) < 20);
             break;
         }
         case -1: {
-            (void)subscribe(1, 0, shandler, 0);
+            (void)subscribe(1, 0, 0, shandler, 0);
             while (1) {
                 zeno_loop();
                 zeno_wait_input(10);
@@ -175,29 +176,28 @@ int main(int argc, char * const *argv)
             pubidx_t p = publish(1, cid, reliable);
             ztime_t tprint = zeno_time();
             while (1) {
+                const int blocksize = 50;
                 int i;
                 zeno_loop();
                 /* Loop means we don't call zeno_loop for each sample, which dramatically reduces the
                    number of (non-blocking) recvfrom calls and speeds things up a fair bit */
-                for (i = 0; i < 50; i++) {
+                for (i = 0; i < blocksize; i++) {
                     if (zeno_write(p, sizeof(k), &k)) {
                         if ((k % checkintv) == 0) {
                             ztime_t tnow = zeno_time();
-                            if ((ztimediff_t)(tnow - tprint) >= 1000) {
+                            if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {
                                 extern unsigned zeno_synch_sent;
-                                printf ("%4u.%03u %u [%u]\n", tnow / 1000, tnow % 1000, k, zeno_synch_sent);
+                                printf ("%4"PRIu32".%03"PRIu32" %u [%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, zeno_synch_sent);
                                 tprint = tnow;
                             }
                         }
                         k++;
                     } else {
+                        /* zeno_write failed => no space in transmit window => must first process incoming
+                         packets or expire a lease to make further progress */
+                        zeno_wait_input(10);
                         break;
                     }
-                }
-                if (i < 50) {
-                    /* zeno_write failed => no space in transmit window => must first process incoming
-                       packets or expire a lease to make further progress */
-                    zeno_wait_input(10);
                 }
             }
             break;

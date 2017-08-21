@@ -88,9 +88,10 @@ typedef int64_t sseq_t;
 #define SEQNUM_SHIFT        (sizeof(seq_t))
 #define SEQNUM_UNIT         ((seq_t)(1 << SEQNUM_SHIFT))
 
-/* Because the parameterisation is not quite complete yet ... */
 #if ZENO_TIMEBASE != 1000000
-#error "ZENO_TIMEBASE is assumed to be 1000000 in lease calculations and printing"
+#warning "better get the time conversions correct first ..."
 #endif
+#define ZTIME_TO_SECu32(zt) ((uint32_t)((zt) / (1000000000 / ZENO_TIMEBASE)))
+#define ZTIME_TO_MSECu32(zt) ((uint32_t)((zt) / (1000000 / ZENO_TIMEBASE)) % 1000u)
 
 #endif
