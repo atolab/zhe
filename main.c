@@ -53,6 +53,8 @@ static zpsize_t getidfromarg(unsigned char *ownid, size_t ownidsize, const char 
 
 extern unsigned zeno_delivered, zeno_discarded;
 
+struct pong { uint32_t k; ztime_t t; };
+
 static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
 {
     static ztime_t tprint;
@@ -74,10 +76,23 @@ static void shandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
     if ((k % checkintv) == 0) {
         ztime_t tnow = zeno_time();
         if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {
+            pubidx_t *pub = arg;
+            struct pong pong = { .k = k, .t = tnow };
+            zeno_write(*pub, sizeof(pong), &pong);
+
             printf ("%4"PRIu32".%03"PRIu32" %u %u [%u,%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, oooc, zeno_delivered, zeno_discarded);
             tprint = tnow;
         }
     }
+}
+
+static void rhandler(rid_t rid, zpsize_t size, const void *payload, void *arg)
+{
+    const struct pong *pong;
+    assert(size == sizeof(*pong));
+    pong = payload;
+    ztime_t tnow = zeno_time();
+    printf ("%4"PRIu32".%03"PRIu32" pong %u %4"PRIu32".%03"PRIu32"\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), pong->k, ZTIME_TO_SECu32(pong->t), ZTIME_TO_MSECu32(pong->t));
 }
 
 int main(int argc, char * const *argv)
@@ -164,7 +179,8 @@ int main(int argc, char * const *argv)
             break;
         }
         case -1: {
-            (void)subscribe(1, 0, 0, shandler, 0);
+            pubidx_t p = publish(2, cid, 1);
+            (void)subscribe(1, 100 /* don't actually need this much ... */, cid, shandler, &p);
             while (1) {
                 zeno_loop();
                 zeno_wait_input(10);
@@ -174,6 +190,7 @@ int main(int argc, char * const *argv)
         case 1: {
             uint32_t k = 0;
             pubidx_t p = publish(1, cid, reliable);
+            (void)subscribe(2, 0, 0, rhandler, 0);
             ztime_t tprint = zeno_time();
             while (1) {
                 const int blocksize = 50;
