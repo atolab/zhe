@@ -459,7 +459,6 @@ zmsize_t oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, z
         *s = c->seq;
         outspos = outp;
     }
-    //ZT(RELIABLE, ("oc_pack_payload_msgprep cid %u %p seq %u sz %u", c->cid, (void*)c, *s >> SEQNUM_SHIFT, (unsigned)sz));
     return outp;
 }
 
@@ -1330,12 +1329,9 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
            the S flag in that final message. Also make sure we send a SYNCH not too long after
            (and so do all that pack_msend would otherwise have done for c). */
         assert(outspos_tmp != OUTSPOS_UNSET);
-#if 1 /* setting the S bit is not the same as a SYNCH */
+        /* Note: setting the S bit is not the same as a SYNCH, maybe it would be better to send
+           a SYNCH instead? */
         outbuf[outspos_tmp] |= MSFLAG;
-#else
-        pack_msynch(&c->addr, MSFLAG, cid, c->seqbase, oc_get_nsamples(c));
-        c->tsynch = tnow + MSYNCH_INTERVAL;
-#endif
         pack_msend();
     }
     return data;

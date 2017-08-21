@@ -15,9 +15,13 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
+#include "zeno.h"
 #include "zeno-tracing.h"
 #include "zeno-config-deriv.h"
 #include "transport-udp.h"
+
+#define BLOCKING_SEND 0
+#define SIMUL_PACKET_LOSS 1
 
 #define MAX_SELF 16
 
@@ -30,7 +34,9 @@ struct udp {
 };
 
 static struct udp gudp;
+#if SIMUL_PACKET_LOSS
 long randomthreshold = 0;
+#endif
 
 static size_t udp_addr2string(char * restrict str, size_t size, const zeno_address_t * restrict addr);
 static int udp_octseq2addr(struct zeno_address * restrict addr, size_t sz, const void * restrict octseq);
@@ -50,6 +56,13 @@ static struct zeno_transport *udp_new(const struct zeno_config *config, const ze
     struct sockaddr_in addr;
     socklen_t addrlen;
     struct ifaddrs *ifa;
+
+#if SIMUL_PACKET_LOSS
+    srandomdev();
+    if (config->transport_options) {
+        randomthreshold = atoi(config->transport_options) * 21474836;
+    }
+#endif
 
     /* Get own IP addresses so we know what to filter out -- disabling MC loopback would help if
        we knew there was only a single proces on a node, but I actually want to run multiple for
@@ -238,7 +251,7 @@ static int udp_octseq2addr(struct zeno_address * restrict addr, size_t sz, const
     }
 }
 
-#if 1
+#if BLOCKING_SEND
 static void udp_wait_send(int sock)
 {
     fd_set ws;
@@ -256,12 +269,12 @@ static ssize_t udp_send(struct zeno_transport * restrict tp, const void * restri
     struct udp *udp = (struct udp *)tp;
     ssize_t ret;
     assert(size <= TRANSPORT_MTU);
-#if 1
+#if SIMUL_PACKET_LOSS
     if (randomthreshold && random() < randomthreshold) {
         return (ssize_t)size;
     }
 #endif
-#if 1
+#if BLOCKING_SEND
     udp_wait_send(udp->s[0]);
 #endif
     ret = sendto(udp->s[0], buf, size, 0, (const struct sockaddr *)&dst->a, sizeof(dst->a));

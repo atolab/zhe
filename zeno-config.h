@@ -12,8 +12,8 @@
 #define MAX_RID 553 /* FIXME: TBD */
 
 /* Maximum number of subscriptions, publications. Having multiple subscriptions per resource may well make sense becasue they have different associated callbacks/arguments, having more than a reliable and an unreliable publication for a single resource (currently) seems unnecessary as no state is (currently) maintained for a publication */
-#define MAX_SUBSCRIPTIONS 6
-#define MAX_PUBLICATIONS 9
+#define MAX_SUBSCRIPTIONS 69
+#define MAX_PUBLICATIONS 93
 
 /* Types for representing timestamps (with an arbitrary reference,
    no assumed time alignment, and roll-over perfectly acceptable),

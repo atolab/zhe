@@ -12,17 +12,17 @@ typedef ZENO_MAKE_UINT_T(RID_T_SIZE) rid_t;
 #if MAX_PUBLICATIONS < 256
 typedef struct { uint8_t idx; } pubidx_t;
 #elif MAX_PUBLICATIONS < 32768
-typedef struct { uint8_t idx; } pubidx_t;
+typedef struct { uint16_t idx; } pubidx_t;
 #else
-#error "sorry ... MAX_PUBLICATIONS >= 32768 not implemented (cf bitset_findfirst)"
+#error "MAX_PUBLICATIONS >= 32768 not implemented (cf bitset_findfirst)"
 #endif
 
 #if MAX_SUBSCRIPTIONS < 256
 typedef struct { uint8_t idx; } subidx_t;
 #elif MAX_SUBSCRIPTIONS < 32768
-typedef struct { uint8_t idx; } pubidx_t;
+typedef struct { uint16_t idx; } subidx_t;
 #else
-#error "sorry ... MAX_SUBSCRIPTIONS >= 32768 not implemented (cf bitset_findfirst)"
+#error "MAX_SUBSCRIPTIONS >= 32768 not implemented (cf bitset_findfirst)"
 #endif
 
 typedef void (*subhandler_t)(rid_t rid, zpsize_t size, const void *payload, void *arg);
@@ -30,6 +30,8 @@ typedef void (*subhandler_t)(rid_t rid, zpsize_t size, const void *payload, void
 struct zeno_config {
     size_t idlen;
     const void *id;
+
+    const char *transport_options;
 
     const char *scoutaddr;
 

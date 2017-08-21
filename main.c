@@ -104,12 +104,7 @@ int main(int argc, char * const *argv)
     unsigned cid = 0;
     int reliable = 1;
     struct zeno_config cfg;
-
-#ifndef ARDUINO
-    extern long randomthreshold; // from UDP code
-    srandomdev();
-#endif
-
+    
     zeno_time_init();
     ownidsize = getrandomid(ownid, sizeof(ownid));
     zeno_trace_cats = ~0u;
@@ -121,6 +116,7 @@ int main(int argc, char * const *argv)
     const char *mconduit_dstaddrs[10] = { "239.255.0.2:7007", "239.255.0.3:7007" };
     cfg.n_mconduit_dstaddrs = 2;
     cfg.mconduit_dstaddrs = mconduit_dstaddrs;
+    cfg.transport_options = NULL;
 
     while((opt = getopt(argc, argv, "C:c:h:psquX:S:G:M:")) != EOF) {
         switch(opt) {
@@ -147,11 +143,7 @@ int main(int argc, char * const *argv)
                 }
                 break;
             }
-            case 'X':
-#ifndef ARDUINO
-                randomthreshold = atoi(optarg) * 21474836;
-#endif
-                break;
+            case 'X': cfg.transport_options = optarg; break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
