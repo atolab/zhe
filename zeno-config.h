@@ -8,12 +8,22 @@
    id internally (externally it is always variable-length encoded) */
 #define RID_T_SIZE 32
 
+#ifndef ARDUINO
+
 /* Highest allowed RID (because of temporary direct mapping; also ignoring selection IDs for the moment); also at the moment there are no resource declarations. */
-#define MAX_RID 553 /* FIXME: TBD */
+#  define MAX_RID 553
 
 /* Maximum number of subscriptions, publications. Having multiple subscriptions per resource may well make sense becasue they have different associated callbacks/arguments, having more than a reliable and an unreliable publication for a single resource (currently) seems unnecessary as no state is (currently) maintained for a publication */
-#define MAX_SUBSCRIPTIONS 69
-#define MAX_PUBLICATIONS 93
+#  define MAX_SUBSCRIPTIONS 69
+#  define MAX_PUBLICATIONS 93
+
+#else
+
+#  define MAX_RID 10
+#  define MAX_SUBSCRIPTIONS 10
+#  define MAX_PUBLICATIONS 10
+
+#endif
 
 /* Types for representing timestamps (with an arbitrary reference,
    no assumed time alignment, and roll-over perfectly acceptable),

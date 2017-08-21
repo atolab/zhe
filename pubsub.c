@@ -10,6 +10,9 @@
 #include "pubsub.h"
 #include "bitset.h"
 
+/* Start using a RID-to-subscription mapping if MAX_SUBSCRIPTIONS is over this threshold */
+#define RID_TABLE_THRESHOLD 32
+
 struct subtable {
     /* ID of the resource subscribed to (could also be a SID, actually) */
     rid_t rid;
@@ -26,7 +29,9 @@ struct subtable {
     subhandler_t handler;
 };
 static struct subtable subs[MAX_SUBSCRIPTIONS];
+#if MAX_SUBSCRIPTIONS > RID_TABLE_THRESHOLD
 static subidx_t rid2sub[MAX_RID+1];
+#endif
 
 struct pubtable {
     struct out_conduit *oc;
@@ -162,7 +167,7 @@ void rsub_clear(peeridx_t peeridx)
 #if MAX_PEERS == 0
     memset(&pubs_rsubs, 0, sizeof(pubs_rsubs));
 #else
-    memset(&peers_rsubs, 0, sizeof(peers_rsubs));
+    memset(&peers_rsubs[peeridx], 0, sizeof(peers_rsubs[peeridx]));
     pubidx_t pubidx;
     for (pubidx.idx = 0; pubidx.idx < MAX_PUBLICATIONS; pubidx.idx++) {
         const rid_t rid = pubs[pubidx.idx].rid;
@@ -190,6 +195,7 @@ void rsub_clear(peeridx_t peeridx)
 
 int handle_msdata_deliver(rid_t prid, zpsize_t paysz, const void *pay)
 {
+#if MAX_SUBSCRIPTIONS > RID_TABLE_THRESHOLD
     if (prid > MAX_RID || (rid2sub[prid].idx == 0 && subs[0].rid != prid)) {
         /* not subscribed */
         return 1;
@@ -197,12 +203,44 @@ int handle_msdata_deliver(rid_t prid, zpsize_t paysz, const void *pay)
     assert(rid2sub[prid].idx < MAX_SUBSCRIPTIONS);
     assert(subs[rid2sub[prid].idx].rid == prid);
     const struct subtable * const s = &subs[rid2sub[prid].idx];
-    if (s->xmitneed == 0 || s->xmitneed <= xmitw_bytesavail(s->oc)) {
-        /* Do note that "xmitneed" had better include overhead! */
+#else
+    subidx_t k;
+    for (k.idx = 0; k.idx < MAX_SUBSCRIPTIONS; k.idx++) {
+        if (subs[k.idx].rid == prid) {
+            break;
+        }
+    }
+    if (k.idx == MAX_SUBSCRIPTIONS) {
+        return 1;
+    }
+    const struct subtable * const s = &subs[k.idx];
+#endif
+
+    if (s->next.idx == 0) {
+        if (s->xmitneed == 0 || s->xmitneed <= xmitw_bytesavail(s->oc)) {
+            /* Do note that "xmitneed" had better include overhead! */
+            s->handler(prid, paysz, pay, s->arg);
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        /* FIXME: this doesn't work for unicast conduits */
+        zpsize_t xmitneed[N_OUT_CONDUITS];
+        memset(xmitneed, 0, sizeof(xmitneed));
+        for (const struct subtable *t = s; t != &subs[0]; t = &subs[t->next.idx]) {
+            if (t->xmitneed > 0) {
+                xmitneed[oc_get_cid(t->oc)] += t->xmitneed;
+            }
+        }
+        for (cid_t cid = 0; cid < N_OUT_CONDUITS; cid++) {
+            if (xmitneed[cid] > 0 && xmitneed[cid] > xmitw_bytesavail(out_conduit_from_cid(0, cid))) {
+                return 0;
+            }
+        }
+
         s->handler(prid, paysz, pay, s->arg);
         return 1;
-    } else {
-        return 0;
     }
 }
 
@@ -347,22 +385,36 @@ pubidx_t publish(rid_t rid, unsigned cid, int reliable)
 
 subidx_t subscribe(rid_t rid, zpsize_t xmitneed, unsigned cid, subhandler_t handler, void *arg)
 {
-    subidx_t subidx;
+    subidx_t subidx, nextidx;
     assert(rid > 0 && rid <= MAX_RID);
     for (subidx.idx = 0; subidx.idx < MAX_SUBSCRIPTIONS; subidx.idx++) {
         if (subs[subidx.idx].rid == 0) {
             break;
         }
     }
+#if MAX_SUBSCRIPTIONS > RID_TABLE_THRESHOLD
+    nextidx = rid2sub[rid];
+#else
+    for (nextidx.idx = 0; nextidx.idx < MAX_SUBSCRIPTIONS; nextidx.idx++) {
+        if (subs[nextidx.idx].rid == rid) {
+            break;
+        }
+    }
+    if (nextidx.idx == MAX_SUBSCRIPTIONS) {
+        nextidx.idx = 0; /* using 0 to signal the end of the list is an ungainly hack, but it works for now */
+    }
+#endif
     assert(subidx.idx < MAX_SUBSCRIPTIONS);
     subs[subidx.idx].rid = rid;
-    subs[subidx.idx].next = rid2sub[rid];
+    subs[subidx.idx].next = nextidx;
     subs[subidx.idx].xmitneed = xmitneed;
     /* FIXME: horrible hack ... */
     subs[subidx.idx].oc = out_conduit_from_cid(0, (cid_t)cid);
     subs[subidx.idx].handler = handler;
     subs[subidx.idx].arg = arg;
+#if MAX_SUBSCRIPTIONS > RID_TABLE_THRESHOLD
     rid2sub[rid] = subidx;
+#endif
     todeclare.workpending = 1;
     bitset_set(todeclare.subs, subidx.idx);
     ZT(PUBSUB, ("subscribe: %u rid %ju", subidx.idx, (uintmax_t)rid));
