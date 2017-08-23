@@ -31,6 +31,10 @@
 #  warning "should use a unicast conduit in a client or if there can be at most one peer"
 #endif
 
+#if LEASE_DURATION <= SCOUT_INTERVAL
+#  warning "scout interval should be shorter than lease duration"
+#endif
+
 #if MAX_PEERS < 255
 typedef uint8_t peeridx_t;
 #else

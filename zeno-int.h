@@ -19,8 +19,6 @@ struct peerid {
     zpsize_t len;
 };
 
-extern struct zeno_transport *transport;
-
 #define ZENO_PASTE1(a,b) a##b
 #define ZENO_PASTE(a,b) ZENO_PASTE1(a,b)
 #define transport_ops ZENO_PASTE(transport_, TRANSPORT_NAME)

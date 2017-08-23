@@ -257,7 +257,7 @@ struct todeclare {
 #endif
     DECL_BITSET(subs, MAX_SUBSCRIPTIONS);
 };
-struct todeclare todeclare;
+static struct todeclare todeclare;
 static uint8_t must_commit;
 static uint8_t gcommitid;
 

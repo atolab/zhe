@@ -35,7 +35,7 @@ struct udp {
 
 static struct udp gudp;
 #if SIMUL_PACKET_LOSS
-long randomthreshold = 0;
+static long randomthreshold = 0;
 #endif
 
 static size_t udp_addr2string(char * restrict str, size_t size, const zeno_address_t * restrict addr);

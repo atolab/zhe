@@ -26,12 +26,20 @@ In peer-to-peer mode, _zhe_ scouts forever, establishing/accepting sessions for 
 
 With **MAX\_PEERS** > 1 (presumably the most meaningful configuration in peer-to-peer mode), it requires multicast. Conduit 0 is assumed to address all peers.
 
+### Identification
+
+Peers have a unique identifier, a non-empty sequence of at most **PEERID\_SIZE** bytes. This identifier is included in the *open*, *accept*, *close* and *keepalive* messages, the first two of which are used for establishing a session, the third for closing one (as well as for rejecting a request), and the fourth is sent periodically in conbination with the scouts.
+
+For most messages, peers are identified by the source address in the packet. In the UDP/IP version, that is simply the randomly chosen *IP*:*PORT* pair of the one socket used for transmitting data. If the address of the peer changes during its lifetime, the messages sent after the change will be interpreted as sent by (presumably) unknown peer.
+
+Most data from an unknown peer will be dropped, only the session management ones (the above, but also including *scout* and *hello*) are accepted. The peer ID will then be matched with the known peers, and the source address with which the peer is associated updated. This re-establishes normal communication with the peer.
+
 ### Timers, &c.
 
 * **SCOUT\_INTERVAL**
 * **OPEN\_INTERVAL**
 * **OPEN\_RETRIES**
-* **PEERID\_SIZE**
+* **LEASE\_DURATION**
 
 ## Conduits
 
@@ -53,7 +61,9 @@ There is, firstly, a *scouting* address, the address to which scout messages are
 
 Up to **MAX\_MULTICAST\_GROUPS** additional multicast groups can be joined (all on the same socket). The groups joined are configured separately from the addresses multicasts are sent to by the multicast conduits to allow mapping in- and output conduits differently on different peers.
 
-### Timers
+### Timing
+
+Scouting, lease management, Timing 
 
 Reliable transmission generally requirs the use of timers. Here there are:
 

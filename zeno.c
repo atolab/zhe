@@ -23,12 +23,11 @@
 #define PEERST_OPENING_MAX   5
 #define PEERST_ESTABLISHED 255
 
-union {
+static union {
     const struct peerid v;
     struct peerid v_nonconst;
 } ownid_union;
 #define ownid (ownid_union.v)
-const ztimediff_t lease_dur = 5000;
 
 struct in_conduit {
     seq_t seq;                    /* next seq to be delivered */
@@ -81,8 +80,8 @@ struct out_mconduit {
     struct minseqheap seqbase;    /* tracks ACKs from peers for computing oc.seqbase as min of them all */
 };
 
-struct out_mconduit out_mconduits[N_OUT_MCONDUITS];
-uint8_t out_mconduits_oc_rbuf[N_OUT_MCONDUITS][XMITW_BYTES];
+static struct out_mconduit out_mconduits[N_OUT_MCONDUITS];
+static uint8_t out_mconduits_oc_rbuf[N_OUT_MCONDUITS][XMITW_BYTES];
 #endif
 
 #if N_OUT_MCONDUITS == 0
@@ -106,48 +105,48 @@ uint8_t out_mconduits_oc_rbuf[N_OUT_MCONDUITS][XMITW_BYTES];
 /* we send SCOUT messages to a separately configurable address (not so much because it really seems
    necessary to have a separate address for scouting, as that we need a statically available address
    to use for the destination of the outgoing packet) */
-zeno_address_t scoutaddr;
-struct zeno_transport *transport;
+static zeno_address_t scoutaddr;
+static struct zeno_transport *transport;
 
 #if MAX_MULTICAST_GROUPS > 0
-uint16_t n_multicast_locators;
-zeno_address_t multicast_locators[MAX_MULTICAST_GROUPS];
+static uint16_t n_multicast_locators;
+static zeno_address_t multicast_locators[MAX_MULTICAST_GROUPS];
 #endif
 
 /* For packet-based we can do with a single input buffer; for stream-based we will probably need an input buffer per peer */
 #if TRANSPORT_MODE == TRANSPORT_STREAM && MAX_PEERS > 0
 #error "haven't worked out the details of peer-to-peer with stream-based transports"
 #endif
-uint8_t inbuf[TRANSPORT_MTU];     /* where we buffer incoming packets */
+static uint8_t inbuf[TRANSPORT_MTU]; /* where we buffer incoming packets */
 #if TRANSPORT_MODE == TRANSPORT_STREAM
-zmsize_t inp;                     /* current position in inbuf while collecting a message for processing */
+static zmsize_t inp;              /* current position in inbuf while collecting a message for processing */
 #endif
 
 /* output buffer is a single packet; a single packet has a single destination and carries reliable data for at most one conduit */
-uint8_t outbuf[TRANSPORT_MTU];    /* where we buffer next outgoing packet */
-zmsize_t outp;                    /* current position in outbuf */
+static uint8_t outbuf[TRANSPORT_MTU]; /* where we buffer next outgoing packet */
+static zmsize_t outp;             /* current position in outbuf */
 #define OUTSPOS_UNSET ((zmsize_t) -1)
-zmsize_t outspos;                 /* OUTSPOS_UNSET or pos of last reliable SData/Declare header (OUTSPOS_UNSET <=> outc == NULL) */
-struct out_conduit *outc;         /* conduit over which reliable messages are carried in this packet, or NULL */
-zeno_address_t *outdst;           /* destination address: &scoutaddr, &peer.oc.addr, &out_mconduits[cid].addr */
+static zmsize_t outspos;          /* OUTSPOS_UNSET or pos of last reliable SData/Declare header (OUTSPOS_UNSET <=> outc == NULL) */
+static struct out_conduit *outc;  /* conduit over which reliable messages are carried in this packet, or NULL */
+static zeno_address_t *outdst;    /* destination address: &scoutaddr, &peer.oc.addr, &out_mconduits[cid].addr */
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
-ztime_t outdeadline;              /* pack until destination change, packet full, or this time passed */
+static ztime_t outdeadline;       /* pack until destination change, packet full, or this time passed */
 #endif
 
 /* In client mode, we pretend the broker is peer 0 (and the only peer at that). It isn't really a peer,
    but the data structures we need are identical, only the discovery behaviour and (perhaps) session
    handling is a bit different. */
-peeridx_t npeers;
+static peeridx_t npeers;
 struct peer peers[MAX_PEERS_1];
 #if HAVE_UNICAST_CONDUIT
-uint8_t peers_oc_rbuf[MAX_PEERS_1][XMITW_BYTES_UNICAST];
+static uint8_t peers_oc_rbuf[MAX_PEERS_1][XMITW_BYTES_UNICAST];
 #endif
 
 #if MAX_PEERS > 0
 /* In peer mode, always send scouts periodically, with tnextscout giving the time for the next scout 
    message to go out. In client mode, scouting is conditional upon the state of the broker, in that
    case scouts only go out if peers[0].state = UNKNOWN, and we use peers[0].tlease to time them. */
-ztime_t tnextscout;
+static ztime_t tnextscout;
 #endif
 
 static void remove_acked_messages(struct out_conduit * const c, seq_t seq);
@@ -757,7 +756,7 @@ static const uint8_t *handle_mhello(peeridx_t peeridx, const uint8_t * const end
             }
         }
         if (send_open) {
-            pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
+            pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION);
             pack_msend();
         }
     }
@@ -908,7 +907,7 @@ static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t *
         }
         accept_peer(*peeridx, idlen, id, ld, tnow);
     }
-    pack_maccept(&p->oc.addr, &ownid, &p->id, lease_dur);
+    pack_maccept(&p->oc.addr, &ownid, &p->id, LEASE_DURATION);
     pack_msend();
 
     return data;
@@ -1516,29 +1515,29 @@ static int handle_input_packet(ztime_t tnow)
     ssize_t recvret;
     char addrstr[TRANSPORT_ADDRSTRLEN];
     if ((recvret = transport_ops.recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
-        peeridx_t peeridx, free_peeridx = PEERIDX_INVALID;
-        for (peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
+    peeridx_t peeridx, free_peeridx = PEERIDX_INVALID;
+    for (peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
             if (transport_ops.addr_eq(&insrc, &peers[peeridx].oc.addr)) {
-                break;
-            } else if (peers[peeridx].state == PEERST_UNKNOWN && free_peeridx == PEERIDX_INVALID) {
-                free_peeridx = peeridx;
-            }
+            break;
+        } else if (peers[peeridx].state == PEERST_UNKNOWN && free_peeridx == PEERIDX_INVALID) {
+            free_peeridx = peeridx;
         }
+    }
         (void)transport_ops.addr2string(addrstr, sizeof(addrstr), &insrc);
-        if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
-            ZT(DEBUG, ("possible new peer %s @ %u", addrstr, free_peeridx));
-            peeridx = free_peeridx;
+    if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
+        ZT(DEBUG, ("possible new peer %s @ %u", addrstr, free_peeridx));
+        peeridx = free_peeridx;
             peers[peeridx].oc.addr = insrc;
+    }
+    if (peeridx < MAX_PEERS_1) {
+        ZT(DEBUG, ("handle message from %s @ %u", addrstr, peeridx));
+        if (peers[peeridx].state == PEERST_ESTABLISHED) {
+            peers[peeridx].tlease = tnow;
         }
-        if (peeridx < MAX_PEERS_1) {
-            ZT(DEBUG, ("handle message from %s @ %u", addrstr, peeridx));
-            if (peers[peeridx].state == PEERST_ESTABLISHED) {
-                peers[peeridx].tlease = tnow;
-            }
             (void)handle_packet(peeridx, inbuf + recvret, inbuf, tnow);
             /* peeridx need no longer be correct */
-        } else {
-            ZT(DEBUG, ("message from %s dropped: no available peeridx", addrstr));
+    } else {
+        ZT(DEBUG, ("message from %s dropped: no available peeridx", addrstr));
         }
         return 1;
     } else if (recvret < 0) {
@@ -1552,7 +1551,7 @@ static int handle_input_packet(ztime_t tnow)
 
 #if TRANSPORT_MODE == TRANSPORT_STREAM
 #if MAX_PEERS != 0
-#error "stream currently only implemented for client mode"
+#  error "stream currently only implemented for client mode"
 #endif
 static int handle_input_stream(ztime_t tnow)
 {
@@ -1653,7 +1652,7 @@ static void housekeeping(ztime_t tnow)
                         ZT(PEERDISC, ("retry opening a session with peer @ %u", i));
                         peers[i].state++;
                         peers[i].tlease = tnow;
-                        pack_mopen(&peers[i].oc.addr, SEQNUM_LEN, &ownid, lease_dur);
+                        pack_mopen(&peers[i].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION);
                         pack_msend();
                     }
                 }

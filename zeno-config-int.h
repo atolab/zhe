@@ -59,6 +59,9 @@
 #define OPEN_INTERVAL        1000 /* units, see ZENO_TIMEBASE */
 #define OPEN_RETRIES           10 /* limited by OPENING_MIN .. _MAX */
 
+/* Lease duration should be greater than SCOUT_INTERVAL */
+#define LEASE_DURATION       5000 /* units, see ZENO_TIMEBASE */
+
 /* Peer IDs are non-empty byte vectors of at most PEERID_SIZE. Peers that provide a peer id that does not meet these requirements are ignored */
 #define PEERID_SIZE            16
 
