@@ -12,6 +12,8 @@
 
 #include "zeno-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 
+#include "transport-udp.h"
+
 static uint32_t checkintv = 16384;
 
 static zpsize_t getrandomid(unsigned char *ownid, size_t ownidsize)
@@ -159,12 +161,13 @@ int main(int argc, char * const *argv)
         fprintf(stderr, "init failed\n");
         exit(1);
     }
-    zeno_loop_init();
+    zeno_start();
     switch (mode) {
         case 0: {
             ztime_t tstart = zeno_time();
             do {
                 const struct timespec sl = { 0, 10000000 };
+                transport_ops.
                 zeno_loop();
                 nanosleep(&sl, NULL);
             } while(ZTIME_TO_SECu32(zeno_time() - tstart) < 20);

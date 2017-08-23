@@ -1394,24 +1394,24 @@ static const uint8_t *handle_mconduit(peeridx_t peeridx, const uint8_t * const e
     return data;
 }
 
-static const uint8_t *handle_packet(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
+static const uint8_t *handle_packet(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t *data, ztime_t tnow)
 {
     cid_t cid = 0;
     do {
         switch (*data & MKIND) {
-            case MSCOUT:     data = handle_mscout(peeridx, end, data); break;
-            case MHELLO:     data = handle_mhello(peeridx, end, data, tnow); break;
-            case MOPEN:      data = handle_mopen(&peeridx, end, data, tnow); break;
-            case MACCEPT:    data = handle_maccept(&peeridx, end, data, tnow); break;
-            case MCLOSE:     data = handle_mclose(&peeridx, end, data, tnow); break;
-            case MDECLARE:   data = handle_mdeclare(peeridx, end, data, cid, tnow); break;
-            case MSDATA:     data = handle_msdata(peeridx, end, data, cid, tnow); break;
-            case MPING:      data = handle_mping(peeridx, end, data); break;
-            case MPONG:      data = handle_mpong(peeridx, end, data); break;
-            case MSYNCH:     data = handle_msynch(peeridx, end, data, cid, tnow); break;
-            case MACKNACK:   data = handle_macknack(peeridx, end, data, cid, tnow); break;
-            case MKEEPALIVE: data = handle_mkeepalive(&peeridx, end, data, tnow); break;
-            case MCONDUIT:   data = handle_mconduit(peeridx, end, data, &cid, tnow); break;
+            case MSCOUT:     data = handle_mscout(*peeridx, end, data); break;
+            case MHELLO:     data = handle_mhello(*peeridx, end, data, tnow); break;
+            case MOPEN:      data = handle_mopen(peeridx, end, data, tnow); break;
+            case MACCEPT:    data = handle_maccept(peeridx, end, data, tnow); break;
+            case MCLOSE:     data = handle_mclose(peeridx, end, data, tnow); break;
+            case MDECLARE:   data = handle_mdeclare(*peeridx, end, data, cid, tnow); break;
+            case MSDATA:     data = handle_msdata(*peeridx, end, data, cid, tnow); break;
+            case MPING:      data = handle_mping(*peeridx, end, data); break;
+            case MPONG:      data = handle_mpong(*peeridx, end, data); break;
+            case MSYNCH:     data = handle_msynch(*peeridx, end, data, cid, tnow); break;
+            case MACKNACK:   data = handle_macknack(*peeridx, end, data, cid, tnow); break;
+            case MKEEPALIVE: data = handle_mkeepalive(peeridx, end, data, tnow); break;
+            case MCONDUIT:   data = handle_mconduit(*peeridx, end, data, &cid, tnow); break;
             default:         data = 0; break;
         }
     } while (data < end && data != 0);
@@ -1474,7 +1474,7 @@ int zeno_init(const struct zeno_config *config)
     return 0;
 }
 
-void zeno_loop_init(void)
+void zeno_start(void)
 {
     ztime_t tnow = zeno_time();
 #if MAX_PEERS == 0
@@ -1508,96 +1508,66 @@ static void maybe_send_scout(ztime_t tnow)
 #endif
 }
 
+//    zeno_address_t insrc;
+//    ssize_t recvret;
+//     if ((recvret = transport_ops.recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
+
+
 #if TRANSPORT_MODE == TRANSPORT_PACKET
-static int handle_input_packet(ztime_t tnow)
+ssize_t zeno_input(const void * restrict buf, size_t sz, const struct zeno_address *src, ztime_t tnow)
 {
-    zeno_address_t insrc;
-    ssize_t recvret;
     char addrstr[TRANSPORT_ADDRSTRLEN];
-    if ((recvret = transport_ops.recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
     peeridx_t peeridx, free_peeridx = PEERIDX_INVALID;
+
     for (peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
-            if (transport_ops.addr_eq(&insrc, &peers[peeridx].oc.addr)) {
+        if (transport_ops.addr_eq(src, &peers[peeridx].oc.addr)) {
             break;
         } else if (peers[peeridx].state == PEERST_UNKNOWN && free_peeridx == PEERIDX_INVALID) {
             free_peeridx = peeridx;
         }
     }
-        (void)transport_ops.addr2string(addrstr, sizeof(addrstr), &insrc);
+
+    if (ZTT(DEBUG)) {
+        (void)transport_ops.addr2string(addrstr, sizeof(addrstr), src);
+    }
+
     if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
+        (void)transport_ops.addr2string(addrstr, sizeof(addrstr), src);
         ZT(DEBUG, ("possible new peer %s @ %u", addrstr, free_peeridx));
         peeridx = free_peeridx;
-            peers[peeridx].oc.addr = insrc;
+        peers[peeridx].oc.addr = *src;
     }
+
     if (peeridx < MAX_PEERS_1) {
         ZT(DEBUG, ("handle message from %s @ %u", addrstr, peeridx));
         if (peers[peeridx].state == PEERST_ESTABLISHED) {
             peers[peeridx].tlease = tnow;
         }
-            (void)handle_packet(peeridx, inbuf + recvret, inbuf, tnow);
-            /* peeridx need no longer be correct */
+        return (ssize_t)(handle_packet(&peeridx, buf + sz, buf, tnow) - (const uint8_t *)buf);
+        /* note: peeridx need no longer be correct */
     } else {
         ZT(DEBUG, ("message from %s dropped: no available peeridx", addrstr));
-        }
-        return 1;
-    } else if (recvret < 0) {
-        assert(0);
-        return 0;
-    } else {
         return 0;
     }
 }
-#endif
-
-#if TRANSPORT_MODE == TRANSPORT_STREAM
+#elif TRANSPORT_MODE == TRANSPORT_STREAM
 #if MAX_PEERS != 0
 #  error "stream currently only implemented for client mode"
 #endif
-static int handle_input_stream(ztime_t tnow)
+ssize_t zeno_input(const void * restrict buf, size_t sz, const struct zeno_address *src, ztime_t tnow)
 {
-    static ztime_t t_progress;
-    uint8_t read_something = 0;
-    zeno_address_t insrc;
-    ssize_t recvret;
-    recvret = transport_ops.recv(transport, inbuf + inp, sizeof(inbuf) - inp, &insrc);
-    if (recvret > 0) {
-        inp += recvret;
-        read_something = 1;
-    }
-    if (recvret < 0) {
-        assert(0);
-        return 0;
-    }
-    if (inp == 0) {
-        t_progress = tnow;
+    if (sz == 0) {
         return 0;
     } else {
-        /* No point in repeatedly trying to decode the same incomplete data */
-        int ret = 0;
-        if (read_something) {
-            const uint8_t *datap = handle_packet(0, inbuf + inp, inbuf, tnow);
-            /* peeridx need no longer be correct */
-            zmsize_t cons = (zmsize_t) (datap - inbuf);
-            if (cons > 0) {
-                t_progress = tnow;
-                if (peers[0].state == PEERST_ESTABLISHED) {
-                    /* any packet is considered proof of liveliness of the broker (the
-                       state of course doesn't really change ...) */
-                    peers[0].tlease = t_progress;
-                }
-                if (cons < inp) {
-                    memmove(inbuf, datap, inp - cons);
-                }
-                inp -= cons;
-                ret = 1;
-            }
+        peeridx_t peeridx = 0;
+        const uint8_t *datap = handle_packet(&peeridx, buf + sz, buf, tnow);
+        /* note: peeridx need no longer be correct */
+        ssize_t cons = (ssize_t) (datap - inbuf);
+        if (cons > 0 && peers[0].state == PEERST_ESTABLISHED) {
+            /* any complete message is considered proof of liveliness of the broker once a connection has been established */
+            peers[0].tlease = tnow;
         }
-
-        if (inp == sizeof(inbuf) || (inp > 0 && (ztimediff_t)(tnow - t_progress) > 300)) {
-            /* No progress: discard whatever we have buffered and hope for the best. */
-            inp = 0;
-        }
-        return ret;
+        return (ssize_t)cons;
     }
 }
 #endif
@@ -1621,7 +1591,7 @@ void flush_output(ztime_t tnow)
 #endif
 }
 
-static void housekeeping(ztime_t tnow)
+void zeno_housekeeping(ztime_t tnow)
 {
     maybe_send_scout(tnow);
 
@@ -1670,30 +1640,4 @@ static void housekeeping(ztime_t tnow)
     send_declares();
     
     flush_output(tnow);
-}
-
-ztime_t zeno_loop(void)
-{
-    ztime_t tnow = zeno_time();
-    int r;
-
-    do {
-#if TRANSPORT_MODE == TRANSPORT_PACKET
-        r = handle_input_packet(tnow);
-#elif TRANSPORT_MODE == TRANSPORT_STREAM
-        r = handle_input_stream(tnow);
-#else
-#error "TRANSPORT_MODE not handled"
-#endif
-    } while (r);
-
-    housekeeping(tnow);
-
-    return tnow + 1; /* FIXME: need to keep track of next event */
-}
-
-void zeno_wait_input(ztimediff_t timeout)
-{
-    (void)zeno_loop();
-    transport_ops.wait(transport, timeout);
 }

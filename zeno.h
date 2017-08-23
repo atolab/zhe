@@ -27,11 +27,13 @@ typedef struct { uint16_t idx; } subidx_t;
 
 typedef void (*subhandler_t)(rid_t rid, zpsize_t size, const void *payload, void *arg);
 
+struct zeno_address;
+
 struct zeno_config {
     size_t idlen;
     const void *id;
+    
 
-    const char *transport_options;
 
     const char *scoutaddr;
 
@@ -43,9 +45,9 @@ struct zeno_config {
 };
 
 int zeno_init(const struct zeno_config *config);
-void zeno_loop_init(void);
-ztime_t zeno_loop(void);
-void zeno_wait_input(ztimediff_t timeout);
+void zeno_start(void);
+void zeno_housekeeping(ztime_t tnow);
+ssize_t zeno_input(const void * restrict buf, size_t sz, const struct zeno_address *src, ztime_t tnow);
 
 pubidx_t publish(rid_t rid, unsigned cid, int reliable);
 subidx_t subscribe(rid_t rid, zpsize_t xmitneed, unsigned cid, subhandler_t handler, void *arg);
