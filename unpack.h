@@ -1,7 +1,6 @@
 #ifndef ZENO_UNPACK_H
 #define ZENO_UNPACK_H
 
-#include "zeno.h"
 #include "zeno-config-deriv.h"
 
 int unpack_skip(uint8_t const * const end, uint8_t const * * const data, zmsize_t n);

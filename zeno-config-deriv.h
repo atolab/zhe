@@ -2,6 +2,7 @@
 #define ZENO_CONFIG_DERIV_H
 
 #include "zeno-config-int.h"
+#include "zeno-rid.h"
 
 #define MAX_PEERS_1 (MAX_PEERS == 0 ? 1 : MAX_PEERS)
 

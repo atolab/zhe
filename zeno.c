@@ -6,12 +6,12 @@
 #include <limits.h>
 #include <assert.h>
 
-#include "zeno.h"
 #include "zeno-config-deriv.h"
 #include "zeno-msg.h"
 #include "zeno-int.h"
 #include "zeno-tracing.h"
 #include "zeno-time.h"
+#include "zeno.h"
 #include "pack.h"
 #include "unpack.h"
 #include "bitset.h"
@@ -232,10 +232,8 @@ static void reset_peer(peeridx_t peeridx, ztime_t tnow)
 #endif
 }
 
-static void init_globals(void)
+static void init_globals(ztime_t tnow)
 {
-    ztime_t tnow = zeno_time();
-    
 #if N_OUT_MCONDUITS > 0
     /* Need to reset out_mconduits[.].seqbase.ix[i] before reset_peer(i) may be called */
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
@@ -310,7 +308,7 @@ void pack_msend(void)
             outbuf[outspos] |= MSFLAG;
         }
     }
-    if (transport_ops.send(transport, outbuf, outp, outdst) < 0) {
+    if (transport->ops->send(transport, outbuf, outp, outdst) < 0) {
         assert(0);
     }
     outp = 0;
@@ -383,7 +381,7 @@ uint16_t pack_locs_calcsize(void)
     size_t n = pack_vle16req(n_multicast_locators);
     char tmp[TRANSPORT_ADDRSTRLEN];
     for (uint16_t i = 0; i < n_multicast_locators; i++) {
-        size_t n1 = transport_ops.addr2string(tmp, sizeof(tmp), &multicast_locators[i]);
+        size_t n1 = transport->ops->addr2string(transport, tmp, sizeof(tmp), &multicast_locators[i]);
         assert(n1 < UINT16_MAX);
         n += pack_vle16req((uint16_t)n1) + n1;
     }
@@ -400,7 +398,7 @@ void pack_locs(void)
     pack_vle16(n_multicast_locators);
     for (uint16_t i = 0; i < n_multicast_locators; i++) {
         char tmp[TRANSPORT_ADDRSTRLEN];
-        uint16_t n1 = (uint16_t)transport_ops.addr2string(tmp, sizeof(tmp), &multicast_locators[i]);
+        uint16_t n1 = (uint16_t)transport->ops->addr2string(transport, tmp, sizeof(tmp), &multicast_locators[i]);
         pack_vec(n1, tmp);
     }
 #else
@@ -477,7 +475,7 @@ void oc_pack_payload(struct out_conduit *c, int relflag, zpsize_t sz, const void
     }
 }
 
-void oc_pack_payload_done(struct out_conduit *c, int relflag)
+void oc_pack_payload_done(struct out_conduit *c, int relflag, ztime_t tnow)
 {
     if (!relflag) {
         c->useq += SEQNUM_UNIT;
@@ -488,7 +486,7 @@ void oc_pack_payload_done(struct out_conduit *c, int relflag)
         c->pos = xmitw_pos_add(c, c->pos, sizeof(zmsize_t));
         if (c->seq == c->seqbase) {
             /* first unack'd sample, schedule SYNCH */
-            c->tsynch = zeno_time() + MSYNCH_INTERVAL;
+            c->tsynch = tnow + MSYNCH_INTERVAL;
         }
         c->seq += SEQNUM_UNIT;
     }
@@ -595,7 +593,7 @@ static const uint8_t *handle_dbindid(peeridx_t peeridx, const uint8_t * const en
     return data;
 }
 
-static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
+static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret, ztime_t tnow)
 {
     uint8_t commitid;
     uint8_t res;
@@ -618,7 +616,7 @@ static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const en
                 rsub_commit(peeridx);
             }
             pack_dresult(commitid, res, err_rid);
-            oc_pack_mdeclare_done(oc, from);
+            oc_pack_mdeclare_done(oc, from, tnow);
             pack_msend();
         }
     }
@@ -699,17 +697,12 @@ static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
     zpsize_t sz;
     const uint8_t *loc;
     while (unpack_locs_iter(it, &sz, &loc)) {
-        zeno_address_t addr;
-        if (!transport_ops.octseq2addr(&addr, sz, loc)) {
-            return 0;
-        }
 #if N_OUT_MCONDUITS > 0
         for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
-            if (transport_ops.addr_eq(&addr, &out_mconduits[cid].oc.addr)) {
+            char tmp[TRANSPORT_ADDRSTRLEN];
+            const size_t tmpsz = transport->ops->addr2string(transport, tmp, sizeof(tmp), &out_mconduits[cid].oc.addr);
+            if (sz == tmpsz && memcmp(loc, tmp, sz) == 0) {
                 bitset_set(peers[peeridx].mc_member, (unsigned)cid);
-
-                char tmp[TRANSPORT_ADDRSTRLEN];
-                transport_ops.addr2string(tmp, sizeof(tmp), &addr);
                 ZT(PEERDISC, ("loc %s cid %u", tmp, (unsigned)cid));
             }
         }
@@ -780,8 +773,8 @@ static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zpsize_t idlen, const uin
         }
         if (peers[i].id.len == idlen && memcmp(peers[i].id.id, id, idlen) == 0) {
             char olda[TRANSPORT_ADDRSTRLEN], newa[TRANSPORT_ADDRSTRLEN];
-            transport_ops.addr2string(olda, sizeof(olda), &peers[i].oc.addr);
-            transport_ops.addr2string(newa, sizeof(newa), &peers[peeridx].oc.addr);
+            transport->ops->addr2string(transport, olda, sizeof(olda), &peers[i].oc.addr);
+            transport->ops->addr2string(transport, newa, sizeof(newa), &peers[peeridx].oc.addr);
             ZT(PEERDISC, ("peer %u changed address from %s to %s", (unsigned)i, olda, newa));
             peers[i].oc.addr = peers[peeridx].oc.addr;
             return i;
@@ -803,7 +796,7 @@ static void accept_peer(peeridx_t peeridx, zpsize_t idlen, const uint8_t * restr
     char idstr[3*PEERID_SIZE], *idstrp = idstr;
     assert(p->state != PEERST_ESTABLISHED);
     assert(idlen > 0 && idlen <= PEERID_SIZE);
-    transport_ops.addr2string(astr, sizeof(astr), &p->oc.addr);
+    transport->ops->addr2string(transport, astr, sizeof(astr), &p->oc.addr);
 
     assert(idlen <= PEERID_SIZE);
     assert(lease_dur >= 0);
@@ -1072,7 +1065,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
             case DSUB:       data = handle_dsub(peeridx, end, data, intp); break;
             case DSELECTION: data = handle_dselection(peeridx, end, data, intp); break;
             case DBINDID:    data = handle_dbindid(peeridx, end, data, intp); break;
-            case DCOMMIT:    data = handle_dcommit(peeridx, end, data, intp); break;
+            case DCOMMIT:    data = handle_dcommit(peeridx, end, data, intp, tnow); break;
             case DRESULT:    data = handle_dresult(peeridx, end, data, intp); break;
             case DDELETERES: data = handle_ddeleteres(peeridx, end, data, intp); break;
             default:         data = 0; break;
@@ -1418,7 +1411,7 @@ static const uint8_t *handle_packet(peeridx_t * restrict peeridx, const uint8_t 
     return data;
 }
 
-int zeno_init(const struct zeno_config *config)
+int zeno_init(const struct zeno_config *config, struct zeno_transport *tp, ztime_t tnow)
 {
     /* Is there a way to make the transport pluggable at run-time without dynamic allocation? I don't think so, not with the MTU so important ... */
     if (config->idlen == 0 || config->idlen > PEERID_SIZE) {
@@ -1436,47 +1429,25 @@ int zeno_init(const struct zeno_config *config)
     ownid_union.v_nonconst.len = (zpsize_t)config->idlen;
     memcpy(ownid_union.v_nonconst.id, config->id, config->idlen);
 
-    if (!transport_ops.octseq2addr(&scoutaddr, strlen(config->scoutaddr), config->scoutaddr)) {
-        return -1;
-    }
-
-    init_globals();
-    transport = transport_ops.new(config, &scoutaddr);
-    if (transport == NULL) {
-        return -1;
-    }
-
+    init_globals(tnow);
+    transport = tp;
+    scoutaddr = *config->scoutaddr;
 #if MAX_MULTICAST_GROUPS > 0
     n_multicast_locators = (uint16_t)config->n_mcgroups_join;
     for (size_t i = 0; i < config->n_mcgroups_join; i++) {
-        struct zeno_address *a = &multicast_locators[i];
-        ZT(PEERDISC, ("joining %s ...", config->mcgroups_join[i]));
-        if (!transport_ops.octseq2addr(a, strlen(config->mcgroups_join[i]), config->mcgroups_join[i])) {
-            ZT(PEERDISC, ("invalid address %s", config->mcgroups_join[i]));
-            return -1;
-        }
-        if (!transport_ops.join(transport, a)) {
-            ZT(PEERDISC, ("joining %s failed", config->mcgroups_join[i]));
-            return -1;
-        }
+        multicast_locators[i] = config->mcgroups_join[i];
     }
 #endif
-
 #if N_OUT_MCONDUITS > 0
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
-        ZT(PEERDISC, ("conduit %u -> %s", (unsigned)i, config->mconduit_dstaddrs[i]));
-        if (!transport_ops.octseq2addr(&out_mconduits[i].oc.addr, strlen(config->mconduit_dstaddrs[i]), config->mconduit_dstaddrs[i])) {
-            ZT(PEERDISC, ("invalid address %s", config->mconduit_dstaddrs[i]));
-            return -1;
-        }
+        out_mconduits[i].oc.addr = config->mconduit_dstaddrs[i];
     }
 #endif
     return 0;
 }
 
-void zeno_start(void)
+void zeno_start(ztime_t tnow)
 {
-    ztime_t tnow = zeno_time();
 #if MAX_PEERS == 0
     peers[0].tlease = tnow - SCOUT_INTERVAL;
 #else
@@ -1508,11 +1479,6 @@ static void maybe_send_scout(ztime_t tnow)
 #endif
 }
 
-//    zeno_address_t insrc;
-//    ssize_t recvret;
-//     if ((recvret = transport_ops.recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
-
-
 #if TRANSPORT_MODE == TRANSPORT_PACKET
 ssize_t zeno_input(const void * restrict buf, size_t sz, const struct zeno_address *src, ztime_t tnow)
 {
@@ -1520,7 +1486,7 @@ ssize_t zeno_input(const void * restrict buf, size_t sz, const struct zeno_addre
     peeridx_t peeridx, free_peeridx = PEERIDX_INVALID;
 
     for (peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
-        if (transport_ops.addr_eq(src, &peers[peeridx].oc.addr)) {
+        if (transport->ops->addr_eq(src, &peers[peeridx].oc.addr)) {
             break;
         } else if (peers[peeridx].state == PEERST_UNKNOWN && free_peeridx == PEERIDX_INVALID) {
             free_peeridx = peeridx;
@@ -1528,11 +1494,11 @@ ssize_t zeno_input(const void * restrict buf, size_t sz, const struct zeno_addre
     }
 
     if (ZTT(DEBUG)) {
-        (void)transport_ops.addr2string(addrstr, sizeof(addrstr), src);
+        (void)transport->ops->addr2string(transport, addrstr, sizeof(addrstr), src);
     }
 
     if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
-        (void)transport_ops.addr2string(addrstr, sizeof(addrstr), src);
+        (void)transport->ops->addr2string(transport, addrstr, sizeof(addrstr), src);
         ZT(DEBUG, ("possible new peer %s @ %u", addrstr, free_peeridx));
         peeridx = free_peeridx;
         peers[peeridx].oc.addr = *src;
@@ -1581,20 +1547,15 @@ static void maybe_send_msync_oc(struct out_conduit * const oc, ztime_t tnow)
     }
 }
 
-void flush_output(ztime_t tnow)
+void zeno_flush(void)
 {
-    /* Flush any pending output if the latency budget has been exceeded */
-#if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
-    if (outp > 0 && (ztimediff_t)(tnow - outdeadline) >= 0) {
+    if (outp > 0) {
         pack_msend();
     }
-#endif
 }
 
 void zeno_housekeeping(ztime_t tnow)
 {
-    maybe_send_scout(tnow);
-
     /* FIXME: obviously, this is a big waste of CPU time if MAX_PEERS is biggish (but worst-case cost isn't affected) */
     for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
         switch(peers[i].state) {
@@ -1637,7 +1598,13 @@ void zeno_housekeeping(ztime_t tnow)
     }
 #endif
 
-    send_declares();
-    
-    flush_output(tnow);
+    send_declares(tnow);
+    maybe_send_scout(tnow);
+
+    /* Flush any pending output if the latency budget has been exceeded */
+#if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
+    if (outp > 0 && (ztimediff_t)(tnow - outdeadline) >= 0) {
+        pack_msend();
+    }
+#endif
 }

@@ -3,7 +3,6 @@
 #include <limits.h>
 #include <assert.h>
 
-#include "zeno.h"
 #include "zeno-config-int.h"
 #include "zeno-msg.h"
 
@@ -270,9 +269,9 @@ void oc_pack_msdata_payload(struct out_conduit *c, int relflag, zpsize_t sz, con
     oc_pack_payload(c, relflag, sz, vdata);
 }
 
-void oc_pack_msdata_done(struct out_conduit *c, int relflag)
+void oc_pack_msdata_done(struct out_conduit *c, int relflag, ztime_t tnow)
 {
-    oc_pack_payload_done(c, relflag);
+    oc_pack_payload_done(c, relflag, tnow);
 }
 
 int oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zmsize_t *from)
@@ -290,10 +289,10 @@ int oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zms
     return 1;
 }
 
-void oc_pack_mdeclare_done(struct out_conduit *c, zmsize_t from)
+void oc_pack_mdeclare_done(struct out_conduit *c, zmsize_t from, ztime_t tnow)
 {
     oc_pack_copyrel(c, from);
-    oc_pack_payload_done(c, 1);
+    oc_pack_payload_done(c, 1, tnow);
 }
 
 /* FIXME: not doing properties at the moment */

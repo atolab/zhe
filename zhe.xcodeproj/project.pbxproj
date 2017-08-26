@@ -54,6 +54,7 @@
 		034BDF7A1F46B23400F261D1 /* zeno-config-deriv.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zeno-config-deriv.h"; sourceTree = SOURCE_ROOT; };
 		034BDF7B1F4ABAFA00F261D1 /* pubsub.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pubsub.c; sourceTree = SOURCE_ROOT; };
 		034BDF7C1F4ABAFA00F261D1 /* pubsub.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pubsub.h; sourceTree = SOURCE_ROOT; };
+		034BDF7E1F51737B00F261D1 /* zeno-rid.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zeno-rid.h"; sourceTree = SOURCE_ROOT; };
 		038D6C621F25DD380045040D /* bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = bitset.c; sourceTree = "<group>"; };
 		038D6C631F25DD380045040D /* bitset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bitset.h; sourceTree = "<group>"; };
 		038D6C651F2F080A0045040D /* binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = binheap.c; sourceTree = "<group>"; };
@@ -121,6 +122,7 @@
 				030587721EF92CEC0040F446 /* zeno.h */,
 				034BDF7B1F4ABAFA00F261D1 /* pubsub.c */,
 				034BDF7C1F4ABAFA00F261D1 /* pubsub.h */,
+				034BDF7E1F51737B00F261D1 /* zeno-rid.h */,
 			);
 			name = zhe;
 			path = .;

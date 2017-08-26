@@ -289,7 +289,7 @@ void reset_subs_to_declare(void)
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-void send_declares(void)
+void send_declares(ztime_t tnow)
 {
     struct out_conduit * const oc = out_conduit_from_cid(0, 0);
     int first;
@@ -308,7 +308,7 @@ void send_declares(void)
             assert(pubs[first].rid != 0);
             ZT(PUBSUB, ("sending dpub %d rid %ju", first, (uintmax_t)pubs[first].rid));
             pack_dpub(pubs[first].rid);
-            oc_pack_mdeclare_done(oc, from);
+            oc_pack_mdeclare_done(oc, from, tnow);
             bitset_clear(todeclare.pubs, (unsigned)first);
             must_commit = 1;
         } else {
@@ -323,7 +323,7 @@ void send_declares(void)
             assert(subs[first].rid != 0);
             ZT(PUBSUB, ("sending dsub %d rid %ju", first, (uintmax_t)subs[first].rid));
             pack_dsub(subs[first].rid);
-            oc_pack_mdeclare_done(oc, from);
+            oc_pack_mdeclare_done(oc, from, tnow);
             bitset_clear(todeclare.subs, (unsigned)first);
             must_commit = 1;
         } else {
@@ -335,7 +335,7 @@ void send_declares(void)
     if (must_commit && oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE, &from)) {
         ZT(PUBSUB, ("sending commit %u", gcommitid));
         pack_dcommit(gcommitid++);
-        oc_pack_mdeclare_done(oc, from);
+        oc_pack_mdeclare_done(oc, from, tnow);
         pack_msend();
         must_commit = 0;
         return;
@@ -421,7 +421,7 @@ subidx_t subscribe(rid_t rid, zpsize_t xmitneed, unsigned cid, subhandler_t hand
     return subidx;
 }
 
-int zeno_write(pubidx_t pubidx, zpsize_t sz, const void *data)
+int zeno_write(pubidx_t pubidx, zpsize_t sz, const void *data, ztime_t tnow)
 {
     /* returns 0 on failure and 1 on success; the only defined failure case is a full transmit
      window for reliable pulication while remote subscribers exist */
@@ -442,7 +442,7 @@ int zeno_write(pubidx_t pubidx, zpsize_t sz, const void *data)
         return !relflag;
     } else {
         oc_pack_msdata_payload(oc, relflag, sz, data);
-        oc_pack_msdata_done(oc, relflag);
+        oc_pack_msdata_done(oc, relflag, tnow);
 #if LATENCY_BUDGET == 0
         pack_msend();
 #endif

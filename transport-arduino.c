@@ -34,7 +34,7 @@ static struct {
 #define STATE_DRAININPUT   1
 #define STATE_OPERATIONAL  2
 
-static struct zeno_transport *arduino_new(const struct zeno_config *config, const zeno_address_t *scoutaddr)
+struct zeno_transport *arduino_new(void)
 {
     uint8_t state = STATE_WAITINPUT;
     ztime_t t_state_changed = millis();
@@ -61,18 +61,14 @@ static struct zeno_transport *arduino_new(const struct zeno_config *config, cons
     return (struct zeno_transport *)&Serial;
 }
 
-static void arduino_free(struct zeno_transport * restrict tp)
-{
-}
-
-static size_t arduino_addr2string(char * restrict str, size_t size, const zeno_address_t * restrict addr)
+static size_t arduino_addr2string(const struct zeno_transport *tp, char * restrict str, size_t size, const zeno_address_t * restrict addr)
 {
     assert(size > 0);
     str[0] = 0;
     return 0;
 }
 
-static int arduino_octseq2addr(struct zeno_address * restrict addr, size_t sz, const void * restrict octseq)
+int arduino_string2addr(const struct zeno_transport *tp, struct zeno_address * restrict addr, const char * restrict str)
 {
     memset(addr, 0, sizeof(*addr));
     return 1;
@@ -132,7 +128,7 @@ static int read_serial(void)
 }
 #endif
 
-static ssize_t arduino_recv(struct zeno_transport * restrict tp, void * restrict buf, size_t size, zeno_address_t * restrict src)
+ssize_t arduino_recv(struct zeno_transport * restrict tp, void * restrict buf, size_t size, zeno_address_t * restrict src)
 {
 #if TRANSPORT_MODE == TRANSPORT_STREAM
     size_t n = 0;
@@ -150,21 +146,15 @@ static int arduino_addr_eq(const struct zeno_address *a, const struct zeno_addre
     return 1;
 }
 
-static int arduino_wait(const struct zeno_transport * restrict tp, ztimediff_t timeout)
+int arduino_wait(const struct zeno_transport * restrict tp, ztimediff_t timeout)
 {
     return Serial.available();
 }
 
 zeno_transport_ops_t transport_arduino = {
-    .new = arduino_new,
-    .free = arduino_free,
     .addr2string = arduino_addr2string,
-    .octseq2addr = arduino_octseq2addr,
     .addr_eq = arduino_addr_eq,
-    .send = arduino_send,
-    .recv = arduino_recv,
-    .wait = arduino_wait,
-    .join = 0
+    .send = arduino_send
 };
 
 #endif

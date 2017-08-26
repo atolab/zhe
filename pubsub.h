@@ -16,7 +16,7 @@ void rsub_precommit_curpkt_abort(peeridx_t peeridx);
 void rsub_clear(peeridx_t peeridx);
 void rsub_precommit_curpkt_done(peeridx_t peeridx);
 
-void send_declares(void);
+void send_declares(ztime_t tnow);
 
 void reset_pubs_to_declare(void);
 void reset_subs_to_declare(void);
