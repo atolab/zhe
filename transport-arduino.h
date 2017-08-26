@@ -18,7 +18,7 @@ struct zhe_transport *zhe_arduino_new(void);
 int zhe_arduino_string2addr(const struct zhe_transport *tp, struct zhe_address * restrict addr, const char * restrict str);
 int zhe_arduino_join(const struct zhe_transport * restrict tp, const struct zhe_address *addr);
 int zhe_arduino_wait(const struct zhe_transport * restrict tp, zhe_timediff_t timeout);
-ssize_t zhe_arduino_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src);
+int zhe_arduino_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src);
 
 #endif
 

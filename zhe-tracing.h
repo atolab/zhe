@@ -8,7 +8,7 @@
 #define ZTCAT_RELIABLE  16u
 #define ZTCAT_PUBSUB    32u
 
-#include "zeno-config.h"
+#include "zhe-config.h"
 
 extern unsigned zhe_trace_cats;
 

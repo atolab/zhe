@@ -7,11 +7,12 @@
 #include <time.h>
 
 #include "transport-udp.h"
-#include "zeno.h"
-#include "zeno-tracing.h"
-#include "zeno-time.h"
+#include "zhe.h"
+#include "zhe-tracing.h"
+#include "zhe-time.h"
+#include "zhe-assert.h"
 
-#include "zeno-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
+#include "zhe-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 
 static uint32_t checkintv = 16384;
 

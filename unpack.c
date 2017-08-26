@@ -1,7 +1,7 @@
 #include <limits.h>
-#include <assert.h>
+#include "zhe-assert.h"
+#include "zhe-int.h"
 #include "unpack.h"
-#include "zeno-int.h"
 
 int zhe_unpack_skip(uint8_t const * const end, uint8_t const * * const data, zhe_msgsize_t n)
 {
@@ -175,7 +175,7 @@ int zhe_unpack_locs_iter(struct unpack_locs_iter *it, zhe_paysize_t *sz, const u
         return 0;
     } else {
         int x = zhe_unpack_vle16(it->end, &it->data, sz);
-        assert(x);
+        zhe_assert(x);
         *loc = it->data;
         it->data += *sz;
         it->n--;

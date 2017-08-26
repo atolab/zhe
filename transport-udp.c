@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -15,10 +14,11 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
-#include "zeno-tracing.h"
-#include "zeno-config-deriv.h"
 #include "transport-udp.h"
-#include "zeno.h"
+#include "zhe-assert.h"
+#include "zhe-tracing.h"
+#include "zhe-config-deriv.h"
+#include "zhe.h"
 
 #define BLOCKING_SEND 0
 #define SIMUL_PACKET_LOSS 1
@@ -187,7 +187,7 @@ static size_t udp_addr2string1(char * restrict str, const zhe_address_t * restri
 static size_t udp_addr2string(const struct zhe_transport *tp, char * restrict str, size_t size, const zhe_address_t * restrict addr)
 {
     char tmp[TRANSPORT_ADDRSTRLEN];
-    assert(size > 0);
+    zhe_assert(size > 0);
     if (size >= sizeof(tmp)) {
         return udp_addr2string1(str, addr);
     } else {
@@ -256,7 +256,7 @@ static ssize_t udp_send(struct zhe_transport * restrict tp, const void * restric
 {
     struct udp *udp = (struct udp *)tp;
     ssize_t ret;
-    assert(size <= TRANSPORT_MTU);
+    zhe_assert(size <= TRANSPORT_MTU);
 #if SIMUL_PACKET_LOSS
     if (randomthreshold && random() < randomthreshold) {
         return (ssize_t)size;

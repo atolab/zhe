@@ -1,7 +1,7 @@
 #ifndef ZHE_UNPACK_H
 #define ZHE_UNPACK_H
 
-#include "zeno-config-deriv.h"
+#include "zhe-config-deriv.h"
 
 int zhe_unpack_skip(uint8_t const * const end, uint8_t const * * const data, zhe_msgsize_t n);
 int zhe_unpack_byte(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u);

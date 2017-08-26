@@ -2,7 +2,7 @@
 #ifndef ZHE_CONFIG_INT_H
 #define ZHE_CONFIG_INT_H
 
-#include "zeno-config.h"
+#include "zhe-config.h"
 
 /********** Arduino Hack Alert ***********/
 

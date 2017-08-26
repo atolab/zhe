@@ -2,8 +2,8 @@
 #define ZHE_H
 
 #include <stddef.h>
-#include "zeno-config.h"
-#include "zeno-rid.h"
+#include "zhe-config.h"
+#include "zhe-rid.h"
 
 #if ZHE_MAX_PUBLICATIONS < 256
 typedef struct { uint8_t idx; } zhe_pubidx_t;
@@ -42,7 +42,7 @@ struct zhe_config {
 int zhe_init(const struct zhe_config *config, struct zhe_transport *tp, zhe_time_t tnow);
 void zhe_start(zhe_time_t tnow);
 void zhe_housekeeping(zhe_time_t tnow);
-ssize_t zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow);
+int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow);
 void zhe_flush(void);
 
 zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable);

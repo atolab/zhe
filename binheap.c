@@ -1,12 +1,12 @@
-#include "zeno-config-deriv.h"
+#include "zhe-config-deriv.h"
 
 #if MAX_PEERS > 0
 
-#include <assert.h>
+#include "zhe-assert.h"
 #include "binheap.h"
 
-/* for seq_l() */
-#include "zeno-int.h"
+/* for zhe_seq_lt() */
+#include "zhe-int.h"
 
 static void minseqheap_heapify(peeridx_t j, peeridx_t n, peeridx_t * restrict p, minseqheap_idx_t * restrict q, const seq_t * restrict v)
 {
@@ -35,9 +35,9 @@ void zhe_minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap *
 {
     peeridx_t i;
 #ifndef NDEBUG
-    assert(h->ix[peeridx].i == PEERIDX_INVALID);
+    zhe_assert(h->ix[peeridx].i == PEERIDX_INVALID);
     for (peeridx_t j = 0; j < h->n; j++) {
-        assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
+        zhe_assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
     }
 #endif
     h->vs[peeridx] = seqbase;
@@ -53,7 +53,7 @@ void zhe_minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap *
 
 seq_t zhe_minseqheap_get_min(struct minseqheap const * const h)
 {
-    assert (h->n > 0);
+    zhe_assert (h->n > 0);
     return h->vs[h->hx[0]];
 }
 
@@ -63,7 +63,7 @@ seq_t zhe_minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_
     if (h->ix[peeridx].i == PEERIDX_INVALID || zhe_seq_le(seqbase, h->vs[peeridx])) {
         return seqbase_if_discarded;
     } else {
-        assert(h->hx[h->ix[peeridx].i] == peeridx);
+        zhe_assert(h->hx[h->ix[peeridx].i] == peeridx);
         h->vs[peeridx] = seqbase;
         minseqheap_heapify(h->ix[peeridx].i, h->n, h->hx, h->ix, h->vs);
         return h->vs[h->hx[0]];
@@ -77,12 +77,12 @@ int zhe_minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
     if (i == PEERIDX_INVALID) {
 #ifndef NDEBUG
         for (peeridx_t j = 0; j < h->n; j++) {
-            assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
+            zhe_assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
         }
 #endif
         return 0;
     } else {
-        assert(h->hx[i] == peeridx);
+        zhe_assert(h->hx[i] == peeridx);
         h->ix[peeridx].i = PEERIDX_INVALID;
         if (h->n > 1) {
             h->hx[i] = h->hx[--h->n];

@@ -1,11 +1,11 @@
-#include <assert.h>
 #include <string.h>
 #include <limits.h>
 
-#include "zeno-config-deriv.h"
-#include "zeno-tracing.h"
-#include "zeno-msg.h"
-#include "zeno-int.h"
+#include "zhe-config-deriv.h"
+#include "zhe-tracing.h"
+#include "zhe-assert.h"
+#include "zhe-msg.h"
+#include "zhe-int.h"
 #include "pack.h"
 #include "pubsub.h"
 #include "bitset.h"
@@ -79,7 +79,7 @@ void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
 {
 #if MAX_PEERS == 0
     zhe_pubidx_t pubidx;
-    assert(rid != 0);
+    zhe_assert(rid != 0);
     for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
         if (pubs[pubidx.idx].rid == rid) {
             break;
@@ -101,7 +101,7 @@ void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
 
 uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid)
 {
-    assert (precommit_curpkt.result == 0);
+    zhe_assert (precommit_curpkt.result == 0);
     if (precommit[peeridx].result == 0) {
         ZT(PUBSUB, ("rsub_precommit peeridx %u ok", peeridx));
         return 0;
@@ -117,7 +117,7 @@ uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid)
 void zhe_rsub_commit(peeridx_t peeridx)
 {
     ZT(PUBSUB, ("rsub_commit peeridx %u", peeridx));
-    assert(precommit[peeridx].result == 0);
+    zhe_assert(precommit[peeridx].result == 0);
 #if MAX_PEERS == 0
     for (size_t i = 0; i < sizeof(pubs_rsubs); i++) {
         pubs_rsubs[i] |= precommit[peeridx].rsubs[i];
@@ -171,12 +171,12 @@ void zhe_rsub_clear(peeridx_t peeridx)
     zhe_pubidx_t pubidx;
     for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
         const zhe_rid_t rid = pubs[pubidx.idx].rid;
-        assert(rid <= ZHE_MAX_RID);
+        zhe_assert(rid <= ZHE_MAX_RID);
         if (rid != 0) {
             peeridx_t i;
             for (i = 0; i < MAX_PEERS_1; i++) {
                 if (zhe_bitset_test(peers_rsubs[i].rsubs, rid)) {
-                    assert(zhe_bitset_test(pubs_rsubs, pubidx.idx));
+                    zhe_assert(zhe_bitset_test(pubs_rsubs, pubidx.idx));
                     break;
                 }
             }
@@ -200,8 +200,8 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
         /* not subscribed */
         return 1;
     }
-    assert(rid2sub[prid].idx < ZHE_MAX_SUBSCRIPTIONS);
-    assert(subs[rid2sub[prid].idx].rid == prid);
+    zhe_assert(rid2sub[prid].idx < ZHE_MAX_SUBSCRIPTIONS);
+    zhe_assert(subs[rid2sub[prid].idx].rid == prid);
     const struct subtable * const s = &subs[rid2sub[prid].idx];
 #else
     zhe_subidx_t k;
@@ -305,7 +305,7 @@ void zhe_send_declares(zhe_time_t tnow)
 #if MAX_PEERS == 0
     if ((first = zhe_bitset_findfirst(todeclare.pubs, ZHE_MAX_PUBLICATIONS)) >= 0) {
         if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from)) {
-            assert(pubs[first].rid != 0);
+            zhe_assert(pubs[first].rid != 0);
             ZT(PUBSUB, ("sending dpub %d rid %ju", first, (uintmax_t)pubs[first].rid));
             zhe_pack_dpub(pubs[first].rid);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -320,7 +320,7 @@ void zhe_send_declares(zhe_time_t tnow)
 
     if ((first = zhe_bitset_findfirst(todeclare.subs, ZHE_MAX_SUBSCRIPTIONS)) >= 0) {
         if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from)) {
-            assert(subs[first].rid != 0);
+            zhe_assert(subs[first].rid != 0);
             ZT(PUBSUB, ("sending dsub %d rid %ju", first, (uintmax_t)subs[first].rid));
             zhe_pack_dsub(subs[first].rid);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -352,15 +352,15 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
      DECLARE message that informs the broker of this.  By scheduling it, we avoid the having
      to send a reliable message when the transmit window is full.  */
     zhe_pubidx_t pubidx;
-    assert(rid > 0 && rid <= ZHE_MAX_RID);
+    zhe_assert(rid > 0 && rid <= ZHE_MAX_RID);
     for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
         if (pubs[pubidx.idx].rid == 0) {
             break;
         }
     }
-    assert(pubidx.idx < ZHE_MAX_PUBLICATIONS);
-    assert(!zhe_bitset_test(pubs_isrel, pubidx.idx));
-    assert(cid < N_OUT_CONDUITS);
+    zhe_assert(pubidx.idx < ZHE_MAX_PUBLICATIONS);
+    zhe_assert(!zhe_bitset_test(pubs_isrel, pubidx.idx));
+    zhe_assert(cid < N_OUT_CONDUITS);
     pubs[pubidx.idx].rid = rid;
     /* FIXME: horrible hack ... */
     pubs[pubidx.idx].oc = zhe_out_conduit_from_cid(0, (cid_t)cid);
@@ -386,7 +386,7 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
 zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, zhe_subhandler_t handler, void *arg)
 {
     zhe_subidx_t subidx, nextidx;
-    assert(rid > 0 && rid <= ZHE_MAX_RID);
+    zhe_assert(rid > 0 && rid <= ZHE_MAX_RID);
     for (subidx.idx = 0; subidx.idx < ZHE_MAX_SUBSCRIPTIONS; subidx.idx++) {
         if (subs[subidx.idx].rid == 0) {
             break;
@@ -404,7 +404,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
         nextidx.idx = 0; /* using 0 to signal the end of the list is an ungainly hack, but it works for now */
     }
 #endif
-    assert(subidx.idx < ZHE_MAX_SUBSCRIPTIONS);
+    zhe_assert(subidx.idx < ZHE_MAX_SUBSCRIPTIONS);
     subs[subidx.idx].rid = rid;
     subs[subidx.idx].next = nextidx;
     subs[subidx.idx].xmitneed = xmitneed;
@@ -427,7 +427,7 @@ int zhe_write(zhe_pubidx_t pubidx, zhe_paysize_t sz, const void *data, zhe_time_
      window for reliable pulication while remote subscribers exist */
     struct out_conduit * const oc = pubs[pubidx.idx].oc;
     int relflag;
-    assert(pubs[pubidx.idx].rid != 0);
+    zhe_assert(pubs[pubidx.idx].rid != 0);
     if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
         /* success is assured if there are no subscribers */
         return 1;

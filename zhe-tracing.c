@@ -2,9 +2,9 @@
 #include <stdarg.h>
 #include <inttypes.h>
 
-#include "zeno-tracing.h"
-#include "zeno-time.h"
-#include "zeno-config-deriv.h"
+#include "zhe-tracing.h"
+#include "zhe-time.h"
+#include "zhe-config-deriv.h"
 
 unsigned zhe_trace_cats;
 

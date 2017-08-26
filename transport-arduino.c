@@ -1,9 +1,9 @@
 #ifdef ARDUINO
 
-#include <assert.h>
 #include <string.h>
 
-#include "zeno-config.h"
+#include "zhe-config.h"
+#include "zhe-assert.h"
 #include "transport-arduino.h"
 
 #if defined __APPLE__ || defined __linux /* fake it if not a real Arduino */
@@ -63,7 +63,7 @@ struct zhe_transport *zhe_arduino_new(void)
 
 static size_t arduino_addr2string(const struct zhe_transport *tp, char * restrict str, size_t size, const zhe_address_t * restrict addr)
 {
-    assert(size > 0);
+    zhe_assert(size > 0);
     str[0] = 0;
     return 0;
 }
@@ -77,7 +77,7 @@ int zhe_arduino_string2addr(const struct zhe_transport *tp, struct zhe_address *
 static ssize_t arduino_send(struct zhe_transport * restrict tp, const void * restrict buf, size_t size, const zhe_address_t * restrict dst)
 {
     size_t i;
-    assert(size <= TRANSPORT_MTU);
+    zhe_assert(size <= TRANSPORT_MTU);
 #if TRANSPORT_MODE == TRANSPORT_PACKET
     Serial.write(0xff);
     Serial.write(0x55);
@@ -128,14 +128,15 @@ static int read_serial(void)
 }
 #endif
 
-ssize_t zhe_arduino_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src)
+int zhe_arduino_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src)
 {
 #if TRANSPORT_MODE == TRANSPORT_STREAM
+    assert(size <= INT_MAX);
     size_t n = 0;
     while (n < size && Serial.available()) {
         ((uint8_t *) buf)[n++] = Serial.read();
     }
-    return (ssize_t)n;
+    return (int)n;
 #else
 #error "couldn't be bothered to integrate Arduino code fully"
 #endif

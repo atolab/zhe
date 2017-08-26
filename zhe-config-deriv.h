@@ -1,8 +1,9 @@
 #ifndef ZHE_CONFIG_DERIV_H
 #define ZHE_CONFIG_DERIV_H
 
-#include "zeno-config-int.h"
-#include "zeno-rid.h"
+#include <limits.h>
+#include "zhe-config-int.h"
+#include "zhe-rid.h"
 
 #define MAX_PEERS_1 (MAX_PEERS == 0 ? 1 : MAX_PEERS)
 
@@ -20,7 +21,9 @@
 #if TRANSPORT_MODE != TRANSPORT_STREAM && TRANSPORT_MODE != TRANSPORT_PACKET
 #  error "transport configuration did not set MODE properly"
 #endif
-#if TRANSPORT_MTU < 16 || TRANSPORT_MTU > 65534
+
+/* There is some lower limit that really won't work anymore, but I actually know what that is, so the 16 is just a placeholder (but it is roughly correct); 16-bit unsigned indices are used to index a packet, with the maximum value used as an exceptional value, so larger than 2^16-2 is also no good; and finally, the return type of zhe_input is an int, and so the number of consumed bytes must fit in an int */
+#if TRANSPORT_MTU < 16 || TRANSPORT_MTU > 65534 || TRANSPORT_MTU > INT_MAX
 #  error "transport configuration did not set MTU properly"
 #endif
 

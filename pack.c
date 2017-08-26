@@ -1,14 +1,14 @@
 /* -*- mode: c; c-basic-offset: 4; fill-column: 95; -*- */
 #include <string.h>
 #include <limits.h>
-#include <assert.h>
 
-#include "zeno-config-int.h"
-#include "zeno-msg.h"
+#include "zhe-config-int.h"
+#include "zhe-msg.h"
 
 #include "pack.h"
-#include "zeno-int.h"
-#include "zeno-tracing.h"
+#include "zhe-int.h"
+#include "zhe-tracing.h"
+#include "zhe-assert.h"
 
 #if (SEQNUM_LEN % 7) != 0
 #error "SEQNUM_LEN is not a multiple of 7 - how can this be?"
@@ -135,7 +135,7 @@ void zhe_pack_mhello(zhe_address_t *dst)
 
 static uint32_t conv_zhe_timediff_to_lease(zhe_timediff_t lease_dur)
 {
-    assert(lease_dur >= 0);
+    zhe_assert(lease_dur >= 0);
     return (uint32_t)(lease_dur / (100000000 / ZHE_TIMEBASE));
 }
 
@@ -177,12 +177,12 @@ void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ow
 void zhe_pack_reserve_mconduit(zhe_address_t *dst, struct out_conduit *oc, cid_t cid, zhe_paysize_t cnt)
 {
     zhe_paysize_t cid_size = (cid > 0) + (cid > 4);
-    assert(cid >= 0);
-    assert(cid < N_OUT_CONDUITS);
+    zhe_assert(cid >= 0);
+    zhe_assert(cid < N_OUT_CONDUITS);
 #if N_OUT_CONDUITS > 127
 #error "N_OUT_CONDUITS must be <= 127 or unconditionally packing a CID into a byte won't work"
 #endif
-    assert(oc == NULL || zhe_oc_get_cid(oc) == cid);
+    zhe_assert(oc == NULL || zhe_oc_get_cid(oc) == cid);
     zhe_pack_reserve(dst, oc, cid_size + cnt);
     if (cid > 4) {
         zhe_pack2(MCONDUIT, (uint8_t)cid);
@@ -278,7 +278,7 @@ int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen,
 {
     const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(ndecls) + decllen;
     seq_t s;
-    assert(ndecls <= 127);
+    zhe_assert(ndecls <= 127);
     if (zhe_xmitw_bytesavail(c) < sizeof(zhe_msgsize_t) + sz) {
         return 0;
     }
@@ -300,7 +300,7 @@ void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_ti
 void zhe_pack_dresource(zhe_rid_t rid, const char *res)
 {
     size_t ressz = strlen(res);
-    assert(ressz <= (zhe_paysize_t)-1);
+    zhe_assert(ressz <= (zhe_paysize_t)-1);
     zhe_pack1(DRESOURCE);
     zhe_pack_rid(rid);
     zhe_pack_text((zhe_paysize_t)ressz, res);

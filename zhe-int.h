@@ -1,8 +1,8 @@
 #ifndef ZHE_INT_H
 #define ZHE_INT_H
 
-#include "zeno.h"
-#include "zeno-config-int.h"
+#include "zhe.h"
+#include "zhe-config-deriv.h"
 
 #define SUFFIX_WITH_SIZE1(name, size) name##size
 #define SUFFIX_WITH_SIZE(name, size) SUFFIX_WITH_SIZE1(name, size)

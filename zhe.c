@@ -4,14 +4,14 @@
 
 #include <string.h>
 #include <limits.h>
-#include <assert.h>
 
-#include "zeno-config-deriv.h"
-#include "zeno-msg.h"
-#include "zeno-int.h"
-#include "zeno-tracing.h"
-#include "zeno-time.h"
-#include "zeno.h"
+#include "zhe-assert.h"
+#include "zhe-config-deriv.h"
+#include "zhe-msg.h"
+#include "zhe-int.h"
+#include "zhe-tracing.h"
+#include "zhe-time.h"
+#include "zhe.h"
 #include "pack.h"
 #include "unpack.h"
 #include "bitset.h"
@@ -137,7 +137,7 @@ static zhe_time_t outdeadline;       /* pack until destination change, packet fu
    but the data structures we need are identical, only the discovery behaviour and (perhaps) session
    handling is a bit different. */
 static peeridx_t npeers;
-struct peer peers[MAX_PEERS_1];
+static struct peer peers[MAX_PEERS_1];
 #if HAVE_UNICAST_CONDUIT
 static uint8_t peers_oc_rbuf[MAX_PEERS_1][XMITW_BYTES_UNICAST];
 #endif
@@ -196,14 +196,14 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
         struct out_mconduit * const mc = &out_mconduits[i];
         if (zhe_minseqheap_delete(peeridx, &mc->seqbase)) {
-            assert(zhe_bitset_test(p->mc_member, (unsigned)i));
+            zhe_assert(zhe_bitset_test(p->mc_member, (unsigned)i));
             if (zhe_minseqheap_isempty(&mc->seqbase)) {
                 remove_acked_messages(&mc->oc, mc->oc.seq);
             } else {
                 remove_acked_messages(&mc->oc, zhe_minseqheap_get_min(&mc->seqbase));
             }
         } else {
-            assert(!zhe_bitset_test(p->mc_member, (unsigned)i));
+            zhe_assert(!zhe_bitset_test(p->mc_member, (unsigned)i));
         }
     }
 #endif
@@ -284,11 +284,11 @@ static uint16_t xmitw_pos_add(const struct out_conduit *c, uint16_t p, uint16_t 
 uint16_t zhe_xmitw_bytesavail(const struct out_conduit *c)
 {
     uint16_t res;
-    assert(c->pos < c->xmitw_bytes);
-    assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
-    assert(c->firstpos < c->xmitw_bytes);
+    zhe_assert(c->pos < c->xmitw_bytes);
+    zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
+    zhe_assert(c->firstpos < c->xmitw_bytes);
     res = c->firstpos + (c->firstpos < c->pos ? c->xmitw_bytes : 0) - c->pos;
-    assert(res <= c->xmitw_bytes);
+    zhe_assert(res <= c->xmitw_bytes);
     return res;
 }
 
@@ -299,8 +299,8 @@ static seq_t oc_get_nsamples(struct out_conduit const * const c)
 
 void zhe_pack_msend(void)
 {
-    assert ((outspos == OUTSPOS_UNSET) == (outc == NULL));
-    assert (outdst != NULL);
+    zhe_assert ((outspos == OUTSPOS_UNSET) == (outc == NULL));
+    zhe_assert (outdst != NULL);
     if (outspos != OUTSPOS_UNSET) {
         /* FIXME: not-so-great proxy for transition past 3/4 of window size */
         uint16_t cnt = zhe_xmitw_bytesavail(outc);
@@ -309,7 +309,7 @@ void zhe_pack_msend(void)
         }
     }
     if (transport->ops->send(transport, outbuf, outp, outdst) < 0) {
-        assert(0);
+        zhe_assert(0);
     }
     outp = 0;
     outspos = OUTSPOS_UNSET;
@@ -319,7 +319,7 @@ void zhe_pack_msend(void)
 
 static void pack_check_avail(uint16_t n)
 {
-    assert(sizeof (outbuf) - outp >= n);
+    zhe_assert(sizeof (outbuf) - outp >= n);
 }
 
 void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt)
@@ -329,7 +329,7 @@ void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t 
        available, and also send out current packet if the destination changes */
     if (TRANSPORT_MTU - outp < cnt || (outdst != NULL && dst != outdst) || (outc && outc != oc)) {
         /* we should never even try to generate a message that is too large for a packet */
-        assert(outp != 0);
+        zhe_assert(outp != 0);
         zhe_pack_msend();
     }
     if (oc) {
@@ -382,10 +382,10 @@ uint16_t zhe_pack_locs_calcsize(void)
     char tmp[TRANSPORT_ADDRSTRLEN];
     for (uint16_t i = 0; i < n_multicast_locators; i++) {
         size_t n1 = transport->ops->addr2string(transport, tmp, sizeof(tmp), &multicast_locators[i]);
-        assert(n1 < UINT16_MAX);
+        zhe_assert(n1 < UINT16_MAX);
         n += zhe_pack_vle16req((uint16_t)n1) + n1;
     }
-    assert(n < UINT16_MAX);
+    zhe_assert(n < UINT16_MAX);
     return (uint16_t)n;
 #else
     return 1;
@@ -435,11 +435,11 @@ int zhe_ocm_have_peers(const struct out_mconduit *mc)
 void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from)
 {
     /* only for non-empty sequence of initial bytes of message (i.e., starts with header */
-    assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
-    assert(from < outp);
-    assert(!(outbuf[from] & MSFLAG));
+    zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
+    zhe_assert(from < outp);
+    zhe_assert(!(outbuf[from] & MSFLAG));
     while (from < outp) {
-        assert(c->pos != c->firstpos || c->seq == c->seqbase);
+        zhe_assert(c->pos != c->firstpos || c->seq == c->seqbase);
         c->rbuf[c->pos] = outbuf[from++];
         c->pos = xmitw_pos_add(c, c->pos, 1);
     }
@@ -447,7 +447,7 @@ void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from)
 
 zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zhe_paysize_t sz)
 {
-    assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
+    zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
     if (!relflag) {
         zhe_pack_reserve_mconduit(&c->addr, NULL, c->cid, sz);
         *s = c->useq;
@@ -467,7 +467,7 @@ void zhe_oc_pack_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, c
     while (sz--) {
         outbuf[outp++] = *data;
         if (relflag) {
-            assert(c->pos != c->firstpos);
+            zhe_assert(c->pos != c->firstpos);
             c->rbuf[c->pos] = *data;
             c->pos = xmitw_pos_add(c, c->pos, 1);
         }
@@ -643,7 +643,7 @@ static const uint8_t *handle_dresult(peeridx_t peeridx, const uint8_t * const en
 
          Also note that we're not looking at the commit id at all, I am not sure yet what
          problems that may cause ... */
-        assert(0);
+        zhe_assert(0);
     }
     return data;
 }
@@ -785,7 +785,7 @@ static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zhe_paysize_t idlen, cons
 
 static char tohexdigit(uint8_t x)
 {
-    assert(x <= 15);
+    zhe_assert(x <= 15);
     return (x <= 9) ? (char)('0' + x) : (char)('a' + (x - 10));
 }
 
@@ -794,19 +794,19 @@ static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * 
     struct peer * const p = &peers[peeridx];
     char astr[TRANSPORT_ADDRSTRLEN];
     char idstr[3*PEERID_SIZE], *idstrp = idstr;
-    assert(p->state != PEERST_ESTABLISHED);
-    assert(idlen > 0 && idlen <= PEERID_SIZE);
+    zhe_assert(p->state != PEERST_ESTABLISHED);
+    zhe_assert(idlen > 0 && idlen <= PEERID_SIZE);
     transport->ops->addr2string(transport, astr, sizeof(astr), &p->oc.addr);
 
-    assert(idlen <= PEERID_SIZE);
-    assert(lease_dur >= 0);
+    zhe_assert(idlen <= PEERID_SIZE);
+    zhe_assert(lease_dur >= 0);
     for (int i = 0; i < idlen; i++) {
         if (i > 0) {
             *idstrp++ = ':';
         }
         *idstrp++ = tohexdigit(id[i] >> 4);
         *idstrp++ = tohexdigit(id[i] & 0xf);
-        assert(idstrp < idstr + sizeof(idstr));
+        zhe_assert(idstrp < idstr + sizeof(idstr));
     }
     *idstrp = 0;
     ZT(PEERDISC, ("accept peer %s %s @ %u; lease = %" PRId32, idstr, astr, peeridx, (int32_t)lease_dur));
@@ -996,12 +996,12 @@ static int ic_may_deliver_seq(const struct in_conduit *ic, uint8_t hdr, seq_t se
 
 static void ic_update_seq (struct in_conduit *ic, uint8_t hdr, seq_t seq)
 {
-    assert(ic_may_deliver_seq(ic, hdr, seq));
+    zhe_assert(ic_may_deliver_seq(ic, hdr, seq));
     if (hdr & MRFLAG) {
-        assert(zhe_seq_lt(ic->seq, ic->lseqpU));
+        zhe_assert(zhe_seq_lt(ic->seq, ic->lseqpU));
         ic->seq = seq + SEQNUM_UNIT;
     } else {
-        assert(zhe_seq_le(ic->seq, ic->lseqpU));
+        zhe_assert(zhe_seq_le(ic->seq, ic->lseqpU));
         ic->useq = seq + SEQNUM_UNIT;
         ic->usynched = 1;
     }
@@ -1011,7 +1011,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, zhe_ti
 {
     seq_t cnt = (peers[peeridx].ic[cid].lseqpU - peers[peeridx].ic[cid].seq) >> SEQNUM_SHIFT;
     uint32_t mask;
-    assert(zhe_seq_le(peers[peeridx].ic[cid].seq, peers[peeridx].ic[cid].lseqpU));
+    zhe_assert(zhe_seq_le(peers[peeridx].ic[cid].seq, peers[peeridx].ic[cid].lseqpU));
     if (cnt == 0) {
         mask = 0;
     } else {
@@ -1193,7 +1193,7 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
 #endif
         while (c->seqbase != seq) {
             zhe_msgsize_t len;
-            assert(cnt > 0);
+            zhe_assert(cnt > 0);
 #ifndef NDEBUG
             cnt--;
 #endif
@@ -1201,8 +1201,8 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
             memcpy(&len, &c->rbuf[c->firstpos], sizeof(len));
             c->firstpos = xmitw_pos_add(c, c->firstpos, len + sizeof(zhe_msgsize_t));
         }
-        assert(cnt == 0);
-        assert(((c->firstpos + sizeof(zhe_msgsize_t)) % c->xmitw_bytes == c->pos) == (c->seq == c->seqbase));
+        zhe_assert(cnt == 0);
+        zhe_assert(((c->firstpos + sizeof(zhe_msgsize_t)) % c->xmitw_bytes == c->pos) == (c->seq == c->seqbase));
     }
 
     if (oc_get_nsamples(c) == 0) {
@@ -1264,7 +1264,7 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
 #endif
         ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u mask %08x", peeridx, cid, seq >> SEQNUM_SHIFT, mask));
 #if MAX_PEERS == 0
-        assert (seq == c->seqbase);
+        zhe_assert (seq == c->seqbase);
 #endif
         /* Do not set the S bit on anything that happens to currently be in the output buffer,
            if that is of the same conduit as the one we are retransmitting on, as we by now know
@@ -1312,15 +1312,15 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
         c->last_rexmit = tnow;
         c->last_rexmit_seq = seq;
         /* Asserting that seq <= c->seq is a somewhat nonsensical considering the guards for
-           this block and the loop condition, but it clarifies the second assertion: if we got
+           this block and the loop condition, but it clarifies the second zhe_assertion: if we got
            all the way to the most recent sample, then P should point to the first free
            position in the transmit window, a.k.a. c->pos.  */
-        assert(zhe_seq_le(seq, c->seq));
-        assert(seq != c->seq || p == c->pos);
+        zhe_assert(zhe_seq_le(seq, c->seq));
+        zhe_assert(seq != c->seq || p == c->pos);
         /* Since we must have sent at least one message, outspos_tmp must have been set.  Set
            the S flag in that final message. Also make sure we send a SYNCH not too long after
            (and so do all that pack_msend would otherwise have done for c). */
-        assert(outspos_tmp != OUTSPOS_UNSET);
+        zhe_assert(outspos_tmp != OUTSPOS_UNSET);
         /* Note: setting the S bit is not the same as a SYNCH, maybe it would be better to send
            a SYNCH instead? */
         outbuf[outspos_tmp] |= MSFLAG;
@@ -1480,7 +1480,7 @@ static void maybe_send_scout(zhe_time_t tnow)
 }
 
 #if TRANSPORT_MODE == TRANSPORT_PACKET
-ssize_t zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow)
+int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow)
 {
     char addrstr[TRANSPORT_ADDRSTRLEN];
     peeridx_t peeridx, free_peeridx = PEERIDX_INVALID;
@@ -1509,7 +1509,7 @@ ssize_t zhe_input(const void * restrict buf, size_t sz, const struct zhe_address
         if (peers[peeridx].state == PEERST_ESTABLISHED) {
             peers[peeridx].tlease = tnow;
         }
-        return (ssize_t)(handle_packet(&peeridx, buf + sz, buf, tnow) - (const uint8_t *)buf);
+        return (int)(handle_packet(&peeridx, buf + sz, buf, tnow) - (const uint8_t *)buf);
         /* note: peeridx need no longer be correct */
     } else {
         ZT(DEBUG, ("message from %s dropped: no available peeridx", addrstr));
@@ -1520,7 +1520,7 @@ ssize_t zhe_input(const void * restrict buf, size_t sz, const struct zhe_address
 #if MAX_PEERS != 0
 #  error "stream currently only implemented for client mode"
 #endif
-ssize_t zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow)
+int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow)
 {
     if (sz == 0) {
         return 0;
@@ -1533,7 +1533,7 @@ ssize_t zhe_input(const void * restrict buf, size_t sz, const struct zhe_address
             /* any complete message is considered proof of liveliness of the broker once a connection has been established */
             peers[0].tlease = tnow;
         }
-        return (ssize_t)cons;
+        return (int)cons;
     }
 }
 #endif
@@ -1573,7 +1573,7 @@ void zhe_housekeeping(zhe_time_t tnow)
 #endif
                 break;
             default:
-                assert(peers[i].state >= PEERST_OPENING_MIN && peers[i].state <= PEERST_OPENING_MAX);
+                zhe_assert(peers[i].state >= PEERST_OPENING_MIN && peers[i].state <= PEERST_OPENING_MAX);
                 if ((zhe_timediff_t)(tnow - peers[i].tlease) > OPEN_INTERVAL) {
                     if (peers[i].state == PEERST_OPENING_MAX) {
                         /* maximum number of attempts reached, forget it */

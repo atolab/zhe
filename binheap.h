@@ -1,7 +1,7 @@
 #ifndef ZHE_BINHEAP_H
 #define ZHE_BINHEAP_H
 
-#include "zeno-config-int.h"
+#include "zhe-config-int.h"
 
 #if MAX_PEERS > 0
 

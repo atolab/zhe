@@ -9,10 +9,10 @@
 /* Begin PBXBuildFile section */
 		030445FF1F322DFE00883BFF /* transport-udp.c in Sources */ = {isa = PBXBuildFile; fileRef = 030445FD1F322DFE00883BFF /* transport-udp.c */; };
 		0305876A1EF92BEB0040F446 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587691EF92BEB0040F446 /* main.c */; };
-		030587741EF92CEC0040F446 /* zeno.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587731EF92CEC0040F446 /* zeno.c */; };
+		030587741EF92CEC0040F446 /* zhe.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587731EF92CEC0040F446 /* zhe.c */; };
 		030587771EFB8FAF0040F446 /* pack.c in Sources */ = {isa = PBXBuildFile; fileRef = 030587761EFB8FAF0040F446 /* pack.c */; };
-		0347E8FE1F41AC3B00E0A136 /* zeno-tracing.c in Sources */ = {isa = PBXBuildFile; fileRef = 0347E8FC1F41AC3B00E0A136 /* zeno-tracing.c */; };
-		0347E9011F41C42200E0A136 /* zeno-time-posix.c in Sources */ = {isa = PBXBuildFile; fileRef = 0347E8FF1F41C42200E0A136 /* zeno-time-posix.c */; };
+		0347E8FE1F41AC3B00E0A136 /* zhe-tracing.c in Sources */ = {isa = PBXBuildFile; fileRef = 0347E8FC1F41AC3B00E0A136 /* zhe-tracing.c */; };
+		0347E9011F41C42200E0A136 /* zhe-time-posix.c in Sources */ = {isa = PBXBuildFile; fileRef = 0347E8FF1F41C42200E0A136 /* zhe-time-posix.c */; };
 		0349B4B71F2FBB9600C6B95D /* unpack.c in Sources */ = {isa = PBXBuildFile; fileRef = 0349B4B51F2FBB9600C6B95D /* unpack.c */; };
 		034BDF7D1F4ABAFA00F261D1 /* pubsub.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF7B1F4ABAFA00F261D1 /* pubsub.c */; };
 		038D6C641F25DD380045040D /* bitset.c in Sources */ = {isa = PBXBuildFile; fileRef = 038D6C621F25DD380045040D /* bitset.c */; };
@@ -37,24 +37,25 @@
 		030445FE1F322DFE00883BFF /* transport-udp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "transport-udp.h"; sourceTree = "<group>"; };
 		030587661EF92BEB0040F446 /* zhe */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = zhe; sourceTree = BUILT_PRODUCTS_DIR; };
 		030587691EF92BEB0040F446 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
-		030587701EF92CEC0040F446 /* zeno-msg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-msg.h"; sourceTree = "<group>"; };
-		030587711EF92CEC0040F446 /* zeno-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-config.h"; sourceTree = "<group>"; };
-		030587721EF92CEC0040F446 /* zeno.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = zeno.h; sourceTree = "<group>"; };
-		030587731EF92CEC0040F446 /* zeno.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = zeno.c; sourceTree = "<group>"; };
-		030587751EF92D6B0040F446 /* zeno-config-int.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zeno-config-int.h"; sourceTree = "<group>"; };
+		030587701EF92CEC0040F446 /* zhe-msg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-msg.h"; sourceTree = "<group>"; };
+		030587711EF92CEC0040F446 /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
+		030587721EF92CEC0040F446 /* zhe.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = zhe.h; sourceTree = "<group>"; };
+		030587731EF92CEC0040F446 /* zhe.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = zhe.c; sourceTree = "<group>"; };
+		030587751EF92D6B0040F446 /* zhe-config-int.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
 		030587761EFB8FAF0040F446 /* pack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pack.c; sourceTree = "<group>"; };
 		030587781EFB90DF0040F446 /* pack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pack.h; sourceTree = "<group>"; };
-		030587791EFB914E0040F446 /* zeno-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-int.h"; sourceTree = "<group>"; };
-		0347E8FC1F41AC3B00E0A136 /* zeno-tracing.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "zeno-tracing.c"; sourceTree = SOURCE_ROOT; };
-		0347E8FD1F41AC3B00E0A136 /* zeno-tracing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-tracing.h"; sourceTree = SOURCE_ROOT; };
-		0347E8FF1F41C42200E0A136 /* zeno-time-posix.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "zeno-time-posix.c"; sourceTree = SOURCE_ROOT; };
-		0347E9001F41C42200E0A136 /* zeno-time.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zeno-time.h"; sourceTree = SOURCE_ROOT; };
+		030587791EFB914E0040F446 /* zhe-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-int.h"; sourceTree = "<group>"; };
+		0347E8FC1F41AC3B00E0A136 /* zhe-tracing.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "zhe-tracing.c"; sourceTree = SOURCE_ROOT; };
+		0347E8FD1F41AC3B00E0A136 /* zhe-tracing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-tracing.h"; sourceTree = SOURCE_ROOT; };
+		0347E8FF1F41C42200E0A136 /* zhe-time-posix.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "zhe-time-posix.c"; sourceTree = SOURCE_ROOT; };
+		0347E9001F41C42200E0A136 /* zhe-time.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-time.h"; sourceTree = SOURCE_ROOT; };
 		0349B4B51F2FBB9600C6B95D /* unpack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = unpack.c; sourceTree = "<group>"; };
 		0349B4B61F2FBB9600C6B95D /* unpack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = unpack.h; sourceTree = "<group>"; };
-		034BDF7A1F46B23400F261D1 /* zeno-config-deriv.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zeno-config-deriv.h"; sourceTree = SOURCE_ROOT; };
+		034BDF7A1F46B23400F261D1 /* zhe-config-deriv.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zhe-config-deriv.h"; sourceTree = SOURCE_ROOT; };
 		034BDF7B1F4ABAFA00F261D1 /* pubsub.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pubsub.c; sourceTree = SOURCE_ROOT; };
 		034BDF7C1F4ABAFA00F261D1 /* pubsub.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pubsub.h; sourceTree = SOURCE_ROOT; };
-		034BDF7E1F51737B00F261D1 /* zeno-rid.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zeno-rid.h"; sourceTree = SOURCE_ROOT; };
+		034BDF7E1F51737B00F261D1 /* zhe-rid.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zhe-rid.h"; sourceTree = SOURCE_ROOT; };
+		034BDF7F1F51BD8600F261D1 /* zhe-assert.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "zhe-assert.h"; sourceTree = SOURCE_ROOT; };
 		038D6C621F25DD380045040D /* bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = bitset.c; sourceTree = "<group>"; };
 		038D6C631F25DD380045040D /* bitset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bitset.h; sourceTree = "<group>"; };
 		038D6C651F2F080A0045040D /* binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = binheap.c; sourceTree = "<group>"; };
@@ -109,20 +110,21 @@
 				03A5AB141F3301B400F78438 /* transport.h */,
 				0349B4B51F2FBB9600C6B95D /* unpack.c */,
 				0349B4B61F2FBB9600C6B95D /* unpack.h */,
-				034BDF7A1F46B23400F261D1 /* zeno-config-deriv.h */,
-				030587751EF92D6B0040F446 /* zeno-config-int.h */,
-				030587711EF92CEC0040F446 /* zeno-config.h */,
-				030587791EFB914E0040F446 /* zeno-int.h */,
-				030587701EF92CEC0040F446 /* zeno-msg.h */,
-				0347E8FF1F41C42200E0A136 /* zeno-time-posix.c */,
-				0347E9001F41C42200E0A136 /* zeno-time.h */,
-				0347E8FC1F41AC3B00E0A136 /* zeno-tracing.c */,
-				0347E8FD1F41AC3B00E0A136 /* zeno-tracing.h */,
-				030587731EF92CEC0040F446 /* zeno.c */,
-				030587721EF92CEC0040F446 /* zeno.h */,
+				034BDF7A1F46B23400F261D1 /* zhe-config-deriv.h */,
+				030587751EF92D6B0040F446 /* zhe-config-int.h */,
+				030587711EF92CEC0040F446 /* zhe-config.h */,
+				030587791EFB914E0040F446 /* zhe-int.h */,
+				030587701EF92CEC0040F446 /* zhe-msg.h */,
+				0347E8FF1F41C42200E0A136 /* zhe-time-posix.c */,
+				0347E9001F41C42200E0A136 /* zhe-time.h */,
+				0347E8FC1F41AC3B00E0A136 /* zhe-tracing.c */,
+				0347E8FD1F41AC3B00E0A136 /* zhe-tracing.h */,
+				030587731EF92CEC0040F446 /* zhe.c */,
+				030587721EF92CEC0040F446 /* zhe.h */,
 				034BDF7B1F4ABAFA00F261D1 /* pubsub.c */,
 				034BDF7C1F4ABAFA00F261D1 /* pubsub.h */,
-				034BDF7E1F51737B00F261D1 /* zeno-rid.h */,
+				034BDF7E1F51737B00F261D1 /* zhe-rid.h */,
+				034BDF7F1F51BD8600F261D1 /* zhe-assert.h */,
 			);
 			name = zhe;
 			path = .;
@@ -187,15 +189,15 @@
 			files = (
 				03A5AB171F330CA300F78438 /* transport-arduino.c in Sources */,
 				038D6C641F25DD380045040D /* bitset.c in Sources */,
-				0347E9011F41C42200E0A136 /* zeno-time-posix.c in Sources */,
+				0347E9011F41C42200E0A136 /* zhe-time-posix.c in Sources */,
 				030587771EFB8FAF0040F446 /* pack.c in Sources */,
 				034BDF7D1F4ABAFA00F261D1 /* pubsub.c in Sources */,
 				0305876A1EF92BEB0040F446 /* main.c in Sources */,
 				0349B4B71F2FBB9600C6B95D /* unpack.c in Sources */,
-				030587741EF92CEC0040F446 /* zeno.c in Sources */,
+				030587741EF92CEC0040F446 /* zhe.c in Sources */,
 				038D6C671F2F080A0045040D /* binheap.c in Sources */,
 				030445FF1F322DFE00883BFF /* transport-udp.c in Sources */,
-				0347E8FE1F41AC3B00E0A136 /* zeno-tracing.c in Sources */,
+				0347E8FE1F41AC3B00E0A136 /* zhe-tracing.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-#include "zeno-config-int.h"
+#include "zhe-config-int.h"
 
 /* modes for transport should not include 0 */
 #define TRANSPORT_PACKET 1
