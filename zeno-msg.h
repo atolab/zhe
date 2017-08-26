@@ -1,8 +1,8 @@
 /* -*- mode: c; c-basic-offset: 4; fill-column: 95; -*- */
-#ifndef ZENO_MSG_H
-#define ZENO_MSG_H
+#ifndef ZHE_MSG_H
+#define ZHE_MSG_H
 
-#define ZENO_VERSION        1
+#define ZHE_VERSION        1
 
 #define MSCOUT              1
 #define MHELLO              2

@@ -1,5 +1,5 @@
-#ifndef ZENO_TRACING_H
-#define ZENO_TRACING_H
+#ifndef ZHE_TRACING_H
+#define ZHE_TRACING_H
 
 #define ZTCAT_ERROR      1u
 #define ZTCAT_DEBUG      2u
@@ -10,15 +10,15 @@
 
 #include "zeno-config.h"
 
-extern unsigned zeno_trace_cats;
+extern unsigned zhe_trace_cats;
 
 #ifndef ARDUINO
 
-void zeno_trace(const char *fmt, ...);
+void zhe_trace(const char *fmt, ...);
 
-#define ZTT(catsimple_) (zeno_trace_cats & ZTCAT_##catsimple_)
-#define ZT(catsimple_, trace_args_) ((zeno_trace_cats & ZTCAT_##catsimple_) ? zeno_trace trace_args_ : (void)0)
-#define ZTC(cats_, trace_args_) ((zeno_trace_cats & (cats_)) ? zeno_trace trace_args_ : (void)0)
+#define ZTT(catsimple_) (zhe_trace_cats & ZTCAT_##catsimple_)
+#define ZT(catsimple_, trace_args_) ((zhe_trace_cats & ZTCAT_##catsimple_) ? zhe_trace trace_args_ : (void)0)
+#define ZTC(cats_, trace_args_) ((zhe_trace_cats & (cats_)) ? zhe_trace trace_args_ : (void)0)
 
 #else
 

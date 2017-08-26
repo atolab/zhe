@@ -3,15 +3,15 @@
 
 static struct timespec toffset;
 
-void zeno_time_init(void)
+void zhe_time_init(void)
 {
     (void)clock_gettime(CLOCK_MONOTONIC, &toffset);
     toffset.tv_sec -= toffset.tv_sec % 10000;
 }
 
-ztime_t zeno_time(void)
+zhe_time_t zhe_time(void)
 {
     struct timespec t;
     (void)clock_gettime(CLOCK_MONOTONIC, &t);
-    return (ztime_t)((t.tv_sec - toffset.tv_sec) * (1000000000 / ZENO_TIMEBASE) + t.tv_nsec / ZENO_TIMEBASE);
+    return (zhe_time_t)((t.tv_sec - toffset.tv_sec) * (1000000000 / ZHE_TIMEBASE) + t.tv_nsec / ZHE_TIMEBASE);
 }

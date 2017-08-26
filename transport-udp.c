@@ -26,7 +26,7 @@
 #define MAX_SELF 16
 
 struct udp {
-    struct zeno_transport transport;
+    struct zhe_transport transport;
     int s[2];
     int next;
     uint16_t port;
@@ -36,12 +36,12 @@ struct udp {
 };
 
 static struct udp gudp;
-static struct zeno_transport_ops transport_udp;
+static struct zhe_transport_ops transport_udp;
 #if SIMUL_PACKET_LOSS
 static long randomthreshold = 0;
 #endif
 
-static size_t udp_addr2string(const struct zeno_transport * restrict tp, char * restrict str, size_t size, const zeno_address_t * restrict addr);
+static size_t udp_addr2string(const struct zhe_transport * restrict tp, char * restrict str, size_t size, const zhe_address_t * restrict addr);
 
 static void set_nonblock(int sock)
 {
@@ -50,7 +50,7 @@ static void set_nonblock(int sock)
     (void)fcntl(sock, F_SETFL, flags);
 }
 
-struct zeno_transport *udp_new(uint16_t port, int drop_pct)
+struct zhe_transport *zhe_udp_new(uint16_t port, int drop_pct)
 {
     const int one = 1;
     struct udp * const udp = &gudp;
@@ -76,7 +76,7 @@ struct zeno_transport *udp_new(uint16_t port, int drop_pct)
         for (const struct ifaddrs *c = ifa; c; c = c->ifa_next) {
             if (c->ifa_addr && c->ifa_addr->sa_family == AF_INET) {
                 const struct sockaddr_in *a = (const struct sockaddr_in *)c->ifa_addr;
-                struct zeno_address za = { *a };
+                struct zhe_address za = { *a };
                 char str[TRANSPORT_ADDRSTRLEN];
                 udp_addr2string(NULL, str, sizeof(str), &za);
                 if (a->sin_addr.s_addr == htonl(INADDR_ANY) || a->sin_addr.s_addr == htonl(INADDR_NONE)) {
@@ -142,7 +142,7 @@ struct zeno_transport *udp_new(uint16_t port, int drop_pct)
     }
 
     udp->transport.ops = &transport_udp;
-    return (struct zeno_transport *)udp;
+    return (struct zhe_transport *)udp;
 
 err:
     for (size_t i = 0; i < sizeof(udp->s) / sizeof(udp->s[0]); i++) {
@@ -174,7 +174,7 @@ static char *udp_uint16_to_string(char * restrict str, uint16_t val)
     }
 }
 
-static size_t udp_addr2string1(char * restrict str, const zeno_address_t * restrict addr)
+static size_t udp_addr2string1(char * restrict str, const zhe_address_t * restrict addr)
 {
     char *p;
     (void)inet_ntop(AF_INET, &addr->a.sin_addr.s_addr, str, INET_ADDRSTRLEN);
@@ -184,7 +184,7 @@ static size_t udp_addr2string1(char * restrict str, const zeno_address_t * restr
     return (size_t)(p - str);
 }
 
-static size_t udp_addr2string(const struct zeno_transport *tp, char * restrict str, size_t size, const zeno_address_t * restrict addr)
+static size_t udp_addr2string(const struct zhe_transport *tp, char * restrict str, size_t size, const zhe_address_t * restrict addr)
 {
     char tmp[TRANSPORT_ADDRSTRLEN];
     assert(size > 0);
@@ -201,7 +201,7 @@ static size_t udp_addr2string(const struct zeno_transport *tp, char * restrict s
     }
 }
 
-int udp_string2addr(const struct zeno_transport *tp, struct zeno_address * restrict addr, const char * restrict str)
+int zhe_udp_string2addr(const struct zhe_transport *tp, struct zhe_address * restrict addr, const char * restrict str)
 {
     struct udp *udp = (struct udp *)tp;
     char *portstr, *portend;
@@ -226,7 +226,7 @@ int udp_string2addr(const struct zeno_transport *tp, struct zeno_address * restr
     return 1;
 }
 
-int udp_join(const struct zeno_transport * restrict tp, const struct zeno_address *addr)
+int zhe_udp_join(const struct zhe_transport * restrict tp, const struct zhe_address *addr)
 {
     struct udp *udp = (struct udp *)tp;
     struct ip_mreq mreq;
@@ -252,7 +252,7 @@ static void udp_wait_send(int sock)
 }
 #endif
 
-static ssize_t udp_send(struct zeno_transport * restrict tp, const void * restrict buf, size_t size, const zeno_address_t * restrict dst)
+static ssize_t udp_send(struct zhe_transport * restrict tp, const void * restrict buf, size_t size, const zhe_address_t * restrict dst)
 {
     struct udp *udp = (struct udp *)tp;
     ssize_t ret;
@@ -278,7 +278,7 @@ static ssize_t udp_send(struct zeno_transport * restrict tp, const void * restri
     }
 }
 
-static ssize_t udp_recv1(struct udp * restrict udp, void * restrict buf, size_t size, zeno_address_t * restrict src)
+static ssize_t udp_recv1(struct udp * restrict udp, void * restrict buf, size_t size, zhe_address_t * restrict src)
 {
     socklen_t srclen = sizeof(src->a);
     ssize_t ret;
@@ -300,7 +300,7 @@ static ssize_t udp_recv1(struct udp * restrict udp, void * restrict buf, size_t 
     }
 }
 
-static int is_from_me(const struct udp * restrict udp, const zeno_address_t * restrict src)
+static int is_from_me(const struct udp * restrict udp, const zhe_address_t * restrict src)
 {
     for (size_t i = 0; i < udp->nself; i++) {
         if (src->a.sin_addr.s_addr == udp->self[i] && src->a.sin_port == udp->ucport) {
@@ -310,7 +310,7 @@ static int is_from_me(const struct udp * restrict udp, const zeno_address_t * re
     return 0;
 }
 
-ssize_t udp_recv(struct zeno_transport * restrict tp, void * restrict buf, size_t size, zeno_address_t * restrict src)
+ssize_t zhe_udp_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src)
 {
     struct udp *udp = (struct udp *)tp;
     ssize_t ret = udp_recv1(udp, buf, size, src);
@@ -331,12 +331,12 @@ ssize_t udp_recv(struct zeno_transport * restrict tp, void * restrict buf, size_
     }
 }
 
-static int udp_addr_eq(const struct zeno_address *a, const struct zeno_address *b)
+static int udp_addr_eq(const struct zhe_address *a, const struct zhe_address *b)
 {
     return a->a.sin_addr.s_addr == b->a.sin_addr.s_addr && a->a.sin_port == b->a.sin_port;
 }
 
-int udp_wait(const struct zeno_transport * restrict tp, ztimediff_t timeout)
+int zhe_udp_wait(const struct zhe_transport * restrict tp, zhe_timediff_t timeout)
 {
     struct udp * const udp = (struct udp *)tp;
     const int k = (udp->s[0] > udp->s[1]) ? udp->s[0] : udp->s[1];
@@ -354,7 +354,7 @@ int udp_wait(const struct zeno_transport * restrict tp, ztimediff_t timeout)
     }
 }
 
-static zeno_transport_ops_t transport_udp = {
+static zhe_transport_ops_t transport_udp = {
     .addr2string = udp_addr2string,
     .addr_eq = udp_addr_eq,
     .send = udp_send

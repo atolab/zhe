@@ -1,5 +1,5 @@
-#ifndef ZENO_BINHEAP_H
-#define ZENO_BINHEAP_H
+#ifndef ZHE_BINHEAP_H
+#define ZHE_BINHEAP_H
 
 #include "zeno-config-int.h"
 
@@ -14,11 +14,11 @@ struct minseqheap {
     minseqheap_idx_t ix[MAX_PEERS]; /* (ix[i].i != X => hx[ix[i].i] == i) && (ix[i].i == X => !exist(hx[k] s.t. hx[k] == i) */
 };
 
-int minseqheap_isempty(struct minseqheap const * const h);
-void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h);
-seq_t minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_discarded, struct minseqheap * const h);
-int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h);
-seq_t minseqheap_get_min(struct minseqheap const * const h);
+int zhe_minseqheap_isempty(struct minseqheap const * const h);
+void zhe_minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h);
+seq_t zhe_minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_discarded, struct minseqheap * const h);
+int zhe_minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h);
+seq_t zhe_minseqheap_get_min(struct minseqheap const * const h);
 
 #endif
 #endif

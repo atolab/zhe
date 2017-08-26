@@ -20,10 +20,10 @@ static void minseqheap_heapify(peeridx_t j, peeridx_t n, peeridx_t * restrict p,
        but (1) k < n and (2) n is in range, so k+1 is
        at most n and therefore also in range */
     for (k = 2*j+1; j < n/2 && k < n; j = k, k += k + 1) {
-        if (k+1 < n && seq_lt(v[p[k+1]], v[p[k]])) {
+        if (k+1 < n && zhe_seq_lt(v[p[k+1]], v[p[k]])) {
             k++;
         }
-        if (seq_lt(v[p[k]], v[p[j]])) {
+        if (zhe_seq_lt(v[p[k]], v[p[j]])) {
             peeridx_t t;
             t = p[j]; p[j] = p[k]; p[k] = t;
             q[p[j]].i = j; q[p[k]].i = k;
@@ -31,7 +31,7 @@ static void minseqheap_heapify(peeridx_t j, peeridx_t n, peeridx_t * restrict p,
     }
 }
 
-void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h)
+void zhe_minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h)
 {
     peeridx_t i;
 #ifndef NDEBUG
@@ -42,7 +42,7 @@ void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * con
 #endif
     h->vs[peeridx] = seqbase;
     i = h->n++;
-    while (i > 0 && seq_lt(h->vs[peeridx], h->vs[h->hx[(i-1)/2]])) {
+    while (i > 0 && zhe_seq_lt(h->vs[peeridx], h->vs[h->hx[(i-1)/2]])) {
         h->hx[i] = h->hx[(i-1)/2];
         h->ix[h->hx[i]].i = i;
         i = (i-1)/2;
@@ -51,16 +51,16 @@ void minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * con
     h->ix[h->hx[i]].i = i;
 }
 
-seq_t minseqheap_get_min(struct minseqheap const * const h)
+seq_t zhe_minseqheap_get_min(struct minseqheap const * const h)
 {
     assert (h->n > 0);
     return h->vs[h->hx[0]];
 }
 
-seq_t minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_discarded, struct minseqheap * const h)
+seq_t zhe_minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_discarded, struct minseqheap * const h)
 {
     /* peeridx must be contained in heap and new seqbase must be >= h->vs[peeridx] */
-    if (h->ix[peeridx].i == PEERIDX_INVALID || seq_le(seqbase, h->vs[peeridx])) {
+    if (h->ix[peeridx].i == PEERIDX_INVALID || zhe_seq_le(seqbase, h->vs[peeridx])) {
         return seqbase_if_discarded;
     } else {
         assert(h->hx[h->ix[peeridx].i] == peeridx);
@@ -70,7 +70,7 @@ seq_t minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_d
     }
 }
 
-int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
+int zhe_minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
 {
     /* returns 0 if peeridx not contained in heap; 1 if it is contained */
     const peeridx_t i = h->ix[peeridx].i;
@@ -96,7 +96,7 @@ int minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
     }
 }
 
-int minseqheap_isempty(struct minseqheap const * const h)
+int zhe_minseqheap_isempty(struct minseqheap const * const h)
 {
     return h->n == 0;
 }

@@ -6,13 +6,13 @@
 #include "zeno-time.h"
 #include "zeno-config-deriv.h"
 
-unsigned zeno_trace_cats;
+unsigned zhe_trace_cats;
 
 #ifndef ARDUINO
 
-void zeno_trace(const char *fmt, ...)
+void zhe_trace(const char *fmt, ...)
 {
-    uint32_t t = (uint32_t)zeno_time();
+    uint32_t t = (uint32_t)zhe_time();
     va_list ap;
     va_start(ap, fmt);
     flockfile(stdout);

@@ -1,6 +1,6 @@
 /* -*- mode: c; c-basic-offset: 4; fill-column: 95; -*- */
-#ifndef ZENO_CONFIG_INT_H
-#define ZENO_CONFIG_INT_H
+#ifndef ZHE_CONFIG_INT_H
+#define ZHE_CONFIG_INT_H
 
 #include "zeno-config.h"
 
@@ -25,7 +25,7 @@
 /* The peer joins a number of multicast groups on startup (using transport_ops.join; the transport can define them any way they like, but on the provided UDP/IP transport implementation they have the obvious meaning). The number of these is limited by MAX_MULTICAST_GROUPS, but fewer is allowed, too. These addresses are exchanged during session establishment and used by the peers to determine from which of their output conduits the data will reach the peer */
 #  define MAX_MULTICAST_GROUPS 5
 
-/* Transmit window size for multicast conduits (XMITW_BYTES) and for unicast conduits (XMITW_BYTES_UNICAST). Neither type of conduit need be enabled, and no sizes needs to be given for the one that is not configured. Each reliable message is stored in the window prefixed by its size in represented as a "zmsize_t" (for which, see below). */
+/* Transmit window size for multicast conduits (XMITW_BYTES) and for unicast conduits (XMITW_BYTES_UNICAST). Neither type of conduit need be enabled, and no sizes needs to be given for the one that is not configured. Each reliable message is stored in the window prefixed by its size in represented as a "zhe_msgsize_t" (for which, see below). */
 #  define XMITW_BYTES 16384u
 #  define XMITW_BYTES_UNICAST 384u
 
@@ -46,21 +46,21 @@
 
 /* Setting a latency budget globally for now, though it could be done per-publisher as well. Packets will go out when full or when LATENCY_BUDGET milliseconds passed since we started filling it. Setting it to 0 will disable packing of data messages, setting to INF only stops packing when the MTU is reached and generally requires explicit flushing. Both edge cases eliminate the latency budget handling and state from the code, saving a whopping 4 bytes of RAM!  */
 #define LATENCY_BUDGET_INF      (4294967295u)
-#define LATENCY_BUDGET         10 /* units, see ZENO_TIMEBASE */
+#define LATENCY_BUDGET         10 /* units, see ZHE_TIMEBASE */
 
 /* Send a SYNCH message set every MSYNCH_INTERVAL ms when unack'd messages are present in the transmit window. Ideally this would be based on a measured round-trip time, but instead it is based on an estimate of the round-trip time. */
-#define MSYNCH_INTERVAL        10 /* units, see ZENO_TIMEBASE */
-#define ROUNDTRIP_TIME_ESTIMATE 1 /* units, see ZENO_TIMEBASE */
+#define MSYNCH_INTERVAL        10 /* units, see ZHE_TIMEBASE */
+#define ROUNDTRIP_TIME_ESTIMATE 1 /* units, see ZHE_TIMEBASE */
 
 /* Scouts are sent periodically by a peer; by a client only when not connected to, or trying to connect to, a broker. The interval is configurable. Scouts are always multicasted (however implemented by the transport). */
-#define SCOUT_INTERVAL       3000 /* units, see ZENO_TIMEBASE */
+#define SCOUT_INTERVAL       3000 /* units, see ZHE_TIMEBASE */
 
 /* Once new peer/a broker has been discovered, a number of attempts at establishing a connection take place. The interval between these attempts is OPEN_INTERVAL, the number of attempts before giving up and relying on scouting again is OPEN_RETRIES. */
-#define OPEN_INTERVAL        1000 /* units, see ZENO_TIMEBASE */
+#define OPEN_INTERVAL        1000 /* units, see ZHE_TIMEBASE */
 #define OPEN_RETRIES           10 /* limited by OPENING_MIN .. _MAX */
 
 /* Lease duration should be greater than SCOUT_INTERVAL */
-#define LEASE_DURATION       5000 /* units, see ZENO_TIMEBASE */
+#define LEASE_DURATION       5000 /* units, see ZHE_TIMEBASE */
 
 /* Peer IDs are non-empty byte vectors of at most PEERID_SIZE. Peers that provide a peer id that does not meet these requirements are ignored */
 #define PEERID_SIZE            16

@@ -3,7 +3,7 @@
 #include "unpack.h"
 #include "zeno-int.h"
 
-int unpack_skip(uint8_t const * const end, uint8_t const * * const data, zmsize_t n)
+int zhe_unpack_skip(uint8_t const * const end, uint8_t const * * const data, zhe_msgsize_t n)
 {
     if (end - *data < n) {
         return 0;
@@ -12,7 +12,7 @@ int unpack_skip(uint8_t const * const end, uint8_t const * * const data, zmsize_
     return 1;
 }
 
-int unpack_byte(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u)
+int zhe_unpack_byte(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u)
 {
     if (end - *data < 1) {
         return 0;
@@ -24,7 +24,7 @@ int unpack_byte(uint8_t const * const end, uint8_t const * * const data, uint8_t
     return 1;
 }
 
-int unpack_u16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
+int zhe_unpack_u16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
 {
     if (end - *data < 2) {
         return 0;
@@ -36,7 +36,7 @@ int unpack_u16(uint8_t const * const end, uint8_t const * * const data, uint16_t
     return 1;
 }
 
-int unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
+int zhe_unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
 {
     uint16_t n;
     uint8_t shift = 7;
@@ -60,7 +60,7 @@ int unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16
     return 1;
 }
 
-int unpack_vle32(uint8_t const * const end, uint8_t const * * const data, uint32_t * restrict u)
+int zhe_unpack_vle32(uint8_t const * const end, uint8_t const * * const data, uint32_t * restrict u)
 {
     uint32_t n;
     uint8_t shift = 7;
@@ -80,8 +80,8 @@ int unpack_vle32(uint8_t const * const end, uint8_t const * * const data, uint32
     return 1;
 }
 
-#if RID_T_SIZE > 32 || SEQNUM_LEN > 28
-int unpack_vle64(uint8_t const * const end, uint8_t const * * const data, uint64_t * restrict u)
+#if ZHE_RID_SIZE > 32 || SEQNUM_LEN > 28
+int zhe_unpack_vle64(uint8_t const * const end, uint8_t const * * const data, uint64_t * restrict u)
 {
     uint64_t n;
     uint8_t shift = 7;
@@ -102,17 +102,17 @@ int unpack_vle64(uint8_t const * const end, uint8_t const * * const data, uint64
 }
 #endif
 
-int unpack_seq(uint8_t const * const end, uint8_t const * * const data, seq_t * restrict u)
+int zhe_unpack_seq(uint8_t const * const end, uint8_t const * * const data, seq_t * restrict u)
 {
     int res;
 #if SEQNUM_LEN == 7
-    res = unpack_byte(end, data, u);
+    res = zhe_unpack_byte(end, data, u);
 #elif SEQNUM_LEN == 14
-    res = unpack_vle16(end, data, u);
+    res = zhe_unpack_vle16(end, data, u);
 #elif SEQNUM_LEN == 28
-    res = unpack_vle32(end, data, u);
+    res = zhe_unpack_vle32(end, data, u);
 #elif SEQNUM_LEN == 56
-    res = unpack_vle64(end, data, u);
+    res = zhe_unpack_vle64(end, data, u);
 #else
 #error "unpack_seq: invalid SEQNUM_LEN"
 #endif
@@ -123,7 +123,7 @@ int unpack_seq(uint8_t const * const end, uint8_t const * * const data, seq_t * 
     return 1;
 }
 
-const uint8_t *skip_validated_vle(const uint8_t *data)
+const uint8_t *zhe_skip_validated_vle(const uint8_t *data)
 {
     uint8_t d;
     do {
@@ -132,15 +132,15 @@ const uint8_t *skip_validated_vle(const uint8_t *data)
     return data;
 }
 
-int unpack_rid(uint8_t const * const end, uint8_t const * * const data, rid_t * restrict u)
+int zhe_unpack_rid(uint8_t const * const end, uint8_t const * * const data, zhe_rid_t * restrict u)
 {
-    return SUFFIX_WITH_SIZE(unpack_vle, RID_T_SIZE)(end, data, u);
+    return SUFFIX_WITH_SIZE(zhe_unpack_vle, ZHE_RID_SIZE)(end, data, u);
 }
 
-int unpack_vec(uint8_t const * const end, uint8_t const * * const data, size_t lim, zpsize_t * restrict u, uint8_t * restrict v)
+int zhe_unpack_vec(uint8_t const * const end, uint8_t const * * const data, size_t lim, zhe_paysize_t * restrict u, uint8_t * restrict v)
 {
-    zpsize_t i;
-    if (!unpack_vle16(end, data, u)) { return 0; }
+    zhe_paysize_t i;
+    if (!zhe_unpack_vle16(end, data, u)) { return 0; }
     if (end - *data < *u) { return 0; }
     if (*u < lim) { lim = *u; }
     for (i = 0; i < lim; i++) {
@@ -151,17 +151,17 @@ int unpack_vec(uint8_t const * const end, uint8_t const * * const data, size_t l
     return 1;
 }
 
-int unpack_locs(uint8_t const * const end, uint8_t const * * const data, struct unpack_locs_iter *it)
+int zhe_unpack_locs(uint8_t const * const end, uint8_t const * * const data, struct unpack_locs_iter *it)
 {
     uint16_t n;
-    zpsize_t dummy;
-    if (!unpack_vle16(end, data, &n)) {
+    zhe_paysize_t dummy;
+    if (!zhe_unpack_vle16(end, data, &n)) {
         return 0;
     }
     it->n = n;
     it->data = *data;
     while (n--) {
-        if (!unpack_vec(end, data, 0, &dummy, NULL)) {
+        if (!zhe_unpack_vec(end, data, 0, &dummy, NULL)) {
             return 0;
         }
     }
@@ -169,12 +169,12 @@ int unpack_locs(uint8_t const * const end, uint8_t const * * const data, struct 
     return 1;
 }
 
-int unpack_locs_iter(struct unpack_locs_iter *it, zpsize_t *sz, const uint8_t **loc)
+int zhe_unpack_locs_iter(struct unpack_locs_iter *it, zhe_paysize_t *sz, const uint8_t **loc)
 {
     if (it->n == 0) {
         return 0;
     } else {
-        int x = unpack_vle16(it->end, &it->data, sz);
+        int x = zhe_unpack_vle16(it->end, &it->data, sz);
         assert(x);
         *loc = it->data;
         it->data += *sz;
@@ -183,15 +183,15 @@ int unpack_locs_iter(struct unpack_locs_iter *it, zpsize_t *sz, const uint8_t **
     }
 }
 
-int unpack_props(uint8_t const * const end, uint8_t const * * const data)
+int zhe_unpack_props(uint8_t const * const end, uint8_t const * * const data)
 {
     uint16_t n;
-    zpsize_t dummy;
-    if (!unpack_vle16(end, data, &n)) {
+    zhe_paysize_t dummy;
+    if (!zhe_unpack_vle16(end, data, &n)) {
         return 0;
     }
     while (n--) {
-        if (!unpack_vec(end, data, 0, &dummy, NULL) || !unpack_vec(end, data, 0, &dummy, NULL)) {
+        if (!zhe_unpack_vec(end, data, 0, &dummy, NULL) || !zhe_unpack_vec(end, data, 0, &dummy, NULL)) {
             return 0;
         }
     }

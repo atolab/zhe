@@ -34,21 +34,21 @@ static struct {
 #define STATE_DRAININPUT   1
 #define STATE_OPERATIONAL  2
 
-struct zeno_transport *arduino_new(void)
+struct zhe_transport *zhe_arduino_new(void)
 {
     uint8_t state = STATE_WAITINPUT;
-    ztime_t t_state_changed = millis();
+    zhe_time_t t_state_changed = millis();
 
     Serial.begin(115200);
 
-    /* Perhaps shouldn't take this time here, but before one calls zeno_init(); for now however, it is safe to do it here */
+    /* Perhaps shouldn't take this time here, but before one calls zhe_init(); for now however, it is safe to do it here */
     while (state != STATE_OPERATIONAL) {
         /* On startup, wait up to 5s for some input, and if some is received, drain
            the input until nothing is received for 1s.  For some reason, garbage
            seems to come in a few seconds after waking up.  */
-        ztime_t tnow = millis();
-        ztimediff_t timeout = (state == STATE_WAITINPUT) ? 5000 : 1000;
-        if ((ztimediff_t)(tnow - t_state_changed) >= timeout) {
+        zhe_time_t tnow = millis();
+        zhe_timediff_t timeout = (state == STATE_WAITINPUT) ? 5000 : 1000;
+        if ((zhe_timediff_t)(tnow - t_state_changed) >= timeout) {
             state = STATE_OPERATIONAL;
             t_state_changed = tnow;
         } else if (Serial.available()) {
@@ -58,23 +58,23 @@ struct zeno_transport *arduino_new(void)
         }
     }
 
-    return (struct zeno_transport *)&Serial;
+    return (struct zhe_transport *)&Serial;
 }
 
-static size_t arduino_addr2string(const struct zeno_transport *tp, char * restrict str, size_t size, const zeno_address_t * restrict addr)
+static size_t arduino_addr2string(const struct zhe_transport *tp, char * restrict str, size_t size, const zhe_address_t * restrict addr)
 {
     assert(size > 0);
     str[0] = 0;
     return 0;
 }
 
-int arduino_string2addr(const struct zeno_transport *tp, struct zeno_address * restrict addr, const char * restrict str)
+int zhe_arduino_string2addr(const struct zhe_transport *tp, struct zhe_address * restrict addr, const char * restrict str)
 {
     memset(addr, 0, sizeof(*addr));
     return 1;
 }
 
-static ssize_t arduino_send(struct zeno_transport * restrict tp, const void * restrict buf, size_t size, const zeno_address_t * restrict dst)
+static ssize_t arduino_send(struct zhe_transport * restrict tp, const void * restrict buf, size_t size, const zhe_address_t * restrict dst)
 {
     size_t i;
     assert(size <= TRANSPORT_MTU);
@@ -128,7 +128,7 @@ static int read_serial(void)
 }
 #endif
 
-ssize_t arduino_recv(struct zeno_transport * restrict tp, void * restrict buf, size_t size, zeno_address_t * restrict src)
+ssize_t zhe_arduino_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src)
 {
 #if TRANSPORT_MODE == TRANSPORT_STREAM
     size_t n = 0;
@@ -141,17 +141,17 @@ ssize_t arduino_recv(struct zeno_transport * restrict tp, void * restrict buf, s
 #endif
 }
 
-static int arduino_addr_eq(const struct zeno_address *a, const struct zeno_address *b)
+static int arduino_addr_eq(const struct zhe_address *a, const struct zhe_address *b)
 {
     return 1;
 }
 
-int arduino_wait(const struct zeno_transport * restrict tp, ztimediff_t timeout)
+int zhe_arduino_wait(const struct zhe_transport * restrict tp, zhe_timediff_t timeout)
 {
     return Serial.available();
 }
 
-zeno_transport_ops_t transport_arduino = {
+zhe_transport_ops_t transport_arduino = {
     .addr2string = arduino_addr2string,
     .addr_eq = arduino_addr_eq,
     .send = arduino_send
