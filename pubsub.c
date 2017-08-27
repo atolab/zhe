@@ -319,7 +319,7 @@ void zhe_send_declares(zhe_time_t tnow)
 #endif
 
     if ((first = zhe_bitset_findfirst(todeclare.subs, ZHE_MAX_SUBSCRIPTIONS)) >= 0) {
-        if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from)) {
+        if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from, tnow)) {
             zhe_assert(subs[first].rid != 0);
             ZT(PUBSUB, ("sending dsub %d rid %ju", first, (uintmax_t)subs[first].rid));
             zhe_pack_dsub(subs[first].rid);
@@ -332,7 +332,7 @@ void zhe_send_declares(zhe_time_t tnow)
         return;
     }
 
-    if (must_commit && zhe_oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE, &from)) {
+    if (must_commit && zhe_oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE, &from, tnow)) {
         ZT(PUBSUB, ("sending commit %u", gcommitid));
         zhe_pack_dcommit(gcommitid++);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -437,7 +437,7 @@ int zhe_write(zhe_pubidx_t pubidx, zhe_paysize_t sz, const void *data, zhe_time_
 
     if (zhe_oc_am_draining_window(oc)) {
         return !relflag;
-    } else if (!zhe_oc_pack_msdata(oc, relflag, pubs[pubidx.idx].rid, sz)) {
+    } else if (!zhe_oc_pack_msdata(oc, relflag, pubs[pubidx.idx].rid, sz, tnow)) {
         /* for reliable, a full window means failure; for unreliable it is a non-issue */
         return !relflag;
     } else {

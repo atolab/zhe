@@ -12,7 +12,7 @@
 
 extern unsigned zhe_trace_cats;
 
-#ifndef ARDUINO
+#if !(defined ZHE_NTRACE || defined ARDUINO)
 
 void zhe_trace(const char *fmt, ...);
 
@@ -22,6 +22,7 @@ void zhe_trace(const char *fmt, ...);
 
 #else
 
+#define ZTT(catsimple_) (0)
 #define ZT(catsimple_, trace_args_) ((void)0)
 #define ZTC(cats_, trace_args_) ((void)0)
 

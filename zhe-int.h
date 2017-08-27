@@ -20,19 +20,19 @@ struct peerid {
 };
 
 uint16_t zhe_xmitw_bytesavail(const struct out_conduit *c);
-void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt);
+void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt, zhe_time_t tnow);
 void zhe_pack1(uint8_t x);
 void zhe_pack2(uint8_t x, uint8_t y);
 void zhe_pack_u16(uint16_t x);
 void zhe_pack_vec(zhe_paysize_t n, const void *buf);
 uint16_t zhe_pack_locs_calcsize(void);
 void zhe_pack_locs(void);
-void zhe_oc_hit_full_window(struct out_conduit *c);
+void zhe_oc_hit_full_window(struct out_conduit *c, zhe_time_t tnow);
 int zhe_oc_am_draining_window(const struct out_conduit *c);
 cid_t zhe_oc_get_cid(struct out_conduit *c);
 int zhe_ocm_have_peers(const struct out_mconduit *mc);
 void zhe_pack_msend(void);
-zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zhe_paysize_t sz);
+zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zhe_paysize_t sz, zhe_time_t tnow);
 void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from);
 void zhe_oc_pack_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, const void *vdata);
 void zhe_oc_pack_payload_done(struct out_conduit *c, int relflag, zhe_time_t tnow);

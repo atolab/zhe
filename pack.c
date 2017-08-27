@@ -107,7 +107,7 @@ void zhe_pack_text(zhe_paysize_t n, const char *text)
     zhe_pack_vec(n, (const uint8_t *) text);
 }
 
-void zhe_pack_mscout(zhe_address_t *dst)
+void zhe_pack_mscout(zhe_address_t *dst, zhe_time_t tnow)
 {
     /* Client mode should only look for a broker, but a peer should look for peers and brokers
        (because a broker really can be considered a peer). */
@@ -116,18 +116,18 @@ void zhe_pack_mscout(zhe_address_t *dst)
 #else
     const uint8_t mask = MSCOUT_BROKER | MSCOUT_PEER;
 #endif
-    zhe_pack_reserve(dst, NULL, 2);
+    zhe_pack_reserve(dst, NULL, 2, tnow);
     zhe_pack2(MSFLAG | MSCOUT, mask);
 }
 
-void zhe_pack_mhello(zhe_address_t *dst)
+void zhe_pack_mhello(zhe_address_t *dst, zhe_time_t tnow)
 {
 #if MAX_PEERS == 0
     const uint8_t mask = MSCOUT_CLIENT;
 #else
     const uint8_t mask = MSCOUT_PEER;
 #endif
-    zhe_pack_reserve(dst, NULL, 3 + zhe_pack_locs_calcsize());
+    zhe_pack_reserve(dst, NULL, 3 + zhe_pack_locs_calcsize(), tnow);
     zhe_pack2(MHELLO, mask);
     zhe_pack_locs();
     zhe_pack1(0);
@@ -139,11 +139,11 @@ static uint32_t conv_zhe_timediff_to_lease(zhe_timediff_t lease_dur)
     return (uint32_t)(lease_dur / (100000000 / ZHE_TIMEBASE));
 }
 
-void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, zhe_timediff_t lease_dur)
+void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
     const zhe_paysize_t sizeof_auth = 0;
     const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
-    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth + zhe_pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0));
+    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth + zhe_pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0), tnow);
     zhe_pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZHE_VERSION);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack_vle32(ld100);
@@ -154,11 +154,11 @@ void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *
     }
 }
 
-void zhe_pack_maccept(zhe_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, zhe_timediff_t lease_dur)
+void zhe_pack_maccept(zhe_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
     const zhe_paysize_t sizeof_auth = 0;
     const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
-    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle16req(peerid->len) + peerid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth);
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle16req(peerid->len) + peerid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth, tnow);
     zhe_pack1(MACCEPT);
     zhe_pack_vec(peerid->len, peerid->id);
     zhe_pack_vec(ownid->len, ownid->id);
@@ -166,15 +166,15 @@ void zhe_pack_maccept(zhe_address_t *dst, const struct peerid *ownid, const stru
     zhe_pack_text(0, NULL); /* auth */
 }
 
-void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ownid)
+void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ownid, zhe_time_t tnow)
 {
-    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len);
+    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len, tnow);
     zhe_pack1(MSFLAG | MCLOSE);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack1(reason);
 }
 
-void zhe_pack_reserve_mconduit(zhe_address_t *dst, struct out_conduit *oc, cid_t cid, zhe_paysize_t cnt)
+void zhe_pack_reserve_mconduit(zhe_address_t *dst, struct out_conduit *oc, cid_t cid, zhe_paysize_t cnt, zhe_time_t tnow)
 {
     zhe_paysize_t cid_size = (cid > 0) + (cid > 4);
     zhe_assert(cid >= 0);
@@ -183,7 +183,7 @@ void zhe_pack_reserve_mconduit(zhe_address_t *dst, struct out_conduit *oc, cid_t
 #error "N_OUT_CONDUITS must be <= 127 or unconditionally packing a CID into a byte won't work"
 #endif
     zhe_assert(oc == NULL || zhe_oc_get_cid(oc) == cid);
-    zhe_pack_reserve(dst, oc, cid_size + cnt);
+    zhe_pack_reserve(dst, oc, cid_size + cnt, tnow);
     if (cid > 4) {
         zhe_pack2(MCONDUIT, (uint8_t)cid);
     } else if (cid > 0) {
@@ -194,20 +194,20 @@ void zhe_pack_reserve_mconduit(zhe_address_t *dst, struct out_conduit *oc, cid_t
 
 unsigned zhe_synch_sent;
 
-void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt)
+void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt, zhe_time_t tnow)
 {
     seq_t cnt_shifted = (seq_t)(cnt << SEQNUM_SHIFT);
     ZT(RELIABLE, ("pack_msynch cid %d sflag %u seq %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt));
-    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seqbase) + zhe_pack_seqreq(cnt_shifted));
+    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seqbase) + zhe_pack_seqreq(cnt_shifted), tnow);
     zhe_pack1(MRFLAG | sflag | MSYNCH);
     zhe_pack_seq(seqbase);
     zhe_pack_seq(cnt_shifted);
     zhe_synch_sent++;
 }
 
-void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask)
+void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask, zhe_time_t tnow)
 {
-    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seq) + (mask ? zhe_pack_vle32req(mask) : 0));
+    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seq) + (mask ? zhe_pack_vle32req(mask) : 0), tnow);
     zhe_pack1(MSFLAG | (mask == 0 ? 0 : MMFLAG) | MACKNACK);
     zhe_pack_seq(seq);
     if (mask != 0) {
@@ -217,28 +217,28 @@ void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask)
     }
 }
 
-void zhe_pack_mping(zhe_address_t *dst, uint16_t hash)
+void zhe_pack_mping(zhe_address_t *dst, uint16_t hash, zhe_time_t tnow)
 {
-    zhe_pack_reserve(dst, NULL, 3);
+    zhe_pack_reserve(dst, NULL, 3, tnow);
     zhe_pack1(MSFLAG | MPING);
     zhe_pack_u16(hash);
 }
 
-void zhe_pack_mpong(zhe_address_t *dst, uint16_t hash)
+void zhe_pack_mpong(zhe_address_t *dst, uint16_t hash, zhe_time_t tnow)
 {
-    zhe_pack_reserve(dst, NULL, 3);
+    zhe_pack_reserve(dst, NULL, 3, tnow);
     zhe_pack1(MPONG);
     zhe_pack_u16(hash);
 }
 
-void zhe_pack_mkeepalive(zhe_address_t *dst, const struct peerid *ownid)
+void zhe_pack_mkeepalive(zhe_address_t *dst, const struct peerid *ownid, zhe_time_t tnow)
 {
-    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len);
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len, tnow);
     zhe_pack1(MKEEPALIVE);
     zhe_pack_vec(ownid->len, ownid->id);
 }
 
-int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_paysize_t payloadlen)
+int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_paysize_t payloadlen, zhe_time_t tnow)
 {
     /* Use worst-case number of bytes for sequence number, instead of getting the sequence number
        earlier than as an output of oc_pack_payload_msgprep and using the exact value */
@@ -249,11 +249,11 @@ int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_pa
 
     if (relflag && zhe_xmitw_bytesavail(c) < sizeof(zhe_msgsize_t) + sz) {
         /* Reliable, insufficient space in transmit window (accounting for preceding length byte) */
-        zhe_oc_hit_full_window(c);
+        zhe_oc_hit_full_window(c, tnow);
         return 0;
     }
 
-    from = zhe_oc_pack_payload_msgprep(&s, c, relflag, sz);
+    from = zhe_oc_pack_payload_msgprep(&s, c, relflag, sz, tnow);
     zhe_pack1(hdr);
     zhe_pack_seq(s);
     zhe_pack_rid(rid);
@@ -274,7 +274,7 @@ void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow
     zhe_oc_pack_payload_done(c, relflag, tnow);
 }
 
-int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zhe_msgsize_t *from)
+int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zhe_msgsize_t *from, zhe_time_t tnow)
 {
     const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(ndecls) + decllen;
     seq_t s;
@@ -282,7 +282,7 @@ int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen,
     if (zhe_xmitw_bytesavail(c) < sizeof(zhe_msgsize_t) + sz) {
         return 0;
     }
-    *from = zhe_oc_pack_payload_msgprep(&s, c, 1, sz);
+    *from = zhe_oc_pack_payload_msgprep(&s, c, 1, sz, tnow);
     zhe_pack1(MRFLAG | MDECLARE);
     zhe_pack_seq(s);
     zhe_pack_vle16(ndecls);

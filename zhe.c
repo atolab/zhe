@@ -113,15 +113,6 @@ static uint16_t n_multicast_locators;
 static zhe_address_t multicast_locators[MAX_MULTICAST_GROUPS];
 #endif
 
-/* For packet-based we can do with a single input buffer; for stream-based we will probably need an input buffer per peer */
-#if TRANSPORT_MODE == TRANSPORT_STREAM && MAX_PEERS > 0
-#error "haven't worked out the details of peer-to-peer with stream-based transports"
-#endif
-static uint8_t inbuf[TRANSPORT_MTU]; /* where we buffer incoming packets */
-#if TRANSPORT_MODE == TRANSPORT_STREAM
-static zhe_msgsize_t inp;              /* current position in inbuf while collecting a message for processing */
-#endif
-
 /* output buffer is a single packet; a single packet has a single destination and carries reliable data for at most one conduit */
 static uint8_t outbuf[TRANSPORT_MTU]; /* where we buffer next outgoing packet */
 static zhe_msgsize_t outp;             /* current position in outbuf */
@@ -252,9 +243,6 @@ static void init_globals(zhe_time_t tnow)
     npeers = 0;
     reset_outbuf();
     /* FIXME: keep incoming packet buffer? I guess in packet mode that's ok, for streaming would probably need MAX_PEERS_1 */
-#if TRANSPORT_MODE == TRANSPORT_STREAM
-    inp = 0;
-#endif
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
     outdeadline = tnow;
 #endif
@@ -322,7 +310,7 @@ static void pack_check_avail(uint16_t n)
     zhe_assert(sizeof (outbuf) - outp >= n);
 }
 
-void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt)
+void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt, zhe_time_t tnow)
 {
     /* oc != NULL <=> reserving for reliable data */
     /* make room by sending out current packet if requested number of bytes is no longer
@@ -341,7 +329,7 @@ void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t 
         /* packing deadline: note that no incomplete messages will ever be in the buffer when
            we check, because it is single-threaded and we always complete whatever message we
            start constructing */
-        outdeadline = zhe_time() + LATENCY_BUDGET;
+        outdeadline = tnow + LATENCY_BUDGET;
         ZT(DEBUG, ("deadline at %"PRIu32".%0"PRIu32, ZTIME_TO_SECu32(outdeadline), ZTIME_TO_MSECu32(outdeadline)));
     }
 #endif
@@ -411,11 +399,11 @@ cid_t zhe_oc_get_cid(struct out_conduit *c)
     return c->cid;
 }
 
-void zhe_oc_hit_full_window(struct out_conduit *c)
+void zhe_oc_hit_full_window(struct out_conduit *c, zhe_time_t tnow)
 {
     c->draining_window = 1;
     if (outp > 0) {
-        zhe_pack_msynch(outdst, MSFLAG, c->cid, c->seqbase, oc_get_nsamples(c));
+        zhe_pack_msynch(outdst, MSFLAG, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
         zhe_pack_msend();
     }
 }
@@ -445,14 +433,14 @@ void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from)
     }
 }
 
-zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zhe_paysize_t sz)
+zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zhe_paysize_t sz, zhe_time_t tnow)
 {
     zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
     if (!relflag) {
-        zhe_pack_reserve_mconduit(&c->addr, NULL, c->cid, sz);
+        zhe_pack_reserve_mconduit(&c->addr, NULL, c->cid, sz, tnow);
         *s = c->useq;
     } else {
-        zhe_pack_reserve_mconduit(&c->addr, c, c->cid, sz);
+        zhe_pack_reserve_mconduit(&c->addr, c, c->cid, sz, tnow);
         *s = c->seq;
         outspos = outp;
     }
@@ -608,7 +596,7 @@ static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const en
          retransmit and retry.  Use worst-case size for result */
         struct out_conduit * const oc = zhe_out_conduit_from_cid(0, 0);
         zhe_msgsize_t from;
-        if (!zhe_oc_pack_mdeclare(oc, 1, WC_DRESULT_SIZE, &from)) {
+        if (!zhe_oc_pack_mdeclare(oc, 1, WC_DRESULT_SIZE, &from, tnow)) {
             return 0;
         } else {
             zhe_rsub_precommit_curpkt_done(peeridx);
@@ -667,7 +655,7 @@ static const uint8_t *handle_ddeleteres(peeridx_t peeridx, const uint8_t * const
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-static const uint8_t *handle_mscout(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data)
+static const uint8_t *handle_mscout(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, zhe_time_t tnow)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER;
@@ -686,7 +674,7 @@ static const uint8_t *handle_mscout(peeridx_t peeridx, const uint8_t * const end
        with not responding to a SCOUT; for a peer it is different */
     if ((mask & lookfor) && state_ok) {
         ZT(PEERDISC, ("got a scout! sending a hello"));
-        zhe_pack_mhello(&peers[peeridx].oc.addr);
+        zhe_pack_mhello(&peers[peeridx].oc.addr, tnow);
         zhe_pack_msend();
     }
     return data;
@@ -749,7 +737,7 @@ static const uint8_t *handle_mhello(peeridx_t peeridx, const uint8_t * const end
             }
         }
         if (send_open) {
-            zhe_pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION);
+            zhe_pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION, tnow);
             zhe_pack_msend();
         }
     }
@@ -772,10 +760,12 @@ static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zhe_paysize_t idlen, cons
             continue;
         }
         if (peers[i].id.len == idlen && memcmp(peers[i].id.id, id, idlen) == 0) {
-            char olda[TRANSPORT_ADDRSTRLEN], newa[TRANSPORT_ADDRSTRLEN];
-            transport->ops->addr2string(transport, olda, sizeof(olda), &peers[i].oc.addr);
-            transport->ops->addr2string(transport, newa, sizeof(newa), &peers[peeridx].oc.addr);
-            ZT(PEERDISC, ("peer %u changed address from %s to %s", (unsigned)i, olda, newa));
+            if (ZTT(PEERDISC)) {
+                char olda[TRANSPORT_ADDRSTRLEN], newa[TRANSPORT_ADDRSTRLEN];
+                transport->ops->addr2string(transport, olda, sizeof(olda), &peers[i].oc.addr);
+                transport->ops->addr2string(transport, newa, sizeof(newa), &peers[peeridx].oc.addr);
+                ZT(PEERDISC, ("peer %u changed address from %s to %s", (unsigned)i, olda, newa));
+            }
             peers[i].oc.addr = peers[peeridx].oc.addr;
             return i;
         }
@@ -792,24 +782,26 @@ static char tohexdigit(uint8_t x)
 static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * restrict id, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
     struct peer * const p = &peers[peeridx];
-    char astr[TRANSPORT_ADDRSTRLEN];
-    char idstr[3*PEERID_SIZE], *idstrp = idstr;
     zhe_assert(p->state != PEERST_ESTABLISHED);
-    zhe_assert(idlen > 0 && idlen <= PEERID_SIZE);
-    transport->ops->addr2string(transport, astr, sizeof(astr), &p->oc.addr);
-
+    zhe_assert(idlen > 0);
     zhe_assert(idlen <= PEERID_SIZE);
     zhe_assert(lease_dur >= 0);
-    for (int i = 0; i < idlen; i++) {
-        if (i > 0) {
-            *idstrp++ = ':';
+
+    if (ZTT(PEERDISC)) {
+        char astr[TRANSPORT_ADDRSTRLEN];
+        char idstr[3*PEERID_SIZE], *idstrp = idstr;
+        transport->ops->addr2string(transport, astr, sizeof(astr), &p->oc.addr);
+        for (int i = 0; i < idlen; i++) {
+            if (i > 0) {
+                *idstrp++ = ':';
+            }
+            *idstrp++ = tohexdigit(id[i] >> 4);
+            *idstrp++ = tohexdigit(id[i] & 0xf);
+            zhe_assert(idstrp < idstr + sizeof(idstr));
         }
-        *idstrp++ = tohexdigit(id[i] >> 4);
-        *idstrp++ = tohexdigit(id[i] & 0xf);
-        zhe_assert(idstrp < idstr + sizeof(idstr));
+        *idstrp = 0;
+        ZT(PEERDISC, ("accept peer %s %s @ %u; lease = %" PRId32, idstr, astr, peeridx, (int32_t)lease_dur));
     }
-    *idstrp = 0;
-    ZT(PEERDISC, ("accept peer %s %s @ %u; lease = %" PRId32, idstr, astr, peeridx, (int32_t)lease_dur));
 
     p->state = PEERST_ESTABLISHED;
     p->id.len = idlen;
@@ -900,13 +892,13 @@ static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t *
         }
         accept_peer(*peeridx, idlen, id, ld, tnow);
     }
-    zhe_pack_maccept(&p->oc.addr, &ownid, &p->id, LEASE_DURATION);
+    zhe_pack_maccept(&p->oc.addr, &ownid, &p->id, LEASE_DURATION, tnow);
     zhe_pack_msend();
 
     return data;
 
 reject:
-    zhe_pack_mclose(&peers[*peeridx].oc.addr, reason, &ownid);
+    zhe_pack_mclose(&peers[*peeridx].oc.addr, reason, &ownid, tnow);
     /* don't want anything to do with the other anymore; calling reset on one that is already in UNKNOWN is harmless */
     reset_peer(*peeridx, tnow);
     /* no point in interpreting following messages in packet */
@@ -953,7 +945,7 @@ static const uint8_t *handle_maccept(peeridx_t * restrict peeridx, const uint8_t
     return data;
 
 reject:
-    zhe_pack_mclose(&peers[*peeridx].oc.addr, CLR_ERROR, &ownid);
+    zhe_pack_mclose(&peers[*peeridx].oc.addr, CLR_ERROR, &ownid, tnow);
     /* don't want anything to do with the other anymore; calling reset on one that is already in UNKNOWN is harmless */
     reset_peer(*peeridx, tnow);
     /* no point in interpreting following messages in packet */
@@ -1024,7 +1016,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, zhe_ti
         /* ACK goes out over unicast path; the conduit used for sending it doesn't have
            much to do with it other than administrative stuff */
         ZT(RELIABLE, ("acknack_if_needed peeridx %u cid %u wantsack %d mask %u seq %u", peeridx, cid, wantsack, mask, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT));
-        zhe_pack_macknack(&peers[peeridx].oc.addr, cid, peers[peeridx].ic[cid].seq, mask);
+        zhe_pack_macknack(&peers[peeridx].oc.addr, cid, peers[peeridx].ic[cid].seq, mask, tnow);
         zhe_pack_msend();
         peers[peeridx].ic[cid].tack = tnow;
     }
@@ -1057,7 +1049,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
         }
         intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq);
     }
-    ZT(PUBSUB, ("handle_mdeclare %p/%p seq %u peeridx %u ndecls %u intp %d", data, inbuf, seq, peeridx, ndecls, intp));
+    ZT(PUBSUB, ("handle_mdeclare %p seq %u peeridx %u ndecls %u intp %d", data, seq, peeridx, ndecls, intp));
     while (ndecls > 0 && data < end && data != 0) {
         switch (*data & DKIND) {
             case DRESOURCE:  data = handle_dresource(peeridx, end, data, intp); break;
@@ -1248,7 +1240,7 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
            even sent yet, send a SYNCH without the S flag (i.e., let the broker decide what to
            do with it) */
         ZT(RELIABLE, ("handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1));
-        zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c));
+        zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
         zhe_pack_msend();
     } else if ((zhe_timediff_t)(tnow - c->last_rexmit) <= ROUNDTRIP_TIME_ESTIMATE && zhe_seq_lt(seq, c->last_rexmit_seq)) {
         ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u mask %08x - suppress", peeridx, cid, seq >> SEQNUM_SHIFT, mask));
@@ -1297,7 +1289,7 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
                    for the purpose of setting the S flag and scheduling SYNCH messages.  Retransmits
                    are require none of that beyond what we do here locally anyway. */
                 ZT(RELIABLE, ("handle_macknack   rx %u", seq >> SEQNUM_SHIFT));
-                zhe_pack_reserve_mconduit(&c->addr, NULL, cid, sz);
+                zhe_pack_reserve_mconduit(&c->addr, NULL, cid, sz, tnow);
                 outspos_tmp = outp;
                 while (sz--) {
                     zhe_pack1(c->rbuf[p]);
@@ -1329,14 +1321,14 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
     return data;
 }
 
-static const uint8_t *handle_mping(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data)
+static const uint8_t *handle_mping(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, zhe_time_t tnow)
 {
     uint16_t hash;
     if (!zhe_unpack_skip(end, &data, 1) ||
         !zhe_unpack_u16(end, &data, &hash)) {
         return 0;
     }
-    zhe_pack_mpong(&peers[peeridx].oc.addr, hash);
+    zhe_pack_mpong(&peers[peeridx].oc.addr, hash, tnow);
     zhe_pack_msend();
     return data;
 }
@@ -1392,14 +1384,14 @@ static const uint8_t *handle_packet(peeridx_t * restrict peeridx, const uint8_t 
     cid_t cid = 0;
     do {
         switch (*data & MKIND) {
-            case MSCOUT:     data = handle_mscout(*peeridx, end, data); break;
+            case MSCOUT:     data = handle_mscout(*peeridx, end, data, tnow); break;
             case MHELLO:     data = handle_mhello(*peeridx, end, data, tnow); break;
             case MOPEN:      data = handle_mopen(peeridx, end, data, tnow); break;
             case MACCEPT:    data = handle_maccept(peeridx, end, data, tnow); break;
             case MCLOSE:     data = handle_mclose(peeridx, end, data, tnow); break;
             case MDECLARE:   data = handle_mdeclare(*peeridx, end, data, cid, tnow); break;
             case MSDATA:     data = handle_msdata(*peeridx, end, data, cid, tnow); break;
-            case MPING:      data = handle_mping(*peeridx, end, data); break;
+            case MPING:      data = handle_mping(*peeridx, end, data, tnow); break;
             case MPONG:      data = handle_mpong(*peeridx, end, data); break;
             case MSYNCH:     data = handle_msynch(*peeridx, end, data, cid, tnow); break;
             case MACKNACK:   data = handle_macknack(*peeridx, end, data, cid, tnow); break;
@@ -1467,12 +1459,12 @@ static void maybe_send_scout(zhe_time_t tnow)
 #else
     if ((zhe_timediff_t)(tnow - tnextscout) >= 0) {
         tnextscout = tnow + SCOUT_INTERVAL;
-        zhe_pack_mscout(&scoutaddr);
+        zhe_pack_mscout(&scoutaddr, tnow);
         if (npeers > 0) {
             /* Scout messages are ignored by peers that have established a session with the source
                of the scout message, and then there is also the issue of potentially changing source
                addresses ... so we combine the scout with a keepalive if we know some peers */
-            zhe_pack_mkeepalive(&scoutaddr, &ownid);
+            zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
         }
         zhe_pack_msend();
     }
@@ -1498,7 +1490,6 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
     }
 
     if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
-        (void)transport->ops->addr2string(transport, addrstr, sizeof(addrstr), src);
         ZT(DEBUG, ("possible new peer %s @ %u", addrstr, free_peeridx));
         peeridx = free_peeridx;
         peers[peeridx].oc.addr = *src;
@@ -1542,7 +1533,7 @@ static void maybe_send_msync_oc(struct out_conduit * const oc, zhe_time_t tnow)
 {
     if (oc->seq != oc->seqbase && (zhe_timediff_t)(tnow - oc->tsynch) >= 0) {
         oc->tsynch = tnow + MSYNCH_INTERVAL;
-        zhe_pack_msynch(&oc->addr, MSFLAG, oc->cid, oc->seqbase, oc_get_nsamples(oc));
+        zhe_pack_msynch(&oc->addr, MSFLAG, oc->cid, oc->seqbase, oc_get_nsamples(oc), tnow);
         zhe_pack_msend();
     }
 }
@@ -1564,7 +1555,7 @@ void zhe_housekeeping(zhe_time_t tnow)
             case PEERST_ESTABLISHED:
                 if ((zhe_timediff_t)(tnow - peers[i].tlease) > peers[i].lease_dur) {
                     ZT(PEERDISC, ("lease expired on peer @ %u", i));
-                    zhe_pack_mclose(&peers[i].oc.addr, 0, &ownid);
+                    zhe_pack_mclose(&peers[i].oc.addr, 0, &ownid, tnow);
                     zhe_pack_msend();
                     reset_peer(i, tnow);
                 }
@@ -1583,7 +1574,7 @@ void zhe_housekeeping(zhe_time_t tnow)
                         ZT(PEERDISC, ("retry opening a session with peer @ %u", i));
                         peers[i].state++;
                         peers[i].tlease = tnow;
-                        zhe_pack_mopen(&peers[i].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION);
+                        zhe_pack_mopen(&peers[i].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION, tnow);
                         zhe_pack_msend();
                     }
                 }
