@@ -1,5 +1,6 @@
 #ifdef ARDUINO
 
+#include <limits.h>
 #include <string.h>
 
 #include "zhe-config.h"

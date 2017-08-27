@@ -28,6 +28,12 @@
 /* Transmit window size for multicast conduits (XMITW_BYTES) and for unicast conduits (XMITW_BYTES_UNICAST). Neither type of conduit need be enabled, and no sizes needs to be given for the one that is not configured. Each reliable message is stored in the window prefixed by its size in represented as a "zhe_msgsize_t" (for which, see below). */
 #  define XMITW_BYTES 16384u
 #  define XMITW_BYTES_UNICAST 384u
+#  define XMITW_SAMPLES 1600u
+#  define XMITW_SAMPLES_UNICAST 63u
+#  define XMITW_SAMPLE_INDEX 1
+//#  define XMITW_SAMPLES 0u
+//#  define XMITW_SAMPLES_UNICAST 0u
+//#  define XMITW_SAMPLE_INDEX 0
 
 #else /* defined ARDUINO -- just so it easy to check it builds as a client */
 
@@ -39,6 +45,8 @@
 #  define HAVE_UNICAST_CONDUIT 1
 #  define MAX_MULTICAST_GROUPS 0
 #  define XMITW_BYTES_UNICAST 384u
+#  define XMITW_SAMPLES_UNICAST 63u
+#  define XMITW_SAMPLE_INDEX 0
 
 #endif /* defined ARDUINO */
 

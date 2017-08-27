@@ -19,7 +19,7 @@ struct peerid {
     zhe_paysize_t len;
 };
 
-uint16_t zhe_xmitw_bytesavail(const struct out_conduit *c);
+int zhe_xmitw_hasspace(const struct out_conduit *c, zhe_paysize_t sz);
 void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt, zhe_time_t tnow);
 void zhe_pack1(uint8_t x);
 void zhe_pack2(uint8_t x, uint8_t y);

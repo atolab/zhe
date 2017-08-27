@@ -47,12 +47,19 @@ struct out_conduit {
     uint16_t spos;                /* starting pos of current sample for patching in size */
     uint16_t firstpos;            /* starting pos (actually, size) of oldest sample in window */
     uint16_t xmitw_bytes;         /* size of transmit window pointed to by rbuf */
+#if (defined(XMITW_SAMPLES) && XMITW_SAMPLES > 0) || (defined(XMITW_SAMPLES_UNICAST) && XMITW_SAMPLES_UNICAST > 0)
+    uint16_t xmitw_samples;       /* size of transmit window in samples */
+#endif
     zhe_time_t  tsynch;              /* next time to send out a SYNCH because of unack'd messages */
     cid_t    cid;                 /* conduit id */
     zhe_time_t  last_rexmit;         /* time of latest retransmit */
     seq_t    last_rexmit_seq;     /* latest sequence number retransmitted */
     uint8_t  draining_window: 1;  /* set to true if draining window (waiting for ACKs) after hitting limit */
     uint8_t  *rbuf;               /* reliable samples (or declarations); prepended by size (of type zhe_msgsize_t) */
+#if XMITW_SAMPLE_INDEX
+    seq_t    firstidx;
+    uint16_t *rbufidx;            /* rbuf[rbufidx[seq % xmitw_samples]] is first byte of length of message seq */
+#endif
 };
 
 struct peer {
@@ -82,6 +89,9 @@ struct out_mconduit {
 
 static struct out_mconduit out_mconduits[N_OUT_MCONDUITS];
 static uint8_t out_mconduits_oc_rbuf[N_OUT_MCONDUITS][XMITW_BYTES];
+#if XMITW_SAMPLE_INDEX
+static uint16_t out_mconduits_oc_rbufidx[N_OUT_MCONDUITS][XMITW_SAMPLES];
+#endif
 #endif
 
 #if N_OUT_MCONDUITS == 0
@@ -131,6 +141,9 @@ static peeridx_t npeers;
 static struct peer peers[MAX_PEERS_1];
 #if HAVE_UNICAST_CONDUIT
 static uint8_t peers_oc_rbuf[MAX_PEERS_1][XMITW_BYTES_UNICAST];
+#if XMITW_SAMPLE_INDEX
+static uint16_t peers_oc_rbufidx[MAX_PEERS_1][XMITW_SAMPLES_UNICAST];
+#endif
 #endif
 
 #if MAX_PEERS > 0
@@ -149,7 +162,7 @@ static void oc_reset_transmit_window(struct out_conduit * const oc)
     oc->draining_window = 0;
 }
 
-static void oc_setup1(struct out_conduit * const oc, cid_t cid, uint16_t xmitw_bytes, uint8_t *rbuf)
+static void oc_setup1(struct out_conduit * const oc, cid_t cid, uint16_t xmitw_bytes, uint8_t *rbuf, uint16_t xmitw_samples, uint16_t *rbufidx)
 {
     memset(&oc->addr, 0, sizeof(oc->addr));
     oc->cid = cid;
@@ -158,7 +171,14 @@ static void oc_setup1(struct out_conduit * const oc, cid_t cid, uint16_t xmitw_b
     oc->pos = sizeof(zhe_msgsize_t);
     oc->spos = 0;
     oc->xmitw_bytes = xmitw_bytes;
+#if (defined(XMITW_SAMPLES) && XMITW_SAMPLES > 0) || (defined(XMITW_SAMPLES_UNICAST) && XMITW_SAMPLES_UNICAST > 0)
+    oc->xmitw_samples = xmitw_samples;
+#endif
     oc->rbuf = rbuf;
+#if XMITW_SAMPLE_INDEX
+    oc->firstidx = 0;
+    oc->rbufidx = rbufidx;
+#endif
     oc_reset_transmit_window(oc);
 }
 
@@ -209,7 +229,12 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     }
     p->state = PEERST_UNKNOWN;
 #if HAVE_UNICAST_CONDUIT
-    oc_setup1(&p->oc, UNICAST_CID, XMITW_BYTES_UNICAST, peers_oc_rbuf[peeridx]);
+#if XMITW_SAMPLE_INDEX
+    uint16_t * const rbufidx = peers_oc_rbufidx[peeridx];
+#else
+    uint16_t * const rbufidx = NULL;
+#endif
+    oc_setup1(&p->oc, UNICAST_CID, XMITW_BYTES_UNICAST, peers_oc_rbuf[peeridx], XMITW_SAMPLES_UNICAST, rbufidx);
 #endif
     for (cid_t i = 0; i < N_IN_CONDUITS; i++) {
         p->ic[i].seq = 0;
@@ -229,7 +254,12 @@ static void init_globals(zhe_time_t tnow)
     /* Need to reset out_mconduits[.].seqbase.ix[i] before reset_peer(i) may be called */
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
         struct out_mconduit * const mc = &out_mconduits[i];
-        oc_setup1(&mc->oc, i, XMITW_BYTES, out_mconduits_oc_rbuf[i]);
+#if XMITW_SAMPLE_INDEX
+        uint16_t * const rbufidx = out_mconduits_oc_rbufidx[i];
+#else
+        uint16_t * const rbufidx = NULL;
+#endif
+        oc_setup1(&mc->oc, i, XMITW_BYTES, out_mconduits_oc_rbuf[i], XMITW_SAMPLES, rbufidx);
         mc->seqbase.n = 0;
         for (peeridx_t j = 0; j < MAX_PEERS; j++) {
             mc->seqbase.hx[j] = PEERIDX_INVALID;
@@ -269,7 +299,30 @@ static uint16_t xmitw_pos_add(const struct out_conduit *c, uint16_t p, uint16_t 
     return p;
 }
 
-uint16_t zhe_xmitw_bytesavail(const struct out_conduit *c)
+static zhe_msgsize_t xmitw_load_msgsize(const struct out_conduit *c, uint16_t p)
+{
+    zhe_msgsize_t sz;
+    if (p < c->xmitw_bytes - sizeof(sz)) {
+        memcpy(&sz, &c->rbuf[p], sizeof(sz));
+        return sz;
+    } else {
+        memcpy(&sz, &c->rbuf[p], c->xmitw_bytes - p);
+        memcpy((char *)&sz + (c->xmitw_bytes - p), &c->rbuf[0], sizeof(sz) - (c->xmitw_bytes - p));
+        return sz;
+    }
+}
+
+static void xmitw_store_msgsize(const struct out_conduit *c, uint16_t p, zhe_msgsize_t sz)
+{
+    if (p < c->xmitw_bytes - sizeof(sz)) {
+        memcpy(&c->rbuf[p], &sz, sizeof(sz));
+    } else {
+        memcpy(&c->rbuf[p], &sz, c->xmitw_bytes - p);
+        memcpy(&c->rbuf[0], (char *)&sz + (c->xmitw_bytes - p), sizeof(sz) - (c->xmitw_bytes - p));
+    }
+}
+
+static uint16_t zhe_xmitw_bytesavail(const struct out_conduit *c)
 {
     uint16_t res;
     zhe_assert(c->pos < c->xmitw_bytes);
@@ -284,6 +337,33 @@ static seq_t oc_get_nsamples(struct out_conduit const * const c)
 {
     return (seq_t)(c->seq - c->seqbase) >> SEQNUM_SHIFT;
 }
+
+int zhe_xmitw_hasspace(const struct out_conduit *c, zhe_paysize_t sz)
+{
+#if (defined(XMITW_SAMPLES) && XMITW_SAMPLES > 0) || (defined(XMITW_SAMPLES_UNICAST) && XMITW_SAMPLES_UNICAST > 0)
+    if (oc_get_nsamples(c) == c->xmitw_samples) {
+        return 0;
+    }
+#endif
+    const zhe_paysize_t av = zhe_xmitw_bytesavail(c);
+    return av >= sizeof(zhe_msgsize_t) && av - sizeof(zhe_msgsize_t) >= sz;
+}
+
+#if XMITW_SAMPLE_INDEX
+static uint16_t xmitw_load_rbufidx(const struct out_conduit *c, seq_t seq)
+{
+    seq_t off = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
+    seq_t idx = (c->firstidx + off) % c->xmitw_samples;
+    return c->rbufidx[idx];
+}
+
+static void xmitw_store_rbufidx(const struct out_conduit *c, seq_t seq, uint16_t p)
+{
+    seq_t off = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
+    seq_t idx = (c->firstidx + off) % c->xmitw_samples;
+    c->rbufidx[idx] = p;
+}
+#endif
 
 void zhe_pack_msend(void)
 {
@@ -433,8 +513,11 @@ void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from)
     }
 }
 
+static void check_xmitw(const struct out_conduit *c);
+
 zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zhe_paysize_t sz, zhe_time_t tnow)
 {
+    check_xmitw(c);
     zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
     if (!relflag) {
         zhe_pack_reserve_mconduit(&c->addr, NULL, c->cid, sz, tnow);
@@ -469,14 +552,19 @@ void zhe_oc_pack_payload_done(struct out_conduit *c, int relflag, zhe_time_t tno
         c->useq += SEQNUM_UNIT;
     } else {
         zhe_msgsize_t len = (zhe_msgsize_t) (c->pos - c->spos + (c->pos < c->spos ? c->xmitw_bytes : 0) - sizeof(zhe_msgsize_t));
-        memcpy(&c->rbuf[c->spos], &len, sizeof(len));
+        xmitw_store_msgsize(c, c->spos, len);
+#if XMITW_SAMPLE_INDEX
+        xmitw_store_rbufidx(c, c->seq, c->spos);
+#endif
         c->spos = c->pos;
         c->pos = xmitw_pos_add(c, c->pos, sizeof(zhe_msgsize_t));
         if (c->seq == c->seqbase) {
             /* first unack'd sample, schedule SYNCH */
             c->tsynch = tnow + MSYNCH_INTERVAL;
         }
+        /* prep for next sample */
         c->seq += SEQNUM_UNIT;
+        check_xmitw(c);
     }
 }
 
@@ -1168,9 +1256,38 @@ static const uint8_t *handle_msdata(peeridx_t peeridx, const uint8_t * const end
     return data;
 }
 
+#ifndef NDEBUG
+static void check_xmitw(const struct out_conduit *c)
+{
+#if 0
+    zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
+    if (c->seq == c->seqbase) {
+        zhe_assert(c->spos == c->firstpos);
+    } else {
+        zhe_msgsize_t len;
+        uint16_t p;
+        seq_t seq;
+        seq = c->seqbase;
+        p = c->firstpos;
+        do {
+            zhe_assert(p == xmitw_load_rbufidx(c, seq));
+            len = xmitw_load_msgsize(c, p);
+            seq += SEQNUM_UNIT;
+            p = xmitw_pos_add(c, p, len + sizeof(zhe_msgsize_t));
+        } while (seq != c->seq);
+        assert(p == c->spos);
+    }
+#endif
+}
+#endif
+
 static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
 {
     ZT(RELIABLE, ("remove_acked_messages cid %u %p seq %u", c->cid, (void*)c, seq >> SEQNUM_SHIFT));
+
+#ifndef NDEBUG
+    check_xmitw(c);
+#endif
 
     if (zhe_seq_lt(c->seq, seq)) {
         /* Broker is ACKing samples we haven't even sent yet, use the opportunity to drain the
@@ -1179,6 +1296,19 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
     }
 
     if(zhe_seq_lt(c->seqbase, seq)) {
+#if XMITW_SAMPLE_INDEX
+        seq_t cnt = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
+        if (seq == c->seq) {
+            c->firstpos = c->spos;
+            c->firstidx = (c->firstidx + cnt) % c->xmitw_samples;
+            c->seqbase = seq;
+        } else {
+            /* FIXME: beware, order matters ... */
+            c->firstpos = xmitw_load_rbufidx(c, seq);
+            c->firstidx = (c->firstidx + cnt) % c->xmitw_samples;
+            c->seqbase = seq;
+        }
+#else
         /* Acking some samples, drop everything from seqbase up to but not including seq */
 #ifndef NDEBUG
         seq_t cnt = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
@@ -1190,16 +1320,19 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
             cnt--;
 #endif
             c->seqbase += SEQNUM_UNIT;
-            memcpy(&len, &c->rbuf[c->firstpos], sizeof(len));
+            len = xmitw_load_msgsize(c, c->firstpos);
             c->firstpos = xmitw_pos_add(c, c->firstpos, len + sizeof(zhe_msgsize_t));
         }
         zhe_assert(cnt == 0);
+#endif
         zhe_assert(((c->firstpos + sizeof(zhe_msgsize_t)) % c->xmitw_bytes == c->pos) == (c->seq == c->seqbase));
     }
 
     if (oc_get_nsamples(c) == 0) {
         c->draining_window = 0;
     }
+
+    check_xmitw(c);
 }
 
 static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, cid_t cid, zhe_time_t tnow)
@@ -1251,12 +1384,9 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
            before pushing out that last sample. */
         uint16_t p;
         zhe_msgsize_t sz, outspos_tmp = OUTSPOS_UNSET;
-#if MAX_PEERS != 0
-        seq_t seqbase;
-#endif
         ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u mask %08x", peeridx, cid, seq >> SEQNUM_SHIFT, mask));
 #if MAX_PEERS == 0
-        zhe_assert (seq == c->seqbase);
+        zhe_assert(seq == c->seqbase);
 #endif
         /* Do not set the S bit on anything that happens to currently be in the output buffer,
            if that is of the same conduit as the one we are retransmitting on, as we by now know
@@ -1268,16 +1398,25 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
         }
         /* Note: transmit window is formatted as SZ1 [MSG2 x SZ1] SZ2 [MSG2 x SZ2], &c,
            wrapping around at c->xmit_bytes.  */
-        memcpy(&sz, &c->rbuf[c->firstpos], sizeof(sz));
-        p = xmitw_pos_add(c, c->firstpos, sizeof(zhe_msgsize_t));
+#if XMITW_SAMPLE_INDEX
+        p = xmitw_load_rbufidx(c, seq);
+        sz = xmitw_load_msgsize(c, p);
+        p = xmitw_pos_add(c, p, sizeof(zhe_msgsize_t));
+#else
+        p = c->firstpos;
+        sz = xmitw_load_msgsize(c, p);
+        p = xmitw_pos_add(c, p, sizeof(zhe_msgsize_t));
 #if MAX_PEERS != 0
-        seqbase = c->seqbase;
-        while (zhe_seq_lt(seqbase, seq)) {
-            p = xmitw_pos_add(c, p, sz);
-            seqbase += SEQNUM_UNIT;
-            memcpy(&sz, &c->rbuf[p], sizeof(sz));
-            p = xmitw_pos_add(c, p, sizeof(zhe_msgsize_t));
+        {
+            seq_t seqbase = c->seqbase;
+            while (zhe_seq_lt(seqbase, seq)) {
+                p = xmitw_pos_add(c, p, sz);
+                seqbase += SEQNUM_UNIT;
+                sz = xmitw_load_msgsize(c, p);
+                p = xmitw_pos_add(c, p, sizeof(zhe_msgsize_t));
+            }
         }
+#endif
 #endif
         while (mask && zhe_seq_lt(seq, c->seq)) {
             if ((mask & 1) == 0) {
@@ -1298,7 +1437,7 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
             }
             mask >>= 1;
             seq += SEQNUM_UNIT;
-            memcpy(&sz, &c->rbuf[p], sizeof(sz));
+            sz = xmitw_load_msgsize(c, p);
             p = xmitw_pos_add(c, p, sizeof(zhe_msgsize_t));
         }
         c->last_rexmit = tnow;
@@ -1452,7 +1591,7 @@ static void maybe_send_scout(zhe_time_t tnow)
 #if MAX_PEERS == 0
     if (peers[0].state == PEERST_UNKNOWN && (zhe_timediff_t)(tnow - peers[0].tlease) >= 0) {
         peers[0].tlease = tnow + SCOUT_INTERVAL;
-        zhe_pack_mscout(&scoutaddr);
+        zhe_pack_mscout(&scoutaddr, tnow);
         zhe_pack_msend();
     }
     /* FIXME: send keepalive if connected to a broker? */
@@ -1519,12 +1658,12 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
         peeridx_t peeridx = 0;
         const uint8_t *datap = handle_packet(&peeridx, buf + sz, buf, tnow);
         /* note: peeridx need no longer be correct */
-        ssize_t cons = (ssize_t) (datap - inbuf);
+        int cons = (int)(datap - (const uint8_t *)buf);
         if (cons > 0 && peers[0].state == PEERST_ESTABLISHED) {
             /* any complete message is considered proof of liveliness of the broker once a connection has been established */
             peers[0].tlease = tnow;
         }
-        return (int)cons;
+        return cons;
     }
 }
 #endif

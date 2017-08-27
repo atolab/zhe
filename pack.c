@@ -247,7 +247,7 @@ int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_pa
     zhe_msgsize_t from;
     seq_t s;
 
-    if (relflag && zhe_xmitw_bytesavail(c) < sizeof(zhe_msgsize_t) + sz) {
+    if (relflag && !zhe_xmitw_hasspace(c, sz)) {
         /* Reliable, insufficient space in transmit window (accounting for preceding length byte) */
         zhe_oc_hit_full_window(c, tnow);
         return 0;
@@ -279,7 +279,7 @@ int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen,
     const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(ndecls) + decllen;
     seq_t s;
     zhe_assert(ndecls <= 127);
-    if (zhe_xmitw_bytesavail(c) < sizeof(zhe_msgsize_t) + sz) {
+    if (!zhe_xmitw_hasspace(c, sz)) {
         return 0;
     }
     *from = zhe_oc_pack_payload_msgprep(&s, c, 1, sz, tnow);

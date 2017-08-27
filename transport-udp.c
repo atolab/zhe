@@ -310,7 +310,7 @@ static int is_from_me(const struct udp * restrict udp, const zhe_address_t * res
     return 0;
 }
 
-ssize_t zhe_udp_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src)
+int zhe_udp_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src)
 {
     struct udp *udp = (struct udp *)tp;
     ssize_t ret = udp_recv1(udp, buf, size, src);
@@ -320,7 +320,8 @@ ssize_t zhe_udp_recv(struct zhe_transport * restrict tp, void * restrict buf, si
             udp_addr2string(tp, tmp, sizeof(tmp), src);
             ZT(TRANSPORT, ("recv[%d] %zu from %s", 1 - udp->next, ret, tmp));
         }
-        return ret;
+        assert(ret < INT_MAX);
+        return (int)ret;
     } else {
         if (is_from_me(udp, src)) {
             char tmp[TRANSPORT_ADDRSTRLEN];

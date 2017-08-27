@@ -114,7 +114,7 @@ int main(int argc, char * const *argv)
     char *mcgroups_join_str = "239.255.0.2,239.255.0.3";
     char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
     int (*wait)(const struct zhe_transport * restrict tp, zhe_timediff_t timeout);
-    ssize_t (*recv)(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src);
+    int (*recv)(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src);
 
     srandomdev();
     zhe_time_init();
@@ -232,7 +232,7 @@ int main(int argc, char * const *argv)
                 if (wait(transport, 10)) {
                     char inbuf[TRANSPORT_MTU];
                     zhe_address_t insrc;
-                    ssize_t recvret;
+                    int recvret;
                     tnow = zhe_time();
                     if ((recvret = recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
                         zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
@@ -251,22 +251,22 @@ int main(int argc, char * const *argv)
             zhe_time_t tprint = zhe_time();
             while (1) {
                 const int blocksize = 50;
+                zhe_time_t tnow = zhe_time();
 
-                zhe_housekeeping(zhe_time());
+                zhe_housekeeping(tnow);
 
                 {
                     char inbuf[TRANSPORT_MTU];
                     zhe_address_t insrc;
-                    ssize_t recvret;
+                    int recvret;
                     while ((recvret = recv(transport, inbuf, sizeof(inbuf), &insrc)) > 0) {
-                        zhe_input(inbuf, (size_t)recvret, &insrc, zhe_time());
+                        zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
                     }
                 }
 
                 /* Loop means we don't call zhe_housekeeping for each sample, which dramatically reduces the
                    number of (non-blocking) recvfrom calls and speeds things up a fair bit */
                 for (int i = 0; i < blocksize; i++) {
-                    zhe_time_t tnow = zhe_time();
                     if (zhe_write(p, sizeof(k), &k, tnow)) {
                         if ((k % checkintv) == 0) {
                             if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {

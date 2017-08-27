@@ -217,7 +217,7 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
 #endif
 
     if (s->next.idx == 0) {
-        if (s->xmitneed == 0 || s->xmitneed <= zhe_xmitw_bytesavail(s->oc)) {
+        if (s->xmitneed == 0 || zhe_xmitw_hasspace(s->oc, s->xmitneed)) {
             /* Do note that "xmitneed" had better include overhead! */
             s->handler(prid, paysz, pay, s->arg);
             return 1;
@@ -234,7 +234,7 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
             }
         }
         for (cid_t cid = 0; cid < N_OUT_CONDUITS; cid++) {
-            if (xmitneed[cid] > 0 && xmitneed[cid] > zhe_xmitw_bytesavail(zhe_out_conduit_from_cid(0, cid))) {
+            if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(0, cid), xmitneed[cid])) {
                 return 0;
             }
         }
@@ -304,7 +304,7 @@ void zhe_send_declares(zhe_time_t tnow)
      conceivably data could be published that will be lost.  */
 #if MAX_PEERS == 0
     if ((first = zhe_bitset_findfirst(todeclare.pubs, ZHE_MAX_PUBLICATIONS)) >= 0) {
-        if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from)) {
+        if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from, tnow)) {
             zhe_assert(pubs[first].rid != 0);
             ZT(PUBSUB, ("sending dpub %d rid %ju", first, (uintmax_t)pubs[first].rid));
             zhe_pack_dpub(pubs[first].rid);
