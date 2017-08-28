@@ -24,7 +24,7 @@ typedef struct { uint16_t idx; } zhe_subidx_t;
 typedef void (*zhe_subhandler_t)(zhe_rid_t rid, zhe_paysize_t size, const void *payload, void *arg);
 
 struct zhe_address;
-struct zhe_transport;
+struct zhe_platform;
 
 struct zhe_config {
     size_t idlen;
@@ -39,7 +39,7 @@ struct zhe_config {
     struct zhe_address *mconduit_dstaddrs;
 };
 
-int zhe_init(const struct zhe_config *config, struct zhe_transport *tp, zhe_time_t tnow);
+int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_t tnow);
 void zhe_start(zhe_time_t tnow);
 void zhe_housekeeping(zhe_time_t tnow);
 int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow);

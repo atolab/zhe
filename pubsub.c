@@ -68,7 +68,7 @@ static struct precommit precommit_curpkt;
 
 void zhe_decl_note_error(uint8_t bitmask, zhe_rid_t rid)
 {
-    ZT(PUBSUB, ("decl_note_error: mask %x rid %ju", bitmask, (uintmax_t)rid));
+    ZT(PUBSUB, "decl_note_error: mask %x rid %ju", bitmask, (uintmax_t)rid);
     if (precommit_curpkt.result == 0) {
         precommit_curpkt.invalid_rid = rid;
     }
@@ -103,11 +103,11 @@ uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid)
 {
     zhe_assert (precommit_curpkt.result == 0);
     if (precommit[peeridx].result == 0) {
-        ZT(PUBSUB, ("rsub_precommit peeridx %u ok", peeridx));
+        ZT(PUBSUB, "rsub_precommit peeridx %u ok", peeridx);
         return 0;
     } else {
         uint8_t result = precommit[peeridx].result;
-        ZT(PUBSUB, ("rsub_precommit peeridx %u result %u", peeridx, result));
+        ZT(PUBSUB, "rsub_precommit peeridx %u result %u", peeridx, result);
         *err_rid = precommit[peeridx].invalid_rid;
         memset(&precommit[peeridx], 0, sizeof(precommit[peeridx]));
         return result;
@@ -116,7 +116,7 @@ uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid)
 
 void zhe_rsub_commit(peeridx_t peeridx)
 {
-    ZT(PUBSUB, ("rsub_commit peeridx %u", peeridx));
+    ZT(PUBSUB, "rsub_commit peeridx %u", peeridx);
     zhe_assert(precommit[peeridx].result == 0);
 #if MAX_PEERS == 0
     for (size_t i = 0; i < sizeof(pubs_rsubs); i++) {
@@ -131,9 +131,11 @@ void zhe_rsub_commit(peeridx_t peeridx)
                 zhe_pubidx_t pubidx;
                 for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
                     if (pubs[pubidx.idx].rid == rid) {
-                        if (ZTT(PUBSUB) && !zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
-                            ZT(PUBSUB, ("pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid));
+#if ENABLE_TRACING
+                        if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
+                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                         }
+#endif
                         zhe_bitset_set(pubs_rsubs, pubidx.idx);
                         break;
                     }
@@ -181,7 +183,7 @@ void zhe_rsub_clear(peeridx_t peeridx)
                 }
             }
             if (i == MAX_PEERS_1) {
-                ZT(PUBSUB, ("pub %u rid %ju: no more remote subs", (unsigned)pubidx.idx, (uintmax_t)rid));
+                ZT(PUBSUB, "pub %u rid %ju: no more remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                 zhe_bitset_clear(pubs_rsubs, pubidx.idx);
             }
         }
@@ -306,13 +308,13 @@ void zhe_send_declares(zhe_time_t tnow)
     if ((first = zhe_bitset_findfirst(todeclare.pubs, ZHE_MAX_PUBLICATIONS)) >= 0) {
         if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from, tnow)) {
             zhe_assert(pubs[first].rid != 0);
-            ZT(PUBSUB, ("sending dpub %d rid %ju", first, (uintmax_t)pubs[first].rid));
+            ZT(PUBSUB, "sending dpub %d rid %ju", first, (uintmax_t)pubs[first].rid);
             zhe_pack_dpub(pubs[first].rid);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
             zhe_bitset_clear(todeclare.pubs, (unsigned)first);
             must_commit = 1;
         } else {
-            ZT(PUBSUB, ("postponing dpub %d rid %ju", first, (uintmax_t)pubs[first].rid));
+            ZT(PUBSUB, "postponing dpub %d rid %ju", first, (uintmax_t)pubs[first].rid);
         }
         return;
     }
@@ -321,19 +323,19 @@ void zhe_send_declares(zhe_time_t tnow)
     if ((first = zhe_bitset_findfirst(todeclare.subs, ZHE_MAX_SUBSCRIPTIONS)) >= 0) {
         if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from, tnow)) {
             zhe_assert(subs[first].rid != 0);
-            ZT(PUBSUB, ("sending dsub %d rid %ju", first, (uintmax_t)subs[first].rid));
+            ZT(PUBSUB, "sending dsub %d rid %ju", first, (uintmax_t)subs[first].rid);
             zhe_pack_dsub(subs[first].rid);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
             zhe_bitset_clear(todeclare.subs, (unsigned)first);
             must_commit = 1;
         } else {
-            ZT(PUBSUB, ("postponing dsub %d rid %ju", first, (uintmax_t)subs[first].rid));
+            ZT(PUBSUB, "postponing dsub %d rid %ju", first, (uintmax_t)subs[first].rid);
         }
         return;
     }
 
     if (must_commit && zhe_oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE, &from, tnow)) {
-        ZT(PUBSUB, ("sending commit %u", gcommitid));
+        ZT(PUBSUB, "sending commit %u", gcommitid);
         zhe_pack_dcommit(gcommitid++);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
         zhe_pack_msend();
@@ -367,14 +369,14 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
     if (reliable) {
         zhe_bitset_set(pubs_isrel, pubidx.idx);
     }
-    ZT(PUBSUB, ("publish: %u rid %ju (%s)", pubidx.idx, (uintmax_t)rid, reliable ? "reliable" : "unreliable"));
+    ZT(PUBSUB, "publish: %u rid %ju (%s)", pubidx.idx, (uintmax_t)rid, reliable ? "reliable" : "unreliable");
 #if MAX_PEERS == 0
     todeclare.workpending = 1;
     zhe_bitset_set(todeclare.pubs, pubidx.idx);
 #else
     for (peeridx_t peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
         if (zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
-            ZT(PUBSUB, ("publish: %u rid %ju has remote subs", pubidx.idx, (uintmax_t)rid, reliable ? "reliable" : "unreliable"));
+            ZT(PUBSUB, "publish: %u rid %ju has remote subs", pubidx.idx, (uintmax_t)rid, reliable ? "reliable" : "unreliable");
             zhe_bitset_set(pubs_rsubs, pubidx.idx);
             break;
         }
@@ -417,7 +419,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
 #endif
     todeclare.workpending = 1;
     zhe_bitset_set(todeclare.subs, subidx.idx);
-    ZT(PUBSUB, ("subscribe: %u rid %ju", subidx.idx, (uintmax_t)rid));
+    ZT(PUBSUB, "subscribe: %u rid %ju", subidx.idx, (uintmax_t)rid);
     return subidx;
 }
 

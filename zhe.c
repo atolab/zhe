@@ -10,7 +10,6 @@
 #include "zhe-msg.h"
 #include "zhe-int.h"
 #include "zhe-tracing.h"
-#include "zhe-time.h"
 #include "zhe.h"
 #include "pack.h"
 #include "unpack.h"
@@ -114,11 +113,13 @@ static xwpos_t out_mconduits_oc_rbufidx[N_OUT_MCONDUITS][XMITW_SAMPLES];
       } while (0)
 #endif
 
+unsigned zhe_trace_cats;
+struct zhe_platform *zhe_platform;
+
 /* we send SCOUT messages to a separately configurable address (not so much because it really seems
    necessary to have a separate address for scouting, as that we need a statically available address
    to use for the destination of the outgoing packet) */
 static zhe_address_t scoutaddr;
-static struct zhe_transport *transport;
 
 #if MAX_MULTICAST_GROUPS > 0
 static uint16_t n_multicast_locators;
@@ -402,7 +403,7 @@ void zhe_pack_msend(void)
             outbuf[outspos] |= MSFLAG;
         }
     }
-    if (transport->ops->send(transport, outbuf, outp, outdst) < 0) {
+    if (zhe_platform_send(zhe_platform, outbuf, outp, outdst) < 0) {
         zhe_assert(0);
     }
     outp = 0;
@@ -436,7 +437,7 @@ void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t 
            we check, because it is single-threaded and we always complete whatever message we
            start constructing */
         outdeadline = tnow + LATENCY_BUDGET;
-        ZT(DEBUG, ("deadline at %"PRIu32".%0"PRIu32, ZTIME_TO_SECu32(outdeadline), ZTIME_TO_MSECu32(outdeadline)));
+        ZT(DEBUG, "deadline at %"PRIu32".%0"PRIu32, ZTIME_TO_SECu32(outdeadline), ZTIME_TO_MSECu32(outdeadline));
     }
 #endif
 }
@@ -475,7 +476,7 @@ uint16_t zhe_pack_locs_calcsize(void)
     size_t n = zhe_pack_vle16req(n_multicast_locators);
     char tmp[TRANSPORT_ADDRSTRLEN];
     for (uint16_t i = 0; i < n_multicast_locators; i++) {
-        size_t n1 = transport->ops->addr2string(transport, tmp, sizeof(tmp), &multicast_locators[i]);
+        size_t n1 = zhe_platform_addr2string(zhe_platform, tmp, sizeof(tmp), &multicast_locators[i]);
         zhe_assert(n1 < UINT16_MAX);
         n += zhe_pack_vle16req((uint16_t)n1) + n1;
     }
@@ -492,7 +493,7 @@ void zhe_pack_locs(void)
     zhe_pack_vle16(n_multicast_locators);
     for (uint16_t i = 0; i < n_multicast_locators; i++) {
         char tmp[TRANSPORT_ADDRSTRLEN];
-        uint16_t n1 = (uint16_t)transport->ops->addr2string(transport, tmp, sizeof(tmp), &multicast_locators[i]);
+        uint16_t n1 = (uint16_t)zhe_platform_addr2string(zhe_platform, tmp, sizeof(tmp), &multicast_locators[i]);
         zhe_pack_vec(n1, tmp);
     }
 #else
@@ -733,7 +734,7 @@ static const uint8_t *handle_dresult(peeridx_t peeridx, const uint8_t * const en
     if (status && !zhe_unpack_rid(end, &data, &rid)) {
         return 0;
     }
-    ZT(PUBSUB, ("handle_dresult %u intp %d | commitid %u status %u rid %ju", (unsigned)peeridx, interpret, commitid, status, (uintmax_t)rid));
+    ZT(PUBSUB, "handle_dresult %u intp %d | commitid %u status %u rid %ju", (unsigned)peeridx, interpret, commitid, status, (uintmax_t)rid);
     if (interpret && status != 0) {
         /* Don't know what to do when the broker refuses my declarations - although I guess it
          would make some sense to close the connection and try again.  But even if that is
@@ -783,7 +784,7 @@ static const uint8_t *handle_mscout(peeridx_t peeridx, const uint8_t * const end
     /* For a client all activity is really client-initiated, so we can get away
        with not responding to a SCOUT; for a peer it is different */
     if ((mask & lookfor) && state_ok) {
-        ZT(PEERDISC, ("got a scout! sending a hello"));
+        ZT(PEERDISC, "got a scout! sending a hello");
         zhe_pack_mhello(&peers[peeridx].oc.addr, tnow);
         zhe_pack_msend();
     }
@@ -798,10 +799,10 @@ static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
 #if N_OUT_MCONDUITS > 0
         for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
             char tmp[TRANSPORT_ADDRSTRLEN];
-            const size_t tmpsz = transport->ops->addr2string(transport, tmp, sizeof(tmp), &out_mconduits[cid].oc.addr);
+            const size_t tmpsz = zhe_platform_addr2string(zhe_platform, tmp, sizeof(tmp), &out_mconduits[cid].oc.addr);
             if (sz == tmpsz && memcmp(loc, tmp, sz) == 0) {
                 zhe_bitset_set(peers[peeridx].mc_member, (unsigned)cid);
-                ZT(PEERDISC, ("loc %s cid %u", tmp, (unsigned)cid));
+                ZT(PEERDISC, "loc %s cid %u", tmp, (unsigned)cid);
             }
         }
 #endif
@@ -830,10 +831,10 @@ static const uint8_t *handle_mhello(peeridx_t peeridx, const uint8_t * const end
     if ((mask & lookfor) && state_ok) {
         int send_open = 1;
 
-        ZT(PEERDISC, ("got a hello! sending an open"));
+        ZT(PEERDISC, "got a hello! sending an open");
         if (peers[peeridx].state != PEERST_ESTABLISHED) {
             if (!set_peer_mcast_locs(peeridx, &locs_it)) {
-                ZT(PEERDISC, ("'twas but a hello with an invalid locator list ..."));
+                ZT(PEERDISC, "'twas but a hello with an invalid locator list ...");
                 send_open = 0;
             } else {
                 peers[peeridx].state = PEERST_OPENING_MIN;
@@ -870,12 +871,14 @@ static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zhe_paysize_t idlen, cons
             continue;
         }
         if (peers[i].id.len == idlen && memcmp(peers[i].id.id, id, idlen) == 0) {
+#if ENABLE_TRACING
             if (ZTT(PEERDISC)) {
                 char olda[TRANSPORT_ADDRSTRLEN], newa[TRANSPORT_ADDRSTRLEN];
-                transport->ops->addr2string(transport, olda, sizeof(olda), &peers[i].oc.addr);
-                transport->ops->addr2string(transport, newa, sizeof(newa), &peers[peeridx].oc.addr);
-                ZT(PEERDISC, ("peer %u changed address from %s to %s", (unsigned)i, olda, newa));
+                zhe_platform_addr2string(zhe_platform, olda, sizeof(olda), &peers[i].oc.addr);
+                zhe_platform_addr2string(zhe_platform, newa, sizeof(newa), &peers[peeridx].oc.addr);
+                ZT(PEERDISC, "peer %u changed address from %s to %s", (unsigned)i, olda, newa);
             }
+#endif
             peers[i].oc.addr = peers[peeridx].oc.addr;
             return i;
         }
@@ -883,11 +886,13 @@ static peeridx_t find_peeridx_by_id(peeridx_t peeridx, zhe_paysize_t idlen, cons
     return peeridx;
 }
 
+#if ENABLE_TRACING
 static char tohexdigit(uint8_t x)
 {
     zhe_assert(x <= 15);
     return (x <= 9) ? (char)('0' + x) : (char)('a' + (x - 10));
 }
+#endif
 
 static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * restrict id, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
@@ -897,10 +902,11 @@ static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * 
     zhe_assert(idlen <= PEERID_SIZE);
     zhe_assert(lease_dur >= 0);
 
+#if ENABLE_TRACING
     if (ZTT(PEERDISC)) {
         char astr[TRANSPORT_ADDRSTRLEN];
         char idstr[3*PEERID_SIZE], *idstrp = idstr;
-        transport->ops->addr2string(transport, astr, sizeof(astr), &p->oc.addr);
+        zhe_platform_addr2string(zhe_platform, astr, sizeof(astr), &p->oc.addr);
         for (int i = 0; i < idlen; i++) {
             if (i > 0) {
                 *idstrp++ = ':';
@@ -910,8 +916,9 @@ static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * 
             zhe_assert(idstrp < idstr + sizeof(idstr));
         }
         *idstrp = 0;
-        ZT(PEERDISC, ("accept peer %s %s @ %u; lease = %" PRId32, idstr, astr, peeridx, (int32_t)lease_dur));
+        ZT(PEERDISC, "accept peer %s %s @ %u; lease = %" PRId32, idstr, astr, peeridx, (int32_t)lease_dur);
     }
+#endif
 
     p->state = PEERST_ESTABLISHED;
     p->id.len = idlen;
@@ -967,27 +974,27 @@ static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t *
     } else if (!zhe_unpack_vle16(end, &data, &seqsize)) {
         return 0;
     } else if (seqsize != SEQNUM_LEN) {
-        ZT(PEERDISC, ("got an open with an unsupported sequence number size (%hu)", seqsize));
+        ZT(PEERDISC, "got an open with an unsupported sequence number size (%hu)", seqsize);
         reason = CLR_UNSUPP_SEQLEN;
         goto reject;
     }
     if (version != ZHE_VERSION) {
-        ZT(PEERDISC, ("got an open with an unsupported version (%hhu)", version));
+        ZT(PEERDISC, "got an open with an unsupported version (%hhu)", version);
         reason = CLR_UNSUPP_PROTO;
         goto reject;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        ZT(PEERDISC, ("got an open with an under- or oversized id (%hu)", idlen));
+        ZT(PEERDISC, "got an open with an under- or oversized id (%hu)", idlen);
         reason = CLR_ERROR;
         goto reject;
     }
     if (!conv_lease_to_ztimediff(&ld, ld100)) {
-        ZT(PEERDISC, ("got an open with a lease duration that is not representable here"));
+        ZT(PEERDISC, "got an open with a lease duration that is not representable here");
         reason = CLR_ERROR;
         goto reject;
     }
     if (idlen == ownid.len && memcmp(ownid.id, id, idlen) == 0) {
-        ZT(PEERDISC, ("got an open with my own peer id"));
+        ZT(PEERDISC, "got an open with my own peer id");
         goto reject_no_close;
     }
 
@@ -996,7 +1003,7 @@ static const uint8_t *handle_mopen(peeridx_t * restrict peeridx, const uint8_t *
     p = &peers[*peeridx];
     if (p->state != PEERST_ESTABLISHED) {
         if (!set_peer_mcast_locs(*peeridx, &locs_it)) {
-            ZT(PEERDISC, ("'twas but an open with an invalid locator list ..."));
+            ZT(PEERDISC, "'twas but an open with an invalid locator list ...");
             reason = CLR_ERROR;
             goto reject;
         }
@@ -1029,7 +1036,7 @@ static const uint8_t *handle_maccept(peeridx_t * restrict peeridx, const uint8_t
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        ZT(PEERDISC, ("got an open with an under- or oversized id (%hu)", idlen));
+        ZT(PEERDISC, "got an open with an under- or oversized id (%hu)", idlen);
         goto reject_no_close;
     }
     forme = (idlen == ownid.len && memcmp(id, ownid.id, idlen) == 0);
@@ -1039,12 +1046,12 @@ static const uint8_t *handle_maccept(peeridx_t * restrict peeridx, const uint8_t
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        ZT(PEERDISC, ("got an open with an under- or oversized id (%hu)", idlen));
+        ZT(PEERDISC, "got an open with an under- or oversized id (%hu)", idlen);
         goto reject_no_close;
     }
     if (forme) {
         if (!conv_lease_to_ztimediff(&ld, ld100)) {
-            ZT(PEERDISC, ("got an open with a lease duration that is not representable here"));
+            ZT(PEERDISC, "got an open with a lease duration that is not representable here");
             goto reject;
         }
         *peeridx = find_peeridx_by_id(*peeridx, idlen, id);
@@ -1074,7 +1081,7 @@ static const uint8_t *handle_mclose(peeridx_t * restrict peeridx, const uint8_t 
         return 0;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        ZT(PEERDISC, ("got a close with an under- or oversized id (%hu)", idlen));
+        ZT(PEERDISC, "got a close with an under- or oversized id (%hu)", idlen);
         reset_peer(*peeridx, tnow);
         return 0;
     }
@@ -1125,7 +1132,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, zhe_ti
     if (wantsack || (mask != 0 && (zhe_timediff_t)(tnow - peers[peeridx].ic[cid].tack) > ROUNDTRIP_TIME_ESTIMATE)) {
         /* ACK goes out over unicast path; the conduit used for sending it doesn't have
            much to do with it other than administrative stuff */
-        ZT(RELIABLE, ("acknack_if_needed peeridx %u cid %u wantsack %d mask %u seq %u", peeridx, cid, wantsack, mask, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT));
+        ZT(RELIABLE, "acknack_if_needed peeridx %u cid %u wantsack %d mask %u seq %u", peeridx, cid, wantsack, mask, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
         zhe_pack_macknack(&peers[peeridx].oc.addr, cid, peers[peeridx].ic[cid].seq, mask, tnow);
         zhe_pack_msend();
         peers[peeridx].ic[cid].tack = tnow;
@@ -1159,7 +1166,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
         }
         intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq);
     }
-    ZT(PUBSUB, ("handle_mdeclare %p seq %u peeridx %u ndecls %u intp %d", data, seq, peeridx, ndecls, intp));
+    ZT(PUBSUB, "handle_mdeclare %p seq %u peeridx %u ndecls %u intp %d", data, seq, peeridx, ndecls, intp);
     while (ndecls > 0 && data < end && data != 0) {
         switch (*data & DKIND) {
             case DRESOURCE:  data = handle_dresource(peeridx, end, data, intp); break;
@@ -1177,7 +1184,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
         }
     }
     if (intp && ndecls != 0) {
-        ZT(PUBSUB, ("handle_mdeclare %u .. abort", peeridx));
+        ZT(PUBSUB, "handle_mdeclare %u .. abort", peeridx);
         zhe_rsub_precommit_curpkt_abort(peeridx);
         return 0;
     }
@@ -1185,7 +1192,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
         /* Merge uncommitted declaration state resulting from this DECLARE message into
            uncommitted state accumulator, as we have now completely and successfully processed
            this message.  */
-        ZT(PUBSUB, ("handle_mdeclare %u .. packet done", peeridx));
+        ZT(PUBSUB, "handle_mdeclare %u .. packet done", peeridx);
         zhe_rsub_precommit_curpkt_done(peeridx);
         (void)ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
     }
@@ -1206,10 +1213,10 @@ static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end
         return 0;
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {
-        ZT(RELIABLE, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT));
+        ZT(RELIABLE, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
         if (zhe_seq_le(peers[peeridx].ic[cid].seq, seqbase) || !peers[peeridx].ic[cid].synched) {
             if (!peers[peeridx].ic[cid].synched) {
-                ZT(PEERDISC, ("handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT));
+                ZT(PEERDISC, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
             }
             peers[peeridx].ic[cid].seq = seqbase;
             peers[peeridx].ic[cid].lseqpU = seqbase + cnt_shifted;
@@ -1262,14 +1269,14 @@ static const uint8_t *handle_msdata(peeridx_t peeridx, const uint8_t * const end
             peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
         }
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
-            ZT(RELIABLE, ("handle_msdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT));
+            ZT(RELIABLE, "handle_msdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
             if (zhe_handle_msdata_deliver(prid, paysz, zhe_skip_validated_vle(pay))) {
                 /* if failed to deliver, we must retry, which necessitates a retransmit and not updating the conduit state */
                 ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
             }
             zhe_delivered++;
         } else {
-            ZT(RELIABLE, ("handle_msdata peeridx %u cid %u seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT));
+            ZT(RELIABLE, "handle_msdata peeridx %u cid %u seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
             zhe_discarded++;
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
@@ -1291,7 +1298,7 @@ static xwpos_t xmitw_skip_to_seq(const struct out_conduit *c, xwpos_t p, seq_t s
 
 static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
 {
-    ZT(RELIABLE, ("remove_acked_messages cid %u %p seq %u", c->cid, (void*)c, seq >> SEQNUM_SHIFT));
+    ZT(RELIABLE, "remove_acked_messages cid %u %p seq %u", c->cid, (void*)c, seq >> SEQNUM_SHIFT);
 
 #if !defined(NDEBUG) && XMITW_SAMPLE_INDEX
     check_xmitw(c);
@@ -1351,19 +1358,19 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
     if (mask == 0) {
         /* Pure ACK - no need to do anything else */
         if (seq != c->seq) {
-            ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u ACK but we have [%u,%u]", peeridx, cid, seq >> SEQNUM_SHIFT, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1));
+            ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u ACK but we have [%u,%u]", peeridx, cid, seq >> SEQNUM_SHIFT, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
         } else {
-            ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u ACK", peeridx, cid, seq >> SEQNUM_SHIFT));
+            ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u ACK", peeridx, cid, seq >> SEQNUM_SHIFT);
         }
     } else if (zhe_seq_lt(seq, c->seqbase) || zhe_seq_le(c->seq, seq)) {
         /* If the broker ACKs stuff we have dropped already, or if it NACKs stuff we have not
            even sent yet, send a SYNCH without the S flag (i.e., let the broker decide what to
            do with it) */
-        ZT(RELIABLE, ("handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1));
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
         zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
         zhe_pack_msend();
     } else if ((zhe_timediff_t)(tnow - c->last_rexmit) <= ROUNDTRIP_TIME_ESTIMATE && zhe_seq_lt(seq, c->last_rexmit_seq)) {
-        ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u mask %08x - suppress", peeridx, cid, seq >> SEQNUM_SHIFT, mask));
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u mask %08x - suppress", peeridx, cid, seq >> SEQNUM_SHIFT, mask);
     } else {
         /* Retransmits can always be performed because they do not require buffering new
            messages, all we need to do is push out the buffered messages.  We want the S bit
@@ -1371,7 +1378,7 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
            before pushing out that last sample. */
         xwpos_t p;
         zhe_msgsize_t sz, outspos_tmp = OUTSPOS_UNSET;
-        ZT(RELIABLE, ("handle_macknack peeridx %u cid %u seq %u mask %08x", peeridx, cid, seq >> SEQNUM_SHIFT, mask));
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u mask %08x", peeridx, cid, seq >> SEQNUM_SHIFT, mask);
         /* Do not set the S bit on anything that happens to currently be in the output buffer,
            if that is of the same conduit as the one we are retransmitting on, as we by now know
            that we will retransmit at least one message and therefore will send a message with
@@ -1396,7 +1403,7 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
                    track of the conduit and the position of the last reliable message is solely
                    for the purpose of setting the S flag and scheduling SYNCH messages.  Retransmits
                    are require none of that beyond what we do here locally anyway. */
-                ZT(RELIABLE, ("handle_macknack   rx %u", seq >> SEQNUM_SHIFT));
+                ZT(RELIABLE, "handle_macknack   rx %u", seq >> SEQNUM_SHIFT);
                 sz = xmitw_load_msgsize(c, p);
                 p = xmitw_pos_add(c, p, sizeof(zhe_msgsize_t));
                 zhe_pack_reserve_mconduit(&c->addr, NULL, cid, sz, tnow);
@@ -1511,7 +1518,7 @@ static const uint8_t *handle_packet(peeridx_t * restrict peeridx, const uint8_t 
     return data;
 }
 
-int zhe_init(const struct zhe_config *config, struct zhe_transport *tp, zhe_time_t tnow)
+int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_t tnow)
 {
     /* Is there a way to make the transport pluggable at run-time without dynamic allocation? I don't think so, not with the MTU so important ... */
     if (config->idlen == 0 || config->idlen > PEERID_SIZE) {
@@ -1530,7 +1537,7 @@ int zhe_init(const struct zhe_config *config, struct zhe_transport *tp, zhe_time
     memcpy(ownid_union.v_nonconst.id, config->id, config->idlen);
 
     init_globals(tnow);
-    transport = tp;
+    zhe_platform = pf;
     scoutaddr = *config->scoutaddr;
 #if MAX_MULTICAST_GROUPS > 0
     n_multicast_locators = (uint16_t)config->n_mcgroups_join;
@@ -1582,36 +1589,40 @@ static void maybe_send_scout(zhe_time_t tnow)
 #if TRANSPORT_MODE == TRANSPORT_PACKET
 int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow)
 {
+#if ENABLE_TRACING
     char addrstr[TRANSPORT_ADDRSTRLEN];
+#endif
     peeridx_t peeridx, free_peeridx = PEERIDX_INVALID;
 
     for (peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
-        if (transport->ops->addr_eq(src, &peers[peeridx].oc.addr)) {
+        if (zhe_platform_addr_eq(src, &peers[peeridx].oc.addr)) {
             break;
         } else if (peers[peeridx].state == PEERST_UNKNOWN && free_peeridx == PEERIDX_INVALID) {
             free_peeridx = peeridx;
         }
     }
 
+#if ENABLE_TRACING
     if (ZTT(DEBUG)) {
-        (void)transport->ops->addr2string(transport, addrstr, sizeof(addrstr), src);
+        (void)zhe_platform_addr2string(zhe_platform, addrstr, sizeof(addrstr), src);
     }
+#endif
 
     if (peeridx == MAX_PEERS_1 && free_peeridx != PEERIDX_INVALID) {
-        ZT(DEBUG, ("possible new peer %s @ %u", addrstr, free_peeridx));
+        ZT(DEBUG, "possible new peer %s @ %u", addrstr, free_peeridx);
         peeridx = free_peeridx;
         peers[peeridx].oc.addr = *src;
     }
 
     if (peeridx < MAX_PEERS_1) {
-        ZT(DEBUG, ("handle message from %s @ %u", addrstr, peeridx));
+        ZT(DEBUG, "handle message from %s @ %u", addrstr, peeridx);
         if (peers[peeridx].state == PEERST_ESTABLISHED) {
             peers[peeridx].tlease = tnow;
         }
         return (int)(handle_packet(&peeridx, buf + sz, buf, tnow) - (const uint8_t *)buf);
         /* note: peeridx need no longer be correct */
     } else {
-        ZT(DEBUG, ("message from %s dropped: no available peeridx", addrstr));
+        ZT(DEBUG, "message from %s dropped: no available peeridx", addrstr);
         return 0;
     }
 }
@@ -1662,7 +1673,7 @@ void zhe_housekeeping(zhe_time_t tnow)
                 break;
             case PEERST_ESTABLISHED:
                 if ((zhe_timediff_t)(tnow - peers[i].tlease) > peers[i].lease_dur) {
-                    ZT(PEERDISC, ("lease expired on peer @ %u", i));
+                    ZT(PEERDISC, "lease expired on peer @ %u", i);
                     zhe_pack_mclose(&peers[i].oc.addr, 0, &ownid, tnow);
                     zhe_pack_msend();
                     reset_peer(i, tnow);
@@ -1676,10 +1687,10 @@ void zhe_housekeeping(zhe_time_t tnow)
                 if ((zhe_timediff_t)(tnow - peers[i].tlease) > OPEN_INTERVAL) {
                     if (peers[i].state == PEERST_OPENING_MAX) {
                         /* maximum number of attempts reached, forget it */
-                        ZT(PEERDISC, ("giving up on attempting to establish a session with peer @ %u", i));
+                        ZT(PEERDISC, "giving up on attempting to establish a session with peer @ %u", i);
                         reset_peer(i, tnow);
                     } else {
-                        ZT(PEERDISC, ("retry opening a session with peer @ %u", i));
+                        ZT(PEERDISC, "retry opening a session with peer @ %u", i);
                         peers[i].state++;
                         peers[i].tlease = tnow;
                         zhe_pack_mopen(&peers[i].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION, tnow);

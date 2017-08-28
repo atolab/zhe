@@ -8,7 +8,7 @@
 
 #ifndef ARDUINO
 
-#  include "transport-udp.h"
+#  include "platform-udp.h"
 
 /* Maximum number of peers one node can have (that is, the network may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0, it becomes a client rather than a peer, and scouts for a broker instead */
 #  define MAX_PEERS 12
@@ -51,6 +51,8 @@
 #endif /* defined ARDUINO */
 
 /********** End of Arduino Hack ***********/
+
+#define ENABLE_TRACING          0
 
 /* Setting a latency budget globally for now, though it could be done per-publisher as well. Packets will go out when full or when LATENCY_BUDGET milliseconds passed since we started filling it. Setting it to 0 will disable packing of data messages, setting to INF only stops packing when the MTU is reached and generally requires explicit flushing. Both edge cases eliminate the latency budget handling and state from the code, saving a whopping 4 bytes of RAM!  */
 #define LATENCY_BUDGET_INF      (4294967295u)

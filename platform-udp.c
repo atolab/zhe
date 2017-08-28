@@ -2,11 +2,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -14,7 +18,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
-#include "transport-udp.h"
+#include "platform-udp.h"
 #include "zhe-assert.h"
 #include "zhe-tracing.h"
 #include "zhe-config-deriv.h"
@@ -26,22 +30,39 @@
 #define MAX_SELF 16
 
 struct udp {
-    struct zhe_transport transport;
     int s[2];
     int next;
     uint16_t port;
     uint16_t ucport;
     size_t nself;
     in_addr_t self[MAX_SELF];
+#if SIMUL_PACKET_LOSS
+    long randomthreshold;
+#endif
 };
 
 static struct udp gudp;
-static struct zhe_transport_ops transport_udp;
-#if SIMUL_PACKET_LOSS
-static long randomthreshold = 0;
-#endif
+static struct timespec toffset;
 
-static size_t udp_addr2string(const struct zhe_transport * restrict tp, char * restrict str, size_t size, const zhe_address_t * restrict addr);
+zhe_time_t zhe_platform_time(void)
+{
+    struct timespec t;
+    (void)clock_gettime(CLOCK_MONOTONIC, &t);
+    return (zhe_time_t)((t.tv_sec - toffset.tv_sec) * (1000000000 / ZHE_TIMEBASE) + t.tv_nsec / ZHE_TIMEBASE);
+}
+
+void zhe_platform_trace(struct zhe_platform *pf, const char *fmt, ...)
+{
+    uint32_t t = (uint32_t)zhe_platform_time();
+    va_list ap;
+    va_start(ap, fmt);
+    flockfile(stdout);
+    printf("%4"PRIu32".%03"PRIu32" ", ZTIME_TO_SECu32(t), ZTIME_TO_MSECu32(t));
+    (void)vprintf(fmt, ap);
+    printf("\n");
+    funlockfile(stdout);
+    va_end(ap);
+}
 
 static void set_nonblock(int sock)
 {
@@ -50,7 +71,7 @@ static void set_nonblock(int sock)
     (void)fcntl(sock, F_SETFL, flags);
 }
 
-struct zhe_transport *zhe_udp_new(uint16_t port, int drop_pct)
+struct zhe_platform *zhe_platform_new(uint16_t port, int drop_pct)
 {
     const int one = 1;
     struct udp * const udp = &gudp;
@@ -58,8 +79,11 @@ struct zhe_transport *zhe_udp_new(uint16_t port, int drop_pct)
     socklen_t addrlen;
     struct ifaddrs *ifa;
 
+    (void)clock_gettime(CLOCK_MONOTONIC, &toffset);
+    toffset.tv_sec -= toffset.tv_sec % 10000;
+
 #if SIMUL_PACKET_LOSS
-    randomthreshold = drop_pct * 21474836;
+    udp->randomthreshold = drop_pct * 21474836;
 #endif
 
     udp->port = htons(port);
@@ -78,14 +102,14 @@ struct zhe_transport *zhe_udp_new(uint16_t port, int drop_pct)
                 const struct sockaddr_in *a = (const struct sockaddr_in *)c->ifa_addr;
                 struct zhe_address za = { *a };
                 char str[TRANSPORT_ADDRSTRLEN];
-                udp_addr2string(NULL, str, sizeof(str), &za);
+                zhe_platform_addr2string(NULL, str, sizeof(str), &za);
                 if (a->sin_addr.s_addr == htonl(INADDR_ANY) || a->sin_addr.s_addr == htonl(INADDR_NONE)) {
-                    ZT(TRANSPORT, ("%s: %s (not interesting)", c->ifa_name, str));
+                    ZT(TRANSPORT, "%s: %s (not interesting)", c->ifa_name, str);
                 } else if (udp->nself < MAX_SELF) {
-                    ZT(TRANSPORT, ("%s: %s", c->ifa_name, str));
+                    ZT(TRANSPORT, "%s: %s", c->ifa_name, str);
                     udp->self[udp->nself++] = a->sin_addr.s_addr;
                 } else {
-                    ZT(TRANSPORT, ("%s: %s (no space left)", c->ifa_name, str));
+                    ZT(TRANSPORT, "%s: %s (no space left)", c->ifa_name, str);
                 }
             }
         }
@@ -140,9 +164,7 @@ struct zhe_transport *zhe_udp_new(uint16_t port, int drop_pct)
         perror("bind[1]");
         goto err;
     }
-
-    udp->transport.ops = &transport_udp;
-    return (struct zhe_transport *)udp;
+    return (struct zhe_platform *)udp;
 
 err:
     for (size_t i = 0; i < sizeof(udp->s) / sizeof(udp->s[0]); i++) {
@@ -151,7 +173,7 @@ err:
     return NULL;
 }
 
-static char *udp_uint16_to_string(char * restrict str, uint16_t val)
+static char *uint16_to_string(char * restrict str, uint16_t val)
 {
     if (val == 0) {
         *str++ = '0';
@@ -174,24 +196,24 @@ static char *udp_uint16_to_string(char * restrict str, uint16_t val)
     }
 }
 
-static size_t udp_addr2string1(char * restrict str, const zhe_address_t * restrict addr)
+static size_t addr2string1(char * restrict str, const zhe_address_t * restrict addr)
 {
     char *p;
     (void)inet_ntop(AF_INET, &addr->a.sin_addr.s_addr, str, INET_ADDRSTRLEN);
     p = str + strlen(str);
     *p++ = ':';
-    p = udp_uint16_to_string(p, ntohs(addr->a.sin_port));
+    p = uint16_to_string(p, ntohs(addr->a.sin_port));
     return (size_t)(p - str);
 }
 
-static size_t udp_addr2string(const struct zhe_transport *tp, char * restrict str, size_t size, const zhe_address_t * restrict addr)
+size_t zhe_platform_addr2string(const struct zhe_platform *pf, char * restrict str, size_t size, const zhe_address_t * restrict addr)
 {
     char tmp[TRANSPORT_ADDRSTRLEN];
     zhe_assert(size > 0);
     if (size >= sizeof(tmp)) {
-        return udp_addr2string1(str, addr);
+        return addr2string1(str, addr);
     } else {
-        size_t n = udp_addr2string1(tmp, addr);
+        size_t n = addr2string1(tmp, addr);
         if (n >= size) {
             n = size - 1;
         }
@@ -201,9 +223,9 @@ static size_t udp_addr2string(const struct zhe_transport *tp, char * restrict st
     }
 }
 
-int zhe_udp_string2addr(const struct zhe_transport *tp, struct zhe_address * restrict addr, const char * restrict str)
+int zhe_platform_string2addr(const struct zhe_platform *pf, struct zhe_address * restrict addr, const char * restrict str)
 {
-    struct udp *udp = (struct udp *)tp;
+    struct udp *udp = (struct udp *)pf;
     char *portstr, *portend;
     unsigned long port;
     memset(addr, 0, sizeof(*addr));
@@ -226,9 +248,9 @@ int zhe_udp_string2addr(const struct zhe_transport *tp, struct zhe_address * res
     return 1;
 }
 
-int zhe_udp_join(const struct zhe_transport * restrict tp, const struct zhe_address *addr)
+int zhe_platform_join(const struct zhe_platform *pf, const struct zhe_address *addr)
 {
-    struct udp *udp = (struct udp *)tp;
+    struct udp *udp = (struct udp *)pf;
     struct ip_mreq mreq;
     mreq.imr_multiaddr = addr->a.sin_addr;
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
@@ -240,7 +262,7 @@ int zhe_udp_join(const struct zhe_transport * restrict tp, const struct zhe_addr
 }
 
 #if BLOCKING_SEND
-static void udp_wait_send(int sock)
+static void wait_send(int sock)
 {
     fd_set ws;
     struct timeval tv;
@@ -252,25 +274,25 @@ static void udp_wait_send(int sock)
 }
 #endif
 
-static ssize_t udp_send(struct zhe_transport * restrict tp, const void * restrict buf, size_t size, const zhe_address_t * restrict dst)
+int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t size, const zhe_address_t * restrict dst)
 {
-    struct udp *udp = (struct udp *)tp;
+    struct udp *udp = (struct udp *)pf;
     ssize_t ret;
     zhe_assert(size <= TRANSPORT_MTU);
 #if SIMUL_PACKET_LOSS
-    if (randomthreshold && random() < randomthreshold) {
-        return (ssize_t)size;
+    if (udp->randomthreshold && random() < udp->randomthreshold) {
+        return (int)size;
     }
 #endif
 #if BLOCKING_SEND
-    udp_wait_send(udp->s[0]);
+    wait_send(udp->s[0]);
 #endif
     ret = sendto(udp->s[0], buf, size, 0, (const struct sockaddr *)&dst->a, sizeof(dst->a));
     if (ret > 0) {
         char tmp[TRANSPORT_ADDRSTRLEN];
-        udp_addr2string(tp, tmp, sizeof(tmp), dst);
-        ZT(TRANSPORT, ("send %zu to %s", ret, tmp));
-        return ret;
+        zhe_platform_addr2string(pf, tmp, sizeof(tmp), dst);
+        ZT(TRANSPORT, "send %zu to %s", ret, tmp);
+        return (int)ret;
     } else if (ret == -1 && (errno == EAGAIN || errno == ENOBUFS || errno == EHOSTDOWN || errno == EHOSTUNREACH)) {
         return 0;
     } else {
@@ -278,7 +300,7 @@ static ssize_t udp_send(struct zhe_transport * restrict tp, const void * restric
     }
 }
 
-static ssize_t udp_recv1(struct udp * restrict udp, void * restrict buf, size_t size, zhe_address_t * restrict src)
+static ssize_t recv1(struct udp *udp, void * restrict buf, size_t size, zhe_address_t * restrict src)
 {
     socklen_t srclen = sizeof(src->a);
     ssize_t ret;
@@ -300,7 +322,7 @@ static ssize_t udp_recv1(struct udp * restrict udp, void * restrict buf, size_t 
     }
 }
 
-static int is_from_me(const struct udp * restrict udp, const zhe_address_t * restrict src)
+static int is_from_me(const struct udp *udp, const zhe_address_t * restrict src)
 {
     for (size_t i = 0; i < udp->nself; i++) {
         if (src->a.sin_addr.s_addr == udp->self[i] && src->a.sin_port == udp->ucport) {
@@ -310,36 +332,36 @@ static int is_from_me(const struct udp * restrict udp, const zhe_address_t * res
     return 0;
 }
 
-int zhe_udp_recv(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src)
+int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size, zhe_address_t * restrict src)
 {
-    struct udp *udp = (struct udp *)tp;
-    ssize_t ret = udp_recv1(udp, buf, size, src);
+    struct udp *udp = (struct udp *)pf;
+    ssize_t ret = recv1(udp, buf, size, src);
     if (ret <= 0 || !is_from_me(udp, src)) {
         if (ret > 0) {
             char tmp[TRANSPORT_ADDRSTRLEN];
-            udp_addr2string(tp, tmp, sizeof(tmp), src);
-            ZT(TRANSPORT, ("recv[%d] %zu from %s", 1 - udp->next, ret, tmp));
+            zhe_platform_addr2string(pf, tmp, sizeof(tmp), src);
+            ZT(TRANSPORT, "recv[%d] %zu from %s", 1 - udp->next, ret, tmp);
         }
         assert(ret < INT_MAX);
         return (int)ret;
     } else {
         if (is_from_me(udp, src)) {
             char tmp[TRANSPORT_ADDRSTRLEN];
-            udp_addr2string(tp, tmp, sizeof(tmp), src);
-            ZT(TRANSPORT, ("recv[%d] %zu from %s (self)", 1 - udp->next, ret, tmp));
+            zhe_platform_addr2string(pf, tmp, sizeof(tmp), src);
+            ZT(TRANSPORT, "recv[%d] %zu from %s (self)", 1 - udp->next, ret, tmp);
         }
         return 0;
     }
 }
 
-static int udp_addr_eq(const struct zhe_address *a, const struct zhe_address *b)
+int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *b)
 {
     return a->a.sin_addr.s_addr == b->a.sin_addr.s_addr && a->a.sin_port == b->a.sin_port;
 }
 
-int zhe_udp_wait(const struct zhe_transport * restrict tp, zhe_timediff_t timeout)
+int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
 {
-    struct udp * const udp = (struct udp *)tp;
+    struct udp * const udp = (struct udp *)pf;
     const int k = (udp->s[0] > udp->s[1]) ? udp->s[0] : udp->s[1];
     fd_set rs;
     FD_ZERO(&rs);
@@ -354,11 +376,5 @@ int zhe_udp_wait(const struct zhe_transport * restrict tp, zhe_timediff_t timeou
         return select(k+1, &rs, NULL, NULL, &tv) > 0;
     }
 }
-
-static zhe_transport_ops_t transport_udp = {
-    .addr2string = udp_addr2string,
-    .addr_eq = udp_addr_eq,
-    .send = udp_send
-};
 
 #endif
