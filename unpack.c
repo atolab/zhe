@@ -176,6 +176,7 @@ int zhe_unpack_locs_iter(struct unpack_locs_iter *it, zhe_paysize_t *sz, const u
     } else {
         int x = zhe_unpack_vle16(it->end, &it->data, sz);
         zhe_assert(x);
+        (void)x;
         *loc = it->data;
         it->data += *sz;
         it->n--;

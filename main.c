@@ -14,6 +14,11 @@
 
 #include "zhe-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 
+struct data {
+    uint32_t key;
+    uint32_t seq;
+};
+
 static uint32_t checkintv = 16384;
 
 static zhe_paysize_t getrandomid(unsigned char *ownid, size_t ownidsize)
@@ -57,32 +62,36 @@ extern unsigned zhe_delivered, zhe_discarded;
 
 struct pong { uint32_t k; zhe_time_t t; };
 
+#define MAX_KEY 9u
+
 static void shandler(zhe_rid_t rid, zhe_paysize_t size, const void *payload, void *arg)
 {
     static zhe_time_t tprint;
-    static uint32_t lastk;
+    static uint32_t lastseq[MAX_KEY+1];
     static uint32_t oooc;
-    static int lastk_init;
-    uint32_t k;
-    assert(size == 4);
-    k = *(uint32_t *)payload;
-    if (lastk_init) {
-        if (k != lastk+1) {
+    static uint32_t lastseq_init;
+    const struct data * const d = payload;
+    assert(size == sizeof(*d));
+    if (lastseq_init & (1u << d->key)) {
+        if (d->seq != lastseq[d->key]+1) {
             oooc++;
         }
-        lastk = k;
+        lastseq[d->key] = d->seq;
     } else {
-        lastk = k;
-        lastk_init = 1;
+        lastseq[d->key] = d->seq;
+        lastseq_init |= 1u << d->key;
     }
-    if ((k % checkintv) == 0) {
+    if ((d->seq % checkintv) == 0) {
         zhe_time_t tnow = zhe_time();
         if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {
             zhe_pubidx_t *pub = arg;
-            struct pong pong = { .k = k, .t = tnow };
+            struct pong pong = { .k = d->seq, .t = tnow };
             zhe_write(*pub, sizeof(pong), &pong, tnow);
-
-            printf ("%4"PRIu32".%03"PRIu32" %u %u [%u,%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, oooc, zhe_delivered, zhe_discarded);
+            for (uint32_t k = 0; k <= MAX_KEY; k++) {
+                if (lastseq_init & (1u << k)) {
+                    printf ("%4"PRIu32".%03"PRIu32" [%u] %u %u [%u,%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, lastseq[k], oooc, zhe_delivered, zhe_discarded);
+                }
+            }
             tprint = tnow;
         }
     }
@@ -105,6 +114,7 @@ int main(int argc, char * const *argv)
     int mode = 0;
     unsigned cid = 0;
     int reliable = 1;
+    uint32_t key = 0;
     struct zhe_config cfg;
 #ifndef ARDUINO
     uint16_t port = 7007;
@@ -116,15 +126,24 @@ int main(int argc, char * const *argv)
     int (*wait)(const struct zhe_transport * restrict tp, zhe_timediff_t timeout);
     int (*recv)(struct zhe_transport * restrict tp, void * restrict buf, size_t size, zhe_address_t * restrict src);
 
+#ifdef __APPLE__
     srandomdev();
+#else
+    srandom(time(NULL) + getpid());
+#endif
     zhe_time_init();
     ownidsize = getrandomid(ownid, sizeof(ownid));
     zhe_trace_cats = ~0u;
 
     scoutaddrstr = "239.255.0.1";
-    while((opt = getopt(argc, argv, "C:c:h:psquS:G:M:X:")) != EOF) {
+    while((opt = getopt(argc, argv, "C:k:c:h:psquS:G:M:X:")) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
+            case 'k':
+                if ((key = (uint32_t)atoi(optarg)) > MAX_KEY) {
+                    fprintf(stderr, "key %"PRIu32" out of range\n", key); exit(1);
+                }
+                break;
             case 'p': mode = 1; break;
             case 's': mode = -1; break;
             case 'q': zhe_trace_cats = ZTCAT_PEERDISC | ZTCAT_PUBSUB; break;
@@ -245,8 +264,10 @@ int main(int argc, char * const *argv)
             break;
         }
         case 1: {
-            uint32_t k = 0;
+            struct data d = { .key = key, .seq = 0 };
             zhe_pubidx_t p = zhe_publish(1, cid, reliable);
+            zhe_pubidx_t p2 = zhe_publish(2, cid, 1);
+            (void)zhe_subscribe(1, 0, 0, shandler, &p2);
             (void)zhe_subscribe(2, 0, 0, rhandler, 0);
             zhe_time_t tprint = zhe_time();
             while (1) {
@@ -267,15 +288,15 @@ int main(int argc, char * const *argv)
                 /* Loop means we don't call zhe_housekeeping for each sample, which dramatically reduces the
                    number of (non-blocking) recvfrom calls and speeds things up a fair bit */
                 for (int i = 0; i < blocksize; i++) {
-                    if (zhe_write(p, sizeof(k), &k, tnow)) {
-                        if ((k % checkintv) == 0) {
+                    if (zhe_write(p, sizeof(d), &d, tnow)) {
+                        if ((d.seq % checkintv) == 0) {
                             if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {
                                 extern unsigned zhe_synch_sent;
-                                printf ("%4"PRIu32".%03"PRIu32" %u [%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, zhe_synch_sent);
+                                printf ("%4"PRIu32".%03"PRIu32" %u [%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), d.seq, zhe_synch_sent);
                                 tprint = tnow;
                             }
                         }
-                        k++;
+                        d.seq++;
                     } else {
                         /* zhe_write failed => no space in transmit window => must first process incoming
                          packets or expire a lease to make further progress */
