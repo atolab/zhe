@@ -115,9 +115,7 @@ int main(int argc, char * const *argv)
     int reliable = 1;
     uint32_t key = 0;
     struct zhe_config cfg;
-#ifndef ARDUINO
     uint16_t port = 7007;
-#endif
     int drop_pct = 0;
     const char *scoutaddrstr = "239.255.0.1";
     char *mcgroups_join_str = "239.255.0.2,239.255.0.3";
@@ -173,8 +171,6 @@ int main(int argc, char * const *argv)
     cfg.id = ownid;
     cfg.idlen = ownidsize;
 
-#ifndef ARDUINO
-
     struct zhe_platform * const platform = zhe_platform_new(port, drop_pct);
 
     struct zhe_address scoutaddr;
@@ -219,22 +215,12 @@ int main(int argc, char * const *argv)
         fprintf(stderr, "too few mconduit dstaddrs specified\n"); exit(2);
     }
     free(mconduit_dstaddrs_str);
-#else
-    struct zhe_platform * const platform = zhe_arduino_new();
-    struct zhe_address scoutaddr;
-    memset(&scoutaddr, 0, sizeof(scoutaddr));
-    cfg.scoutaddr = &scoutaddr;
-#endif
 
     if (zhe_init(&cfg, platform, zhe_platform_time()) < 0) {
         fprintf(stderr, "init failed\n");
         exit(1);
     }
     zhe_start(zhe_platform_time());
-
-#if TRANSPORT_MODE == TRANSPORT_STREAM
-#warning "input code here presupposes packets"
-#endif
 
     switch (mode) {
         case 0: case -1: {

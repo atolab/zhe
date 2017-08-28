@@ -1,5 +1,3 @@
-#ifndef ARDUINO
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -376,5 +374,3 @@ int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
         return select(k+1, &rs, NULL, NULL, &tv) > 0;
     }
 }
-
-#endif

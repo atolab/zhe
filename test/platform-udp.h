@@ -1,5 +1,3 @@
-#ifndef ARDUINO
-
 #ifndef TRANSPORT_UDP_H
 #define TRANSPORT_UDP_H
 
@@ -12,7 +10,6 @@ typedef struct zhe_address {
 
 #define TRANSPORT_MTU        1472u
 #define TRANSPORT_MODE       TRANSPORT_PACKET
-#define TRANSPORT_NAME       udp
 #define TRANSPORT_ADDRSTRLEN (INET_ADDRSTRLEN + 6)
 
 zhe_time_t zhe_platform_time(void);
@@ -26,5 +23,4 @@ int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size,
 int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t size, const zhe_address_t * restrict dst);
 int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *b);
 
-#endif
 #endif
