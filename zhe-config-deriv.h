@@ -1,7 +1,9 @@
-#ifndef ZENO_CONFIG_DERIV_H
-#define ZENO_CONFIG_DERIV_H
+#ifndef ZHE_CONFIG_DERIV_H
+#define ZHE_CONFIG_DERIV_H
 
-#include "zeno-config-int.h"
+#include <limits.h>
+#include "zhe-config-int.h"
+#include "zhe-rid.h"
 
 #define MAX_PEERS_1 (MAX_PEERS == 0 ? 1 : MAX_PEERS)
 
@@ -19,7 +21,9 @@
 #if TRANSPORT_MODE != TRANSPORT_STREAM && TRANSPORT_MODE != TRANSPORT_PACKET
 #  error "transport configuration did not set MODE properly"
 #endif
-#if TRANSPORT_MTU < 16 || TRANSPORT_MTU > 65534
+
+/* There is some lower limit that really won't work anymore, but I actually know what that is, so the 16 is just a placeholder (but it is roughly correct); 16-bit unsigned indices are used to index a packet, with the maximum value used as an exceptional value, so larger than 2^16-2 is also no good; and finally, the return type of zhe_input is an int, and so the number of consumed bytes must fit in an int */
+#if TRANSPORT_MTU < 16 || TRANSPORT_MTU > 65534 || TRANSPORT_MTU > INT_MAX
 #  error "transport configuration did not set MTU properly"
 #endif
 
@@ -43,17 +47,17 @@ typedef uint8_t peeridx_t;
 #define PEERIDX_INVALID ((peeridx_t)-1)
 
 #if TRANSPORT_MTU < 254
-typedef uint8_t zmsize_t; /* type used for representing the size of an XRCE message */
+typedef uint8_t zhe_msgsize_t; /* type used for representing the size of an XRCE message */
 #else
-typedef uint16_t zmsize_t;
+typedef uint16_t zhe_msgsize_t;
 #endif
 
-/* zmsize_t is the type capable of representing the maximum size of a message and may not
- be larger than the zpsize_t, the type capable of representing the maximum size of a
+/* zhe_msgsize_t is the type capable of representing the maximum size of a message and may not
+ be larger than the zhe_paysize_t, the type capable of representing the maximum size of a
  payload (fragmentation in principle allows for larger payload (components) than message);
- type conversions occur under the assumption that a zpsize_t can always hold a zmsize_t. */
-struct zmsize_leq_zpsize_t {
-    char req[sizeof(zmsize_t) <= sizeof(zpsize_t) ? 1 : -1];
+ type conversions occur under the assumption that a zhe_paysize_t can always hold a zhe_msgsize_t. */
+struct msgsize_leq_paysize_t {
+    char req[sizeof(zhe_msgsize_t) <= sizeof(zhe_paysize_t) ? 1 : -1];
 };
 
 /* There is not a fundamental limit on the number of conduits, but there are some places
@@ -92,10 +96,10 @@ typedef int64_t sseq_t;
 #define SEQNUM_SHIFT        (sizeof(seq_t))
 #define SEQNUM_UNIT         ((seq_t)(1 << SEQNUM_SHIFT))
 
-#if ZENO_TIMEBASE != 1000000
+#if ZHE_TIMEBASE != 1000000
 #warning "better get the time conversions correct first ..."
 #endif
-#define ZTIME_TO_SECu32(zt) ((uint32_t)((zt) / (1000000000 / ZENO_TIMEBASE)))
-#define ZTIME_TO_MSECu32(zt) ((uint32_t)((zt) / (1000000 / ZENO_TIMEBASE)) % 1000u)
+#define ZTIME_TO_SECu32(zt) ((uint32_t)((zt) / (1000000000 / ZHE_TIMEBASE)))
+#define ZTIME_TO_MSECu32(zt) ((uint32_t)((zt) / (1000000 / ZHE_TIMEBASE)) % 1000u)
 
 #endif

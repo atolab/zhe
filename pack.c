@@ -1,114 +1,113 @@
 /* -*- mode: c; c-basic-offset: 4; fill-column: 95; -*- */
 #include <string.h>
 #include <limits.h>
-#include <assert.h>
 
-#include "zeno.h"
-#include "zeno-config-int.h"
-#include "zeno-msg.h"
+#include "zhe-config-int.h"
+#include "zhe-msg.h"
 
 #include "pack.h"
-#include "zeno-int.h"
-#include "zeno-tracing.h"
+#include "zhe-int.h"
+#include "zhe-tracing.h"
+#include "zhe-assert.h"
 
 #if (SEQNUM_LEN % 7) != 0
 #error "SEQNUM_LEN is not a multiple of 7 - how can this be?"
 #endif
 #define WORST_CASE_SEQ_SIZE (8 * SEQNUM_LEN / 7)
 
-void pack_vle16(uint16_t x)
+void zhe_pack_vle16(uint16_t x)
 {
     do {
-        pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
+        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
         x >>= 7;
     } while (x);
 }
 
-zpsize_t pack_vle16req(uint16_t x)
+zhe_paysize_t zhe_pack_vle16req(uint16_t x)
 {
-    zpsize_t n = 0;
+    zhe_paysize_t n = 0;
     do { n++; x >>= 7; } while (x != 0);
     return n;
 }
 
-void pack_vle32(uint32_t x)
+void zhe_pack_vle32(uint32_t x)
 {
     do {
-        pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
+        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
         x >>= 7;
     } while (x);
 }
 
-zpsize_t pack_vle32req(uint32_t x)
+zhe_paysize_t zhe_pack_vle32req(uint32_t x)
 {
-    zpsize_t n = 0;
+    zhe_paysize_t n = 0;
     do { n++; x >>= 7; } while (x != 0);
     return n;
 }
 
-#if RID_T_SIZE > 32 || SEQNUM_LEN > 28
-void pack_vle64(uint64_t x)
+#if ZHE_RID_SIZE > 32 || SEQNUM_LEN > 28
+void zhe_pack_vle64(uint64_t x)
 {
     do {
-        pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
+        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
         x >>= 7;
     } while (x);
 }
 
-zpsize_t pack_vle64req(uint64_t x)
+zhe_paysize_t zhe_pack_vle64req(uint64_t x)
 {
-    zpsize_t n = 0;
+    zhe_paysize_t n = 0;
     do { n++; x >>= 7; } while (x != 0);
     return n;
 }
 #endif
 
-void pack_seq(seq_t x)
+void zhe_pack_seq(seq_t x)
 {
 #if SEQNUM_LEN == 7
-    return pack1(x >> SEQNUM_SHIFT);
+    return zhe_pack1(x >> SEQNUM_SHIFT);
 #elif SEQNUM_LEN == 14
-    return pack_vle16(x >> SEQNUM_SHIFT);
+    return zhe_pack_vle16(x >> SEQNUM_SHIFT);
 #elif SEQNUM_LEN == 28
-    return pack_vle32(x >> SEQNUM_SHIFT);
+    return zhe_pack_vle32(x >> SEQNUM_SHIFT);
 #elif SEQNUM_LEN == 56
-    return pack_vle64(x >> SEQNUM_SHIFT);
+    return zhe_pack_vle64(x >> SEQNUM_SHIFT);
 #else
-#error "pack_seq: invalid SEQNUM_LEN"
+#error "zhe_pack_seq: invalid SEQNUM_LEN"
 #endif
 }
 
-zpsize_t pack_seqreq(seq_t x)
+zhe_paysize_t zhe_pack_seqreq(seq_t x)
 {
 #if SEQNUM_LEN == 7
     return 1;
 #elif SEQNUM_LEN == 14
-    return pack_vle16req(x >> SEQNUM_SHIFT);
+    return zhe_pack_vle16req(x >> SEQNUM_SHIFT);
 #elif SEQNUM_LEN == 28
-    return pack_vle32req(x >> SEQNUM_SHIFT);
+    return zhe_pack_vle32req(x >> SEQNUM_SHIFT);
 #elif SEQNUM_LEN == 56
-    return pack_vle64req(x >> SEQNUM_SHIFT);
+    return zhe_pack_vle64req(x >> SEQNUM_SHIFT);
 #else
-#error "pack_seqreq: invalid SEQNUM_LEN"
+#error "zhe_pack_seqreq: invalid SEQNUM_LEN"
 #endif
 }
 
-void pack_rid(rid_t x)
+void zhe_pack_rid(zhe_rid_t x)
 {
-    SUFFIX_WITH_SIZE(pack_vle, RID_T_SIZE) (x);
+    SUFFIX_WITH_SIZE(zhe_pack_vle, ZHE_RID_SIZE) (x);
 }
 
-zpsize_t pack_ridreq(rid_t x)
+zhe_paysize_t zhe_pack_ridreq(zhe_rid_t x)
 {
-    return INFIX_WITH_SIZE(pack_vle, RID_T_SIZE, req) (x);
+    return INFIX_WITH_SIZE(zhe_pack_vle, ZHE_RID_SIZE, req) (x);
 }
 
-void pack_text(zpsize_t n, const char *text)
+void zhe_pack_text(zhe_paysize_t n, const char *text)
 {
-    pack_vec(n, (const uint8_t *) text);
+    zhe_pack_vec(n, (const uint8_t *) text);
 }
 
-void pack_mscout(zeno_address_t *dst)
+void zhe_pack_mscout(zhe_address_t *dst, zhe_time_t tnow)
 {
     /* Client mode should only look for a broker, but a peer should look for peers and brokers
        (because a broker really can be considered a peer). */
@@ -117,223 +116,223 @@ void pack_mscout(zeno_address_t *dst)
 #else
     const uint8_t mask = MSCOUT_BROKER | MSCOUT_PEER;
 #endif
-    pack_reserve(dst, NULL, 2);
-    pack2(MSFLAG | MSCOUT, mask);
+    zhe_pack_reserve(dst, NULL, 2, tnow);
+    zhe_pack2(MSFLAG | MSCOUT, mask);
 }
 
-void pack_mhello(zeno_address_t *dst)
+void zhe_pack_mhello(zhe_address_t *dst, zhe_time_t tnow)
 {
 #if MAX_PEERS == 0
     const uint8_t mask = MSCOUT_CLIENT;
 #else
     const uint8_t mask = MSCOUT_PEER;
 #endif
-    pack_reserve(dst, NULL, 3 + pack_locs_calcsize());
-    pack2(MHELLO, mask);
-    pack_locs();
-    pack1(0);
+    zhe_pack_reserve(dst, NULL, 3 + zhe_pack_locs_calcsize(), tnow);
+    zhe_pack2(MHELLO, mask);
+    zhe_pack_locs();
+    zhe_pack1(0);
 }
 
-static uint32_t conv_ztimediff_to_lease(ztimediff_t lease_dur)
+static uint32_t conv_zhe_timediff_to_lease(zhe_timediff_t lease_dur)
 {
-    assert(lease_dur >= 0);
-    return (uint32_t)(lease_dur / (100000000 / ZENO_TIMEBASE));
+    zhe_assert(lease_dur >= 0);
+    return (uint32_t)(lease_dur / (100000000 / ZHE_TIMEBASE));
 }
 
-void pack_mopen(zeno_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, ztimediff_t lease_dur)
+void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
-    const zpsize_t sizeof_auth = 0;
-    const uint32_t ld100 = conv_ztimediff_to_lease(lease_dur);
-    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth + pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0));
-    pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZENO_VERSION);
-    pack_vec(ownid->len, ownid->id);
-    pack_vle32(ld100);
-    pack_text(0, NULL); /* auth */
-    pack_locs();
+    const zhe_paysize_t sizeof_auth = 0;
+    const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
+    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth + zhe_pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0), tnow);
+    zhe_pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZHE_VERSION);
+    zhe_pack_vec(ownid->len, ownid->id);
+    zhe_pack_vle32(ld100);
+    zhe_pack_text(0, NULL); /* auth */
+    zhe_pack_locs();
     if (seqnumlen != 14) {
-        pack1(seqnumlen);
+        zhe_pack1(seqnumlen);
     }
 }
 
-void pack_maccept(zeno_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, ztimediff_t lease_dur)
+void zhe_pack_maccept(zhe_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
-    const zpsize_t sizeof_auth = 0;
-    const uint32_t ld100 = conv_ztimediff_to_lease(lease_dur);
-    pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len + pack_vle16req(peerid->len) + peerid->len + pack_vle32req(ld100) + pack_vle16req(sizeof_auth) + sizeof_auth);
-    pack1(MACCEPT);
-    pack_vec(peerid->len, peerid->id);
-    pack_vec(ownid->len, ownid->id);
-    pack_vle32(ld100);
-    pack_text(0, NULL); /* auth */
+    const zhe_paysize_t sizeof_auth = 0;
+    const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle16req(peerid->len) + peerid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth, tnow);
+    zhe_pack1(MACCEPT);
+    zhe_pack_vec(peerid->len, peerid->id);
+    zhe_pack_vec(ownid->len, ownid->id);
+    zhe_pack_vle32(ld100);
+    zhe_pack_text(0, NULL); /* auth */
 }
 
-void pack_mclose(zeno_address_t *dst, uint8_t reason, const struct peerid *ownid)
+void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ownid, zhe_time_t tnow)
 {
-    pack_reserve(dst, NULL, 2 + pack_vle16req(ownid->len) + ownid->len);
-    pack1(MSFLAG | MCLOSE);
-    pack_vec(ownid->len, ownid->id);
-    pack1(reason);
+    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len, tnow);
+    zhe_pack1(MSFLAG | MCLOSE);
+    zhe_pack_vec(ownid->len, ownid->id);
+    zhe_pack1(reason);
 }
 
-void pack_reserve_mconduit(zeno_address_t *dst, struct out_conduit *oc, cid_t cid, zpsize_t cnt)
+void zhe_pack_reserve_mconduit(zhe_address_t *dst, struct out_conduit *oc, cid_t cid, zhe_paysize_t cnt, zhe_time_t tnow)
 {
-    zpsize_t cid_size = (cid > 0) + (cid > 4);
-    assert(cid >= 0);
-    assert(cid < N_OUT_CONDUITS);
+    zhe_paysize_t cid_size = (cid > 0) + (cid > 4);
+    zhe_assert(cid >= 0);
+    zhe_assert(cid < N_OUT_CONDUITS);
 #if N_OUT_CONDUITS > 127
 #error "N_OUT_CONDUITS must be <= 127 or unconditionally packing a CID into a byte won't work"
 #endif
-    assert(oc == NULL || oc_get_cid(oc) == cid);
-    pack_reserve(dst, oc, cid_size + cnt);
+    zhe_assert(oc == NULL || zhe_oc_get_cid(oc) == cid);
+    zhe_pack_reserve(dst, oc, cid_size + cnt, tnow);
     if (cid > 4) {
-        pack2(MCONDUIT, (uint8_t)cid);
+        zhe_pack2(MCONDUIT, (uint8_t)cid);
     } else if (cid > 0) {
         uint8_t eid = (uint8_t)((cid - 1) << 5);
-        pack1(MCONDUIT | MZFLAG | eid);
+        zhe_pack1(MCONDUIT | MZFLAG | eid);
     }
 }
 
-unsigned zeno_synch_sent;
+unsigned zhe_synch_sent;
 
-void pack_msynch(zeno_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt)
+void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt, zhe_time_t tnow)
 {
     seq_t cnt_shifted = (seq_t)(cnt << SEQNUM_SHIFT);
     ZT(RELIABLE, ("pack_msynch cid %d sflag %u seq %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt));
-    pack_reserve_mconduit(dst, NULL, cid, 1 + pack_seqreq(seqbase) + pack_seqreq(cnt_shifted));
-    pack1(MRFLAG | sflag | MSYNCH);
-    pack_seq(seqbase);
-    pack_seq(cnt_shifted);
-    zeno_synch_sent++;
+    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seqbase) + zhe_pack_seqreq(cnt_shifted), tnow);
+    zhe_pack1(MRFLAG | sflag | MSYNCH);
+    zhe_pack_seq(seqbase);
+    zhe_pack_seq(cnt_shifted);
+    zhe_synch_sent++;
 }
 
-void pack_macknack(zeno_address_t *dst, cid_t cid, seq_t seq, uint32_t mask)
+void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask, zhe_time_t tnow)
 {
-    pack_reserve_mconduit(dst, NULL, cid, 1 + pack_seqreq(seq) + (mask ? pack_vle32req(mask) : 0));
-    pack1(MSFLAG | (mask == 0 ? 0 : MMFLAG) | MACKNACK);
-    pack_seq(seq);
+    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seq) + (mask ? zhe_pack_vle32req(mask) : 0), tnow);
+    zhe_pack1(MSFLAG | (mask == 0 ? 0 : MMFLAG) | MACKNACK);
+    zhe_pack_seq(seq);
     if (mask != 0) {
         /* MFLAG implies a NACK of message SEQ, but the provided mask has the lsb correspond to
            a retransmit request of that message for uniformity. */
-        pack_vle32(mask >> 1);
+        zhe_pack_vle32(mask >> 1);
     }
 }
 
-void pack_mping(zeno_address_t *dst, uint16_t hash)
+void zhe_pack_mping(zhe_address_t *dst, uint16_t hash, zhe_time_t tnow)
 {
-    pack_reserve(dst, NULL, 3);
-    pack1(MSFLAG | MPING);
-    pack_u16(hash);
+    zhe_pack_reserve(dst, NULL, 3, tnow);
+    zhe_pack1(MSFLAG | MPING);
+    zhe_pack_u16(hash);
 }
 
-void pack_mpong(zeno_address_t *dst, uint16_t hash)
+void zhe_pack_mpong(zhe_address_t *dst, uint16_t hash, zhe_time_t tnow)
 {
-    pack_reserve(dst, NULL, 3);
-    pack1(MPONG);
-    pack_u16(hash);
+    zhe_pack_reserve(dst, NULL, 3, tnow);
+    zhe_pack1(MPONG);
+    zhe_pack_u16(hash);
 }
 
-void pack_mkeepalive(zeno_address_t *dst, const struct peerid *ownid)
+void zhe_pack_mkeepalive(zhe_address_t *dst, const struct peerid *ownid, zhe_time_t tnow)
 {
-    pack_reserve(dst, NULL, 1 + pack_vle16req(ownid->len) + ownid->len);
-    pack1(MKEEPALIVE);
-    pack_vec(ownid->len, ownid->id);
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len, tnow);
+    zhe_pack1(MKEEPALIVE);
+    zhe_pack_vec(ownid->len, ownid->id);
 }
 
-int oc_pack_msdata(struct out_conduit *c, int relflag, rid_t rid, zpsize_t payloadlen)
+int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_paysize_t payloadlen, zhe_time_t tnow)
 {
     /* Use worst-case number of bytes for sequence number, instead of getting the sequence number
        earlier than as an output of oc_pack_payload_msgprep and using the exact value */
-    const zpsize_t sz = 1 + WORST_CASE_SEQ_SIZE + pack_ridreq(rid) + pack_vle16req(payloadlen) + payloadlen;
+    const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_ridreq(rid) + zhe_pack_vle16req(payloadlen) + payloadlen;
     uint8_t hdr = MSDATA | (relflag ? MRFLAG : 0);
-    zmsize_t from;
+    zhe_msgsize_t from;
     seq_t s;
 
-    if (relflag && xmitw_bytesavail(c) < sizeof(zmsize_t) + sz) {
+    if (relflag && !zhe_xmitw_hasspace(c, sz)) {
         /* Reliable, insufficient space in transmit window (accounting for preceding length byte) */
-        oc_hit_full_window(c);
+        zhe_oc_hit_full_window(c, tnow);
         return 0;
     }
 
-    from = oc_pack_payload_msgprep(&s, c, relflag, sz);
-    pack1(hdr);
-    pack_seq(s);
-    pack_rid(rid);
-    pack_vle16(payloadlen);
+    from = zhe_oc_pack_payload_msgprep(&s, c, relflag, sz, tnow);
+    zhe_pack1(hdr);
+    zhe_pack_seq(s);
+    zhe_pack_rid(rid);
+    zhe_pack_vle16(payloadlen);
     if (relflag) {
-        oc_pack_copyrel(c, from);
+        zhe_oc_pack_copyrel(c, from);
     }
     return 1;
 }
 
-void oc_pack_msdata_payload(struct out_conduit *c, int relflag, zpsize_t sz, const void *vdata)
+void zhe_oc_pack_msdata_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, const void *vdata)
 {
-    oc_pack_payload(c, relflag, sz, vdata);
+    zhe_oc_pack_payload(c, relflag, sz, vdata);
 }
 
-void oc_pack_msdata_done(struct out_conduit *c, int relflag)
+void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow)
 {
-    oc_pack_payload_done(c, relflag);
+    zhe_oc_pack_payload_done(c, relflag, tnow);
 }
 
-int oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zmsize_t *from)
+int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zhe_msgsize_t *from, zhe_time_t tnow)
 {
-    const zpsize_t sz = 1 + WORST_CASE_SEQ_SIZE + pack_vle16req(ndecls) + decllen;
+    const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(ndecls) + decllen;
     seq_t s;
-    assert(ndecls <= 127);
-    if (xmitw_bytesavail(c) < sizeof(zmsize_t) + sz) {
+    zhe_assert(ndecls <= 127);
+    if (!zhe_xmitw_hasspace(c, sz)) {
         return 0;
     }
-    *from = oc_pack_payload_msgprep(&s, c, 1, sz);
-    pack1(MRFLAG | MDECLARE);
-    pack_seq(s);
-    pack_vle16(ndecls);
+    *from = zhe_oc_pack_payload_msgprep(&s, c, 1, sz, tnow);
+    zhe_pack1(MRFLAG | MDECLARE);
+    zhe_pack_seq(s);
+    zhe_pack_vle16(ndecls);
     return 1;
 }
 
-void oc_pack_mdeclare_done(struct out_conduit *c, zmsize_t from)
+void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_time_t tnow)
 {
-    oc_pack_copyrel(c, from);
-    oc_pack_payload_done(c, 1);
+    zhe_oc_pack_copyrel(c, from);
+    zhe_oc_pack_payload_done(c, 1, tnow);
 }
 
 /* FIXME: not doing properties at the moment */
 
-void pack_dresource(rid_t rid, const char *res)
+void zhe_pack_dresource(zhe_rid_t rid, const char *res)
 {
     size_t ressz = strlen(res);
-    assert(ressz <= (zpsize_t)-1);
-    pack1(DRESOURCE);
-    pack_rid(rid);
-    pack_text((zpsize_t)ressz, res);
+    zhe_assert(ressz <= (zhe_paysize_t)-1);
+    zhe_pack1(DRESOURCE);
+    zhe_pack_rid(rid);
+    zhe_pack_text((zhe_paysize_t)ressz, res);
 }
 
 /* FIXME: do I need DELETE? Not yet anyway */
 
-void pack_dpub(rid_t rid)
+void zhe_pack_dpub(zhe_rid_t rid)
 {
-    pack1(DPUB);
-    pack_rid(rid);
+    zhe_pack1(DPUB);
+    zhe_pack_rid(rid);
 }
 
-void pack_dsub(rid_t rid)
+void zhe_pack_dsub(zhe_rid_t rid)
 {
-    pack1(DSUB);
-    pack_rid(rid);
-    pack1(SUBMODE_PUSH); /* FIXME: should be a parameter */
+    zhe_pack1(DSUB);
+    zhe_pack_rid(rid);
+    zhe_pack1(SUBMODE_PUSH); /* FIXME: should be a parameter */
 }
 
 /* Do I need SELECTION, BINDID? Probably not, certainly not yet */
 
-void pack_dcommit(uint8_t commitid)
+void zhe_pack_dcommit(uint8_t commitid)
 {
-    pack2(DCOMMIT, commitid);
+    zhe_pack2(DCOMMIT, commitid);
 }
 
-void pack_dresult(uint8_t commitid, uint8_t status, rid_t rid)
+void zhe_pack_dresult(uint8_t commitid, uint8_t status, zhe_rid_t rid)
 {
-    pack1(DRESULT);
-    pack2(commitid, status);
+    zhe_pack1(DRESULT);
+    zhe_pack2(commitid, status);
     if (status) {
-        pack_rid(rid);
+        zhe_pack_rid(rid);
     }
 }

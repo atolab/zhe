@@ -2,17 +2,17 @@
 #include <stdarg.h>
 #include <inttypes.h>
 
-#include "zeno-tracing.h"
-#include "zeno-time.h"
-#include "zeno-config-deriv.h"
+#include "zhe-tracing.h"
+#include "zhe-time.h"
+#include "zhe-config-deriv.h"
 
-unsigned zeno_trace_cats;
+unsigned zhe_trace_cats;
 
 #ifndef ARDUINO
 
-void zeno_trace(const char *fmt, ...)
+void zhe_trace(const char *fmt, ...)
 {
-    uint32_t t = (uint32_t)zeno_time();
+    uint32_t t = (uint32_t)zhe_time();
     va_list ap;
     va_start(ap, fmt);
     flockfile(stdout);
