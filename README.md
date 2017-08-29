@@ -1,6 +1,6 @@
 # Overview
 
-Zeno-He (*zhe* for short) is a tiny implementation of the XRCE protocol that does not depend on dynamic allocation or threading. Instead, it is a non-blocking implementation that assumes single threaded use with polling, and a system that can be sized at compile time. *Zhe* can be configured to operate in peer-to-peer mode or to operate as a client that relies on a broker.
+Zeno-He (*zhe* for short) is a compact implementation of the XRCE protocol that does not depend on dynamic allocation or threading. Instead, it is a non-blocking implementation that assumes single threaded use with polling, and a system that can be sized at compile time. *Zhe* can be configured to operate in peer-to-peer mode or to operate as a client that relies on a broker.
 
 *Zhe* does not call *any* operating system functions directly (its use of the standard library functions is currently limited to string.h, stddef.h, limits.h, stdint.h and inttypes.h). It does rely on a small abstraction layer to be provided by the user implementing functions to send a packet without blocking (it may of course be dropped), test addresses for equality and to convert an address to text. What constitutes sending data on a network or what an address looks like is deliberately left undefined. The interface of the abstraction layer is described below.
 
@@ -92,7 +92,13 @@ Notifications to peers (if required) are sent asynchronously by the **zhe\_house
 
 # System interface
 
-These are the functions that must be provided by the application for use by *zhe*:
+The user of *zhe* is expected to provide a handful of function and type definitions to interface with the rest of the system.
+
+If the implementation requires some internal data, it can be held in a **struct zhe\_platform** to which a pointers is provided in **zhe_init** and passed whenever required. If no additional data is required, it is acceptable to leave the struct undefined and pass a null pointer.
+
+Then there is the notion of a network address, **struct zhe_address**, which must be properly defined as objects of this type are stored inside internal structures of **zhe**. However, what constitutes an address is left open, and, e.g., a minimal client that connects to its broker via a serial line need not really use addresses. In this case defining it as a single byte and never reading it is perfectly acceptable. On the other hand, on a UDP/IP network, it makes sense to define it to consist of a **struct sockaddr_in**.
+
+These two types are then used in the following required interface functions:
 
 * int **zhe\_platform\_addr\_eq**(const struct zhe\_address \*a, const struct zhe\_address \*b)
 * size\_t **zhe\_platform\_addr2string**(const struct zhe\_platform \*pf, char \* restrict str, size\_t size, const struct zhe\_address \* restrict addr)
@@ -121,7 +127,7 @@ Finally, the platform specification must include a definition of a macro **zhe_a
 #define zhe_assert(x) assert(x)
 ```
 
-is an excellent choice on a hosted environment.
+is an excellent choice on a hosted environment.****
 
 # Compile-time configuration
 
