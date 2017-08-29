@@ -251,3 +251,73 @@ The scouting address is set using the **scoutaddr** string. The port number in t
 The addresses of multicast groups to join are specified as an array of **n\_mcgroups\_join** strings in **mcgroups\_join**. Each one should be in the format *IP*:*PORT*, though the port of course is meaningless given that they are all joined on the one socket bound to the port specified in the scouting address.
 
 Multicast conduits use the addresses specified as **n_mconduit\_dstaddrs** strings in the **mconduit\_dstaddrs**, again as *IP*:*PORT* pairs, and with the requirement that the ports all be the same as the one used for the scouting address. The number of addresses must match the number of configured multicast output conduits, or **(N\_OUT\_CONDUITS - HAVE\_UNICAST\_CONDUIT)**.
+
+# Test program
+
+The small (and admittedly rather lacking in beauty) test program in the "test" directory is essentially a bidrectional throughput tester with a platform implementation for POSIX + UDP/IP.
+
+It has three modes:
+
+* a default mode in which all it does is exist for 20s
+* mode `-s` in which it only subscribes to resource 1 and sends back a sample of resource 2 whenever it prints a line of output
+* mode `-p` mode in which it does what the mode `-s` does, while also sending samples of resource 1 as fast as it can and printing every sample it receives for resource 2.
+
+Resource 1 data is a combination of a key field (valid values are 0 .. 9) and a 32-bit sequence number. The key field can be set from the command-line to distinguish different sources. The published key value is set using the `-k` option and defaults to 0.
+
+Modes `s` (and hence also mode `p`) prints lines similar to:
+
+```
+8730.204 [1] 9664345 0 [21488498,15559]
+```
+
+This is:
+
+* a time stamp (here: 8730.204; in seconds + milliseconds since some arbitrary time in the past)
+* the key of the source (here: 1)
+* the last received sequence number (here: 9664345)
+* the total number of samples received out of sequence (here: 0; across all sources; the logic is simply that the next sequence number expected for source *k* is one higher than the previously received one, so multiple sources with the same *k*, restarting them or using unreliable communication i.c.w. packet loss all cause it to increase)
+* the number of samples delivered and rejected at the protocol level (here: 21488498 and 15559)
+
+Mode `-p` additionally prints lines:
+
+```
+8730.448 4702208 [4334]
+```
+
+meaning:
+
+* a time stamp
+* number of samples sent (here: 4702208)
+* number of SYNCH messages sent (here: 4334)
+
+and, for each "pong" message received on resource 2, it prints:
+
+```
+8730.208 pong 3440640 8730.161
+```
+
+Which is the last sequence number received by the publisher (whatever key) and the timestamp at which it was received. The test program is configured to use a latency budget of 10ms, and besides there is packing going on, so while it is to some extent indicative of the round-trip latency, it is not a proper measurement of this property.
+
+The default is to enable full tracing, which is a bit too much, the `-q` option will provide a more reasonable amount of output, mostly related to discovery.
+
+The `-X` option can be used to simulate packet loss on transmission, its argument is a percentage. (This is implemented in the UDP part of the platform code.)
+
+A quick test is to run: "./zhe -pq -k *k*" on a number of machines, each with a different *k*. Following some initial prefix of traces, this should produce an output reminiscent of:
+
+```
+8728.416 4374528 [4034]
+8729.186 [0] 69332110 0 [20668734,15559]
+8729.186 [1] 9500308 0 [20668734,15559]
+8729.186 [2] 5477714 0 [20668734,15559]
+8729.186 [4] 3903923 0 [20668734,15559]
+8729.186 [5] 3276800 0 [20668734,15559]
+8729.432 4538368 [4184]
+8730.106 pong 3424256 8730.102
+8730.204 [0] 69496035 0 [21488498,15559]
+8730.204 [1] 9664345 0 [21488498,15559]
+8730.204 [2] 5641750 0 [21488498,15559]
+8730.204 [4] 4067848 0 [21488498,15559]
+8730.204 [5] 3440640 0 [21488498,15559]
+```
+
+To build it, `gcc-7 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/*.c -o zhe` should suffice; alternatively, on a Mac one can use `xcodebuild -quiet -configuration Release`.
