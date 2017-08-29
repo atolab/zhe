@@ -192,7 +192,7 @@ void pre_panic_handler(void)
     MotorR.run(0);
 }
 
-static void handle_motorstate(zhe_rid_t rid, zhe_paysize_t sz, const void *payload, void *arg)
+static void handle_motorstate(zhe_rid_t rid, const void *payload, zhe_paysize_t sz, void *arg)
 {
     const struct motorstate *ms = (const struct motorstate *)payload;
     if (sizeof(*ms) > sz) {
@@ -317,7 +317,7 @@ void loop(void)
             tlast_meas = tnow;
             if (tnow >= tlast_pub + 1000 || (0 < d && d < 5 && tnow >= tlast_pub + 300) || (0 < d && d < 2.5 && tnow >= tlast_pub + 100)) {
                 uint8_t x = (uint8_t)(10 * d + 0.5);
-                zhe_write(pub_distance, 1, &x, tnow);
+                zhe_write(pub_distance, &x, 1, tnow);
                 tlast_pub = tnow;
             }
         }

@@ -21,7 +21,7 @@ typedef struct { uint16_t idx; } zhe_subidx_t;
 #error "ZHE_MAX_SUBSCRIPTIONS >= 32768 not implemented (cf bitset_findfirst)"
 #endif
 
-typedef void (*zhe_subhandler_t)(zhe_rid_t rid, zhe_paysize_t size, const void *payload, void *arg);
+typedef void (*zhe_subhandler_t)(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg);
 
 struct zhe_address;
 struct zhe_platform;
@@ -48,6 +48,6 @@ void zhe_flush(void);
 zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable);
 zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, zhe_subhandler_t handler, void *arg);
 
-int zhe_write(zhe_pubidx_t pubidx, zhe_paysize_t sz, const void *data, zhe_time_t tnow);
+int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_t tnow);
 
 #endif

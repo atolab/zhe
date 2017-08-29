@@ -63,7 +63,7 @@ struct pong { uint32_t k; zhe_time_t t; };
 
 #define MAX_KEY 9u
 
-static void shandler(zhe_rid_t rid, zhe_paysize_t size, const void *payload, void *arg)
+static void shandler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg)
 {
     static zhe_time_t tprint;
     static uint32_t lastseq[MAX_KEY+1];
@@ -85,7 +85,7 @@ static void shandler(zhe_rid_t rid, zhe_paysize_t size, const void *payload, voi
         if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {
             zhe_pubidx_t *pub = arg;
             struct pong pong = { .k = d->seq, .t = tnow };
-            zhe_write(*pub, sizeof(pong), &pong, tnow);
+            zhe_write(*pub, &pong, sizeof(pong), tnow);
             for (uint32_t k = 0; k <= MAX_KEY; k++) {
                 if (lastseq_init & (1u << k)) {
                     printf ("%4"PRIu32".%03"PRIu32" [%u] %u %u [%u,%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, lastseq[k], oooc, zhe_delivered, zhe_discarded);
@@ -96,7 +96,7 @@ static void shandler(zhe_rid_t rid, zhe_paysize_t size, const void *payload, voi
     }
 }
 
-static void rhandler(zhe_rid_t rid, zhe_paysize_t size, const void *payload, void *arg)
+static void rhandler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg)
 {
     const struct pong *pong;
     assert(size == sizeof(*pong));
@@ -272,7 +272,7 @@ int main(int argc, char * const *argv)
                 /* Loop means we don't call zhe_housekeeping for each sample, which dramatically reduces the
                    number of (non-blocking) recvfrom calls and speeds things up a fair bit */
                 for (int i = 0; i < blocksize; i++) {
-                    if (zhe_write(p, sizeof(d), &d, tnow)) {
+                    if (zhe_write(p, &d, sizeof(d), tnow)) {
                         if ((d.seq % checkintv) == 0) {
                             if (ZTIME_TO_SECu32(tnow - tprint) >= 1) {
                                 extern unsigned zhe_synch_sent;

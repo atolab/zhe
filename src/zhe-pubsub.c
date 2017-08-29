@@ -221,7 +221,7 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
     if (s->next.idx == 0) {
         if (s->xmitneed == 0 || zhe_xmitw_hasspace(s->oc, s->xmitneed)) {
             /* Do note that "xmitneed" had better include overhead! */
-            s->handler(prid, paysz, pay, s->arg);
+            s->handler(prid, pay, paysz, s->arg);
             return 1;
         } else {
             return 0;
@@ -241,7 +241,7 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
             }
         }
 
-        s->handler(prid, paysz, pay, s->arg);
+        s->handler(prid, pay, paysz, s->arg);
         return 1;
     }
 }
@@ -423,7 +423,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
     return subidx;
 }
 
-int zhe_write(zhe_pubidx_t pubidx, zhe_paysize_t sz, const void *data, zhe_time_t tnow)
+int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_t tnow)
 {
     /* returns 0 on failure and 1 on success; the only defined failure case is a full transmit
      window for reliable pulication while remote subscribers exist */
