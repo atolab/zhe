@@ -4,7 +4,7 @@ Zeno-He (*zhe* for short) is a compact implementation of the XRCE protocol that 
 
 *Zhe* does not call *any* operating system functions directly (its use of the standard library functions is currently limited to string.h, stddef.h, limits.h, stdint.h and inttypes.h). It does rely on a small abstraction layer to be provided by the user implementing functions to send a packet without blocking (it may of course be dropped), test addresses for equality and to convert an address to text. What constitutes sending data on a network or what an address looks like is deliberately left undefined. The interface of the abstraction layer is described below.
 
-Please note that it is currently a research project under active development. Only the basic functionality supported by the XRCE protocol has so far been implemented, none of the settings are final, and everything can still change.
+Please note that it is currently a research project under active development. Only the basic functionality supported by the XRCE protocol has so far been implemented, and still missing are several features we consider important, such as selections and transient data support. These will be implemented in the near future. Furthermore, none of the settings are final, and everything can (and probably will) still change.
 
 # Application interface
 
@@ -320,4 +320,4 @@ A quick test is to run: "./zhe -pq -k *k*" on a number of machines, each with a 
 8730.204 [5] 3440640 0 [21488498,15559]
 ```
 
-To build it, `gcc-7 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/*.c -o zhe` should suffice; alternatively, on a Mac one can use `xcodebuild -quiet -configuration Release`.
+To build it, `gcc -std=gnu99 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/*.c -o zhe` should suffice; alternatively, on a Mac one can use `xcodebuild -quiet -configuration Release`.
