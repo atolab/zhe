@@ -1,9 +1,7 @@
 /* -*- mode: c; c-basic-offset: 4; fill-column: 95; -*- */
-#include <stdio.h>
-#include <inttypes.h>
-
 #include <string.h>
 #include <limits.h>
+#include <inttypes.h>
 
 #include "zhe-assert.h"
 #include "zhe-config-deriv.h"
@@ -11,11 +9,11 @@
 #include "zhe-int.h"
 #include "zhe-tracing.h"
 #include "zhe.h"
-#include "pack.h"
-#include "unpack.h"
-#include "bitset.h"
-#include "binheap.h"
-#include "pubsub.h"
+#include "zhe-pack.h"
+#include "zhe-unpack.h"
+#include "zhe-bitset.h"
+#include "zhe-binheap.h"
+#include "zhe-pubsub.h"
 
 #define PEERST_UNKNOWN       0
 #define PEERST_OPENING_MIN   1

@@ -2,7 +2,7 @@
 #define TRANSPORT_UDP_H
 
 #include <netinet/in.h>
-#include "platform.h"
+#include "zhe-platform.h"
 
 typedef struct zhe_address {
     struct sockaddr_in a;

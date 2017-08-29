@@ -2,7 +2,6 @@
 #define ZHE_PLATFORM_H
 
 #include <stddef.h>
-
 #include "zhe-config-int.h"
 
 /* modes for transport should not include 0 */

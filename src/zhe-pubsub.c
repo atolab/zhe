@@ -6,9 +6,9 @@
 #include "zhe-assert.h"
 #include "zhe-msg.h"
 #include "zhe-int.h"
-#include "pack.h"
-#include "pubsub.h"
-#include "bitset.h"
+#include "zhe-pack.h"
+#include "zhe-pubsub.h"
+#include "zhe-bitset.h"
 
 /* Start using a RID-to-subscription mapping if ZHE_MAX_SUBSCRIPTIONS is over this threshold */
 #define RID_TABLE_THRESHOLD 32

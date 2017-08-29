@@ -1,7 +1,7 @@
 #ifndef PLATFORM_ARDUINO_H
 #define PLATFORM_ARDUINO_H
 
-#include "platform.h"
+#include "zhe-platform.h"
 
 typedef struct zhe_address {
     char dummy;

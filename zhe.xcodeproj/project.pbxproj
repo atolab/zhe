@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		034BDF981F5472F700F261D1 /* binheap.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF821F5472F700F261D1 /* binheap.c */; };
-		034BDF991F5472F700F261D1 /* bitset.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF841F5472F700F261D1 /* bitset.c */; };
-		034BDF9A1F5472F700F261D1 /* pack.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF861F5472F700F261D1 /* pack.c */; };
-		034BDF9C1F5472F700F261D1 /* pubsub.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF8A1F5472F700F261D1 /* pubsub.c */; };
-		034BDF9E1F5472F700F261D1 /* unpack.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF8E1F5472F700F261D1 /* unpack.c */; };
+		034BDF981F5472F700F261D1 /* zhe-binheap.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF821F5472F700F261D1 /* zhe-binheap.c */; };
+		034BDF991F5472F700F261D1 /* zhe-bitset.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF841F5472F700F261D1 /* zhe-bitset.c */; };
+		034BDF9A1F5472F700F261D1 /* zhe-pack.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF861F5472F700F261D1 /* zhe-pack.c */; };
+		034BDF9C1F5472F700F261D1 /* zhe-pubsub.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF8A1F5472F700F261D1 /* zhe-pubsub.c */; };
+		034BDF9E1F5472F700F261D1 /* zhe-unpack.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF8E1F5472F700F261D1 /* zhe-unpack.c */; };
 		034BDF9F1F5472F700F261D1 /* zhe.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF961F5472F700F261D1 /* zhe.c */; };
 		034BDFA41F54730900F261D1 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDFA11F54730900F261D1 /* main.c */; };
 		034BDFA71F54734000F261D1 /* platform-udp.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDFA51F54734000F261D1 /* platform-udp.c */; };
@@ -31,17 +31,17 @@
 
 /* Begin PBXFileReference section */
 		030587661EF92BEB0040F446 /* zhe */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = zhe; sourceTree = BUILT_PRODUCTS_DIR; };
-		034BDF811F5472F700F261D1 /* platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = platform.h; path = src/platform.h; sourceTree = SOURCE_ROOT; };
-		034BDF821F5472F700F261D1 /* binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = binheap.c; path = src/binheap.c; sourceTree = SOURCE_ROOT; };
-		034BDF831F5472F700F261D1 /* binheap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = binheap.h; path = src/binheap.h; sourceTree = SOURCE_ROOT; };
-		034BDF841F5472F700F261D1 /* bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = bitset.c; path = src/bitset.c; sourceTree = SOURCE_ROOT; };
-		034BDF851F5472F700F261D1 /* bitset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = bitset.h; path = src/bitset.h; sourceTree = SOURCE_ROOT; };
-		034BDF861F5472F700F261D1 /* pack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pack.c; path = src/pack.c; sourceTree = SOURCE_ROOT; };
-		034BDF871F5472F700F261D1 /* pack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = pack.h; path = src/pack.h; sourceTree = SOURCE_ROOT; };
-		034BDF8A1F5472F700F261D1 /* pubsub.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pubsub.c; path = src/pubsub.c; sourceTree = SOURCE_ROOT; };
-		034BDF8B1F5472F700F261D1 /* pubsub.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = pubsub.h; path = src/pubsub.h; sourceTree = SOURCE_ROOT; };
-		034BDF8E1F5472F700F261D1 /* unpack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = unpack.c; path = src/unpack.c; sourceTree = SOURCE_ROOT; };
-		034BDF8F1F5472F700F261D1 /* unpack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = unpack.h; path = src/unpack.h; sourceTree = SOURCE_ROOT; };
+		034BDF811F5472F700F261D1 /* zhe-platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-platform.h"; path = "src/zhe-platform.h"; sourceTree = SOURCE_ROOT; };
+		034BDF821F5472F700F261D1 /* zhe-binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-binheap.c"; path = "src/zhe-binheap.c"; sourceTree = SOURCE_ROOT; };
+		034BDF831F5472F700F261D1 /* zhe-binheap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-binheap.h"; path = "src/zhe-binheap.h"; sourceTree = SOURCE_ROOT; };
+		034BDF841F5472F700F261D1 /* zhe-bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-bitset.c"; path = "src/zhe-bitset.c"; sourceTree = SOURCE_ROOT; };
+		034BDF851F5472F700F261D1 /* zhe-bitset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-bitset.h"; path = "src/zhe-bitset.h"; sourceTree = SOURCE_ROOT; };
+		034BDF861F5472F700F261D1 /* zhe-pack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-pack.c"; path = "src/zhe-pack.c"; sourceTree = SOURCE_ROOT; };
+		034BDF871F5472F700F261D1 /* zhe-pack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-pack.h"; path = "src/zhe-pack.h"; sourceTree = SOURCE_ROOT; };
+		034BDF8A1F5472F700F261D1 /* zhe-pubsub.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-pubsub.c"; path = "src/zhe-pubsub.c"; sourceTree = SOURCE_ROOT; };
+		034BDF8B1F5472F700F261D1 /* zhe-pubsub.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-pubsub.h"; path = "src/zhe-pubsub.h"; sourceTree = SOURCE_ROOT; };
+		034BDF8E1F5472F700F261D1 /* zhe-unpack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-unpack.c"; path = "src/zhe-unpack.c"; sourceTree = SOURCE_ROOT; };
+		034BDF8F1F5472F700F261D1 /* zhe-unpack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-unpack.h"; path = "src/zhe-unpack.h"; sourceTree = SOURCE_ROOT; };
 		034BDF911F5472F700F261D1 /* zhe-config-deriv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-config-deriv.h"; path = "src/zhe-config-deriv.h"; sourceTree = SOURCE_ROOT; };
 		034BDF921F5472F700F261D1 /* zhe-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-int.h"; path = "src/zhe-int.h"; sourceTree = SOURCE_ROOT; };
 		034BDF931F5472F700F261D1 /* zhe-msg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-msg.h"; path = "src/zhe-msg.h"; sourceTree = SOURCE_ROOT; };
@@ -89,17 +89,17 @@
 		030587681EF92BEB0040F446 /* src */ = {
 			isa = PBXGroup;
 			children = (
-				034BDF821F5472F700F261D1 /* binheap.c */,
-				034BDF831F5472F700F261D1 /* binheap.h */,
-				034BDF841F5472F700F261D1 /* bitset.c */,
-				034BDF851F5472F700F261D1 /* bitset.h */,
-				034BDF861F5472F700F261D1 /* pack.c */,
-				034BDF871F5472F700F261D1 /* pack.h */,
-				034BDF811F5472F700F261D1 /* platform.h */,
-				034BDF8A1F5472F700F261D1 /* pubsub.c */,
-				034BDF8B1F5472F700F261D1 /* pubsub.h */,
-				034BDF8E1F5472F700F261D1 /* unpack.c */,
-				034BDF8F1F5472F700F261D1 /* unpack.h */,
+				034BDF821F5472F700F261D1 /* zhe-binheap.c */,
+				034BDF831F5472F700F261D1 /* zhe-binheap.h */,
+				034BDF841F5472F700F261D1 /* zhe-bitset.c */,
+				034BDF851F5472F700F261D1 /* zhe-bitset.h */,
+				034BDF861F5472F700F261D1 /* zhe-pack.c */,
+				034BDF871F5472F700F261D1 /* zhe-pack.h */,
+				034BDF811F5472F700F261D1 /* zhe-platform.h */,
+				034BDF8A1F5472F700F261D1 /* zhe-pubsub.c */,
+				034BDF8B1F5472F700F261D1 /* zhe-pubsub.h */,
+				034BDF8E1F5472F700F261D1 /* zhe-unpack.c */,
+				034BDF8F1F5472F700F261D1 /* zhe-unpack.h */,
 				034BDF911F5472F700F261D1 /* zhe-config-deriv.h */,
 				034BDF921F5472F700F261D1 /* zhe-int.h */,
 				034BDF931F5472F700F261D1 /* zhe-msg.h */,
@@ -183,13 +183,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				034BDFA71F54734000F261D1 /* platform-udp.c in Sources */,
-				034BDF991F5472F700F261D1 /* bitset.c in Sources */,
-				034BDF9C1F5472F700F261D1 /* pubsub.c in Sources */,
-				034BDF9E1F5472F700F261D1 /* unpack.c in Sources */,
-				034BDF981F5472F700F261D1 /* binheap.c in Sources */,
+				034BDF991F5472F700F261D1 /* zhe-bitset.c in Sources */,
+				034BDF9C1F5472F700F261D1 /* zhe-pubsub.c in Sources */,
+				034BDF9E1F5472F700F261D1 /* zhe-unpack.c in Sources */,
+				034BDF981F5472F700F261D1 /* zhe-binheap.c in Sources */,
 				034BDFA41F54730900F261D1 /* main.c in Sources */,
 				034BDF9F1F5472F700F261D1 /* zhe.c in Sources */,
-				034BDF9A1F5472F700F261D1 /* pack.c in Sources */,
+				034BDF9A1F5472F700F261D1 /* zhe-pack.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

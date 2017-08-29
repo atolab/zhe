@@ -1,4 +1,4 @@
-#include "bitset.h"
+#include "zhe-bitset.h"
 
 unsigned zhe_popcnt8(uint8_t x)
 {

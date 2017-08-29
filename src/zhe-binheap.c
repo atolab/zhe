@@ -3,7 +3,7 @@
 #if MAX_PEERS > 0
 
 #include "zhe-assert.h"
-#include "binheap.h"
+#include "zhe-binheap.h"
 
 /* for zhe_seq_lt() */
 #include "zhe-int.h"

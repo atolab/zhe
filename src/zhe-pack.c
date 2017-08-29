@@ -4,8 +4,7 @@
 
 #include "zhe-config-int.h"
 #include "zhe-msg.h"
-
-#include "pack.h"
+#include "zhe-pack.h"
 #include "zhe-int.h"
 #include "zhe-tracing.h"
 #include "zhe-assert.h"
