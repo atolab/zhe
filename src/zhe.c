@@ -745,23 +745,6 @@ static const uint8_t *handle_dresult(peeridx_t peeridx, const uint8_t * const en
     return data;
 }
 
-static const uint8_t *handle_ddeleteres(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, int interpret)
-{
-    uint8_t hdr;
-    zhe_paysize_t dummy;
-    if (!zhe_unpack_byte(end, &data, &hdr) ||
-        !zhe_unpack_vec(end, &data, 0, &dummy, NULL)) {
-        return 0;
-    }
-    if ((hdr & DPFLAG) && !zhe_unpack_props(end, &data)) {
-        return 0;
-    }
-    if (interpret) {
-        zhe_decl_note_error(16, 0);
-    }
-    return data;
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 static const uint8_t *handle_mscout(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data, zhe_time_t tnow)
@@ -1174,7 +1157,6 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
             case DBINDID:    data = handle_dbindid(peeridx, end, data, intp); break;
             case DCOMMIT:    data = handle_dcommit(peeridx, end, data, intp, tnow); break;
             case DRESULT:    data = handle_dresult(peeridx, end, data, intp); break;
-            case DDELETERES: data = handle_ddeleteres(peeridx, end, data, intp); break;
             default:         data = 0; break;
         }
         if (data != 0) {

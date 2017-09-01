@@ -41,10 +41,10 @@
 #define DBINDID             5
 #define DCOMMIT             6
 #define DRESULT             7
-#define DDELETERES          8
 #define DKIND             0xf
 
 #define DPFLAG           0x80
+#define DFFLAG           0x40
 
 #define CLR_INVALID_AUTH    1
 #define CLR_UNSUPP_PROTO    2
