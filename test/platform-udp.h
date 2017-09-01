@@ -10,7 +10,7 @@ typedef struct zhe_address {
 
 #define TRANSPORT_MTU        1472u
 #define TRANSPORT_MODE       TRANSPORT_PACKET
-#define TRANSPORT_ADDRSTRLEN (INET_ADDRSTRLEN + 6)
+#define TRANSPORT_ADDRSTRLEN (4 + INET_ADDRSTRLEN + 6) /* udp/IP:PORT -- udp/ is 4, colon is 1, PORT in [1,5] */
 
 zhe_time_t zhe_platform_time(void);
 void zhe_platform_trace(struct zhe_platform *pf, const char *fmt, ...);

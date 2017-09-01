@@ -197,7 +197,8 @@ static char *uint16_to_string(char * restrict str, uint16_t val)
 static size_t addr2string1(char * restrict str, const zhe_address_t * restrict addr)
 {
     char *p;
-    (void)inet_ntop(AF_INET, &addr->a.sin_addr.s_addr, str, INET_ADDRSTRLEN);
+    memcpy(str, "udp/", 4);
+    (void)inet_ntop(AF_INET, &addr->a.sin_addr.s_addr, str + 4, INET_ADDRSTRLEN);
     p = str + strlen(str);
     *p++ = ':';
     p = uint16_to_string(p, ntohs(addr->a.sin_port));
@@ -206,11 +207,11 @@ static size_t addr2string1(char * restrict str, const zhe_address_t * restrict a
 
 size_t zhe_platform_addr2string(const struct zhe_platform *pf, char * restrict str, size_t size, const zhe_address_t * restrict addr)
 {
-    char tmp[TRANSPORT_ADDRSTRLEN];
     zhe_assert(size > 0);
-    if (size >= sizeof(tmp)) {
+    if (size >= TRANSPORT_ADDRSTRLEN) {
         return addr2string1(str, addr);
     } else {
+        char tmp[TRANSPORT_ADDRSTRLEN];
         size_t n = addr2string1(tmp, addr);
         if (n >= size) {
             n = size - 1;
@@ -227,6 +228,9 @@ int zhe_platform_string2addr(const struct zhe_platform *pf, struct zhe_address *
     char *portstr, *portend;
     unsigned long port;
     memset(addr, 0, sizeof(*addr));
+    if (strncmp(str, "udp/", 4) == 0) {
+        str += 4;
+    }
     if ((portstr = strchr(str, ':')) != NULL) {
         *portstr++ = 0;
     }
