@@ -1188,8 +1188,12 @@ static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end
     seq_t cnt_shifted;
     seq_t seqbase;
     if (!zhe_unpack_byte(end, &data, &hdr) ||
-        !zhe_unpack_seq(end, &data, &seqbase) ||
-        !zhe_unpack_seq(end, &data, &cnt_shifted)) {
+        !zhe_unpack_seq(end, &data, &seqbase)) {
+        return 0;
+    }
+    if (!(hdr & MUFLAG)) {
+        cnt_shifted = 0;
+    } else if (!zhe_unpack_seq(end, &data, &cnt_shifted)) {
         return 0;
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {

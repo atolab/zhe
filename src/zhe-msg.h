@@ -33,6 +33,7 @@
 #define MMFLAG         MXFLAG /* mask present in ACKNACK (i.e., a NACK) */
 #define MLFLAG         MXFLAG /* seqnum length present in OPEN */
 #define MZFLAG         MRFLAG /* beware of MCONDUIT flags! */
+#define MUFLAG         MXFLAG /* count present in SYNCH */
 
 #define DRESOURCE           1
 #define DPUB                2
