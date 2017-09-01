@@ -116,7 +116,7 @@ void zhe_pack_mscout(zhe_address_t *dst, zhe_time_t tnow)
     const uint8_t mask = MSCOUT_BROKER | MSCOUT_PEER;
 #endif
     zhe_pack_reserve(dst, NULL, 2, tnow);
-    zhe_pack2(MSFLAG | MSCOUT, mask);
+    zhe_pack2(MSCOUT, mask);
 }
 
 void zhe_pack_mhello(zhe_address_t *dst, zhe_time_t tnow)
@@ -143,7 +143,7 @@ void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *
     const zhe_paysize_t sizeof_auth = 0;
     const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
     zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth + zhe_pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0), tnow);
-    zhe_pack2(MSFLAG | (seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZHE_VERSION);
+    zhe_pack2((seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZHE_VERSION);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack_vle32(ld100);
     zhe_pack_text(0, NULL); /* auth */
@@ -168,7 +168,7 @@ void zhe_pack_maccept(zhe_address_t *dst, const struct peerid *ownid, const stru
 void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ownid, zhe_time_t tnow)
 {
     zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len, tnow);
-    zhe_pack1(MSFLAG | MCLOSE);
+    zhe_pack1(MCLOSE);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack1(reason);
 }
@@ -209,7 +209,7 @@ void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase
 void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask, zhe_time_t tnow)
 {
     zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seq) + (mask ? zhe_pack_vle32req(mask) : 0), tnow);
-    zhe_pack1(MSFLAG | (mask == 0 ? 0 : MMFLAG) | MACKNACK);
+    zhe_pack1((mask == 0 ? 0 : MMFLAG) | MACKNACK);
     zhe_pack_seq(seq);
     if (mask != 0) {
         /* MFLAG implies a NACK of message SEQ, but the provided mask has the lsb correspond to
@@ -221,7 +221,7 @@ void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask, 
 void zhe_pack_mping(zhe_address_t *dst, uint16_t hash, zhe_time_t tnow)
 {
     zhe_pack_reserve(dst, NULL, 3, tnow);
-    zhe_pack1(MSFLAG | MPING);
+    zhe_pack1(MPING);
     zhe_pack_u16(hash);
 }
 
