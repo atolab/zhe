@@ -4,10 +4,6 @@
 
 #include <stdint.h>
 
-/* Size of unsigned integer used to represent a resource/selection
-   id internally (externally it is always variable-length encoded) */
-#define ZHE_RID_SIZE 32
-
 #define ZHE_MAX_RID 10
 #define ZHE_MAX_SUBSCRIPTIONS 10
 #define ZHE_MAX_PUBLICATIONS 10

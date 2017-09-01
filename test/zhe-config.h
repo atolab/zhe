@@ -4,10 +4,6 @@
 
 #include <stdint.h>
 
-/* Size of unsigned integer used to represent a resource/selection
-   id internally (externally it is always variable-length encoded) */
-#define ZHE_RID_SIZE 32
-
 /* Highest allowed RID (because of temporary direct mapping; also ignoring selection IDs for the moment); also at the moment there are no resource declarations. */
 #define ZHE_MAX_RID 553
 

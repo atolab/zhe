@@ -229,12 +229,9 @@ Communication *zhe* is done by publishing updates to resources, which are then d
 
 * **ZHE\_MAX\_PUBLICATIONS** is the maximum number of simultaneous publications.
 * **ZHE\_MAX\_SUBSCRIPTIONS** is the maximum number of simultaneous subscriptions. If multiple subscriptions to the same resource are taken, the handlers associated with these subscriptions are called in turn.
-* **ZHE\_MAX\_RID** is the highest allowed resource id. The subscription table is direct-mapped on resource id when **ZHE\_MAX\_SUBSCRIPTIONS** is over a threshold (currently 32), and this is table is what requires the limit on the resource ids.
-* **ZHE\_RID\_SIZE** is the type used to represent resource ids internally. On the wire they are always variable-length encoded. A smaller type reduces the footprint slightly.
+* **ZHE\_MAX\_RID** is the highest allowed resource id. The subscription table is direct-mapped on resource id when **ZHE\_MAX\_SUBSCRIPTIONS** is over a threshold (currently 32), and this is table is wh****at requires the limit on the resource ids.
 
 ## Resource IDs
-
-*Note*: no distinction is made between RIDs and SIDs yet. This is *not* in accordance with the XRCE specification proposals and will need to be changed in the future.
 
 # Run-time configuration
 
