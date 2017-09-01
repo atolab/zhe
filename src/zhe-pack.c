@@ -201,7 +201,7 @@ void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase
     zhe_pack1(MRFLAG | sflag | (cnt > 0 ? MUFLAG : 0) | MSYNCH);
     zhe_pack_seq(seqbase);
     if (cnt > 0) {
-    zhe_pack_seq(cnt_shifted);
+        zhe_pack_seq(cnt_shifted);
     }
     zhe_synch_sent++;
 }
@@ -298,26 +298,26 @@ void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_ti
 
 /* FIXME: not doing properties at the moment */
 
-void zhe_pack_dresource(zhe_rid_t rid, const char *res)
+void zhe_pack_dresource(zhe_rid_t rid, const char *res, int forget)
 {
     size_t ressz = strlen(res);
     zhe_assert(ressz <= (zhe_paysize_t)-1);
-    zhe_pack1(DRESOURCE);
+    zhe_pack1(DRESOURCE | (forget ? DFFLAG : 0));
     zhe_pack_rid(rid);
     zhe_pack_text((zhe_paysize_t)ressz, res);
 }
 
 /* FIXME: do I need DELETE? Not yet anyway */
 
-void zhe_pack_dpub(zhe_rid_t rid)
+void zhe_pack_dpub(zhe_rid_t rid, int forget)
 {
-    zhe_pack1(DPUB);
+    zhe_pack1(DPUB | (forget ? DFFLAG : 0));
     zhe_pack_rid(rid);
 }
 
-void zhe_pack_dsub(zhe_rid_t rid)
+void zhe_pack_dsub(zhe_rid_t rid, int forget)
 {
-    zhe_pack1(DSUB);
+    zhe_pack1(DSUB | (forget ? DFFLAG : 0));
     zhe_pack_rid(rid);
     zhe_pack1(SUBMODE_PUSH); /* FIXME: should be a parameter */
 }

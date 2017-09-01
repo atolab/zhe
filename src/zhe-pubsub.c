@@ -309,7 +309,7 @@ void zhe_send_declares(zhe_time_t tnow)
         if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from, tnow)) {
             zhe_assert(pubs[first].rid != 0);
             ZT(PUBSUB, "sending dpub %d rid %ju", first, (uintmax_t)pubs[first].rid);
-            zhe_pack_dpub(pubs[first].rid);
+            zhe_pack_dpub(pubs[first].rid, 0);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
             zhe_bitset_clear(todeclare.pubs, (unsigned)first);
             must_commit = 1;
@@ -324,7 +324,7 @@ void zhe_send_declares(zhe_time_t tnow)
         if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from, tnow)) {
             zhe_assert(subs[first].rid != 0);
             ZT(PUBSUB, "sending dsub %d rid %ju", first, (uintmax_t)subs[first].rid);
-            zhe_pack_dsub(subs[first].rid);
+            zhe_pack_dsub(subs[first].rid, 0);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
             zhe_bitset_clear(todeclare.subs, (unsigned)first);
             must_commit = 1;

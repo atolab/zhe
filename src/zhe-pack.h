@@ -33,9 +33,9 @@ void zhe_oc_pack_msdata_payload(struct out_conduit *c, int relflag, zhe_paysize_
 void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow);
 int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zhe_msgsize_t *from, zhe_time_t tnow);
 void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_time_t tnow);
-void zhe_pack_dresource(zhe_rid_t rid, const char *res);
-void zhe_pack_dpub(zhe_rid_t rid);
-void zhe_pack_dsub(zhe_rid_t rid);
+void zhe_pack_dresource(zhe_rid_t rid, const char *res, int forget);
+void zhe_pack_dpub(zhe_rid_t rid, int forget);
+void zhe_pack_dsub(zhe_rid_t rid, int forget);
 void zhe_pack_dcommit(uint8_t commitid);
 void zhe_pack_dresult(uint8_t commitid, uint8_t status, zhe_rid_t rid);
 
