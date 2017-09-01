@@ -93,12 +93,12 @@ zhe_paysize_t zhe_pack_seqreq(seq_t x)
 
 void zhe_pack_rid(zhe_rid_t x)
 {
-    SUFFIX_WITH_SIZE(zhe_pack_vle, ZHE_RID_SIZE) (x);
+    SUFFIX_WITH_SIZE(zhe_pack_vle, ZHE_RID_SIZE) ((zhe_rid_t)(x << 1));
 }
 
 zhe_paysize_t zhe_pack_ridreq(zhe_rid_t x)
 {
-    return INFIX_WITH_SIZE(zhe_pack_vle, ZHE_RID_SIZE, req) (x);
+    return INFIX_WITH_SIZE(zhe_pack_vle, ZHE_RID_SIZE, req) ((zhe_rid_t)(x << 1));
 }
 
 void zhe_pack_text(zhe_paysize_t n, const char *text)

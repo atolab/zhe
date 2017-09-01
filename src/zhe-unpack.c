@@ -134,7 +134,13 @@ const uint8_t *zhe_skip_validated_vle(const uint8_t *data)
 
 int zhe_unpack_rid(uint8_t const * const end, uint8_t const * * const data, zhe_rid_t * restrict u)
 {
-    return SUFFIX_WITH_SIZE(zhe_unpack_vle, ZHE_RID_SIZE)(end, data, u);
+    zhe_rid_t tmp;
+    if (! SUFFIX_WITH_SIZE(zhe_unpack_vle, ZHE_RID_SIZE)(end, data, &tmp)) {
+        return 0;
+    }
+    zhe_assert(!(tmp & 1)); /* while not doing SIDs yet */
+    *u = tmp >> 1;
+    return 1;
 }
 
 int zhe_unpack_vec(uint8_t const * const end, uint8_t const * * const data, size_t lim, zhe_paysize_t * restrict u, uint8_t * restrict v)
