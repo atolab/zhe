@@ -1656,7 +1656,7 @@ void zhe_housekeeping(zhe_time_t tnow)
             case PEERST_UNKNOWN:
                 break;
             case PEERST_ESTABLISHED:
-                if ((zhe_timediff_t)(tnow - peers[i].tlease) > peers[i].lease_dur) {
+                if ((zhe_timediff_t)(tnow - peers[i].tlease) > peers[i].lease_dur && peers[i].lease_dur != 0) {
                     ZT(PEERDISC, "lease expired on peer @ %u", i);
                     zhe_pack_mclose(&peers[i].oc.addr, 0, &ownid, tnow);
                     zhe_pack_msend();
