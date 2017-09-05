@@ -6,20 +6,23 @@
 #include "zhe-rid.h"
 
 #if ZHE_MAX_PUBLICATIONS < 256
-typedef struct { uint8_t idx; } zhe_pubidx_t;
+typedef uint8_t zhe_pubidx_inner_t;
 #elif ZHE_MAX_PUBLICATIONS < 32768
-typedef struct { uint16_t idx; } zhe_pubidx_t;
+typedef uint16_t zhe_pubidx_inner_t;
 #else
 #error "ZHE_MAX_PUBLICATIONS >= 32768 not implemented (cf bitset_findfirst)"
 #endif
 
 #if ZHE_MAX_SUBSCRIPTIONS < 256
-typedef struct { uint8_t idx; } zhe_subidx_t;
+typedef uint8_t zhe_subidx_inner_t;
 #elif ZHE_MAX_SUBSCRIPTIONS < 32768
-typedef struct { uint16_t idx; } zhe_subidx_t;
+typedef uint16_t zhe_subidx_inner_t;
 #else
 #error "ZHE_MAX_SUBSCRIPTIONS >= 32768 not implemented (cf bitset_findfirst)"
 #endif
+
+typedef struct { zhe_pubidx_inner_t idx; } zhe_pubidx_t;
+typedef struct { zhe_subidx_inner_t idx; } zhe_subidx_t;
 
 typedef void (*zhe_subhandler_t)(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg);
 

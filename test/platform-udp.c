@@ -291,9 +291,13 @@ int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t
 #endif
     ret = sendto(udp->s[0], buf, size, 0, (const struct sockaddr *)&dst->a, sizeof(dst->a));
     if (ret > 0) {
-        char tmp[TRANSPORT_ADDRSTRLEN];
-        zhe_platform_addr2string(pf, tmp, sizeof(tmp), dst);
-        ZT(TRANSPORT, "send %zu to %s", ret, tmp);
+#if ENABLE_TRACING
+        if (ZTT(TRANSPORT)) {
+            char tmp[TRANSPORT_ADDRSTRLEN];
+            zhe_platform_addr2string(pf, tmp, sizeof(tmp), dst);
+            ZT(TRANSPORT, "send %zu to %s", ret, tmp);
+        }
+#endif
         return (int)ret;
     } else if (ret == -1 && (errno == EAGAIN || errno == ENOBUFS || errno == EHOSTDOWN || errno == EHOSTUNREACH)) {
         return 0;
@@ -339,19 +343,23 @@ int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size,
     struct udp *udp = (struct udp *)pf;
     ssize_t ret = recv1(udp, buf, size, src);
     if (ret <= 0 || !is_from_me(udp, src)) {
-        if (ret > 0) {
+#if ENABLE_TRACING
+        if (ZTT(TRANSPORT) && ret > 0) {
             char tmp[TRANSPORT_ADDRSTRLEN];
             zhe_platform_addr2string(pf, tmp, sizeof(tmp), src);
             ZT(TRANSPORT, "recv[%d] %zu from %s", 1 - udp->next, ret, tmp);
         }
+#endif
         assert(ret < INT_MAX);
         return (int)ret;
     } else {
-        if (is_from_me(udp, src)) {
+#if ENABLE_TRACING
+        if (ZTT(TRANSPORT) && is_from_me(udp, src)) {
             char tmp[TRANSPORT_ADDRSTRLEN];
             zhe_platform_addr2string(pf, tmp, sizeof(tmp), src);
             ZT(TRANSPORT, "recv[%d] %zu from %s (self)", 1 - udp->next, ret, tmp);
         }
+#endif
         return 0;
     }
 }

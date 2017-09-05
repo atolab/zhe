@@ -197,6 +197,7 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     /* FIXME: stupid naming */
     zhe_rsub_clear(peeridx);
     /* If data destined for this peer, drop it it */
+    zhe_reset_peer_unsched_hist_decls(peeridx);
 #if HAVE_UNICAST_CONDUIT
     if (outdst == &p->oc.addr) {
         reset_outbuf();
@@ -641,8 +642,9 @@ static const uint8_t *handle_dsub(peeridx_t peeridx, const uint8_t * const end, 
         return 0;
     }
     if (mode == SUBMODE_PERIODPULL || mode == SUBMODE_PERIODPUSH) {
-        if (!zhe_unpack_vle32(end, &data, NULL) ||
-            !zhe_unpack_vle32(end, &data, NULL)) {
+        if (!zhe_unpack_vle32(end, &data, NULL) /* temporal origin */ ||
+            !zhe_unpack_vle32(end, &data, NULL) /* period */ ||
+            !zhe_unpack_vle32(end, &data, NULL) /* duration */) {
             return 0;
         }
     }
@@ -916,9 +918,7 @@ static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * 
 #endif
     npeers++;
 
-    /* FIXME: stupid naming - but we do need to declare everything (again). A much more sophisticated version could use the unicast channels for late joining ones, but we ain't there yet */
-    zhe_reset_pubs_to_declare();
-    zhe_reset_subs_to_declare();
+    zhe_accept_peer_sched_hist_decls(peeridx);
 }
 
 static int conv_lease_to_ztimediff(zhe_timediff_t *res, uint32_t ld100)

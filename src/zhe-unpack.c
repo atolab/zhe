@@ -139,7 +139,9 @@ int zhe_unpack_rid(uint8_t const * const end, uint8_t const * * const data, zhe_
         return 0;
     }
     zhe_assert(!(tmp & 1)); /* while not doing SIDs yet */
-    *u = tmp >> 1;
+    if (u != NULL) {
+        *u = tmp >> 1;
+    }
     return 1;
 }
 
