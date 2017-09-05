@@ -24,18 +24,6 @@ int zhe_unpack_byte(uint8_t const * const end, uint8_t const * * const data, uin
     return 1;
 }
 
-int zhe_unpack_u16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
-{
-    if (end - *data < 2) {
-        return 0;
-    }
-    if (u) {
-        *u = (uint16_t)((*data)[0] | ((uint16_t)((*data)[1]) << 8));
-    }
-    *data += 2;
-    return 1;
-}
-
 int zhe_unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
 {
     uint16_t n;

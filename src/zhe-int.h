@@ -23,7 +23,6 @@ int zhe_xmitw_hasspace(const struct out_conduit *c, zhe_paysize_t sz);
 void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt, zhe_time_t tnow);
 void zhe_pack1(uint8_t x);
 void zhe_pack2(uint8_t x, uint8_t y);
-void zhe_pack_u16(uint16_t x);
 void zhe_pack_vec(zhe_paysize_t n, const void *buf);
 uint16_t zhe_pack_locs_calcsize(void);
 void zhe_pack_locs(void);

@@ -220,16 +220,16 @@ void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask, 
 
 void zhe_pack_mping(zhe_address_t *dst, uint16_t hash, zhe_time_t tnow)
 {
-    zhe_pack_reserve(dst, NULL, 3, tnow);
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(hash), tnow);
     zhe_pack1(MPING);
-    zhe_pack_u16(hash);
+    zhe_pack_vle16(hash);
 }
 
 void zhe_pack_mpong(zhe_address_t *dst, uint16_t hash, zhe_time_t tnow)
 {
-    zhe_pack_reserve(dst, NULL, 3, tnow);
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(hash), tnow);
     zhe_pack1(MPONG);
-    zhe_pack_u16(hash);
+    zhe_pack_vle16(hash);
 }
 
 void zhe_pack_mkeepalive(zhe_address_t *dst, const struct peerid *ownid, zhe_time_t tnow)

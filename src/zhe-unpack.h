@@ -5,7 +5,6 @@
 
 int zhe_unpack_skip(uint8_t const * const end, uint8_t const * * const data, zhe_msgsize_t n);
 int zhe_unpack_byte(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u);
-int zhe_unpack_u16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u);
 int zhe_unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u);
 int zhe_unpack_vle32(uint8_t const * const end, uint8_t const * * const data, uint32_t * restrict u);
 int zhe_unpack_vle64(uint8_t const * const end, uint8_t const * * const data, uint64_t * restrict u);

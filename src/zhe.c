@@ -454,11 +454,6 @@ void zhe_pack2(uint8_t x, uint8_t y)
     outbuf[outp++] = y;
 }
 
-void zhe_pack_u16(uint16_t x)
-{
-    zhe_pack2(x & 0xff, x >> 8);
-}
-
 void zhe_pack_vec(zhe_paysize_t n, const void *vbuf)
 {
     const uint8_t *buf = vbuf;
@@ -1424,7 +1419,7 @@ static const uint8_t *handle_mping(peeridx_t peeridx, const uint8_t * const end,
 {
     uint16_t hash;
     if (!zhe_unpack_skip(end, &data, 1) ||
-        !zhe_unpack_u16(end, &data, &hash)) {
+        !zhe_unpack_vle16(end, &data, &hash)) {
         return 0;
     }
     zhe_pack_mpong(&peers[peeridx].oc.addr, hash, tnow);
@@ -1434,7 +1429,8 @@ static const uint8_t *handle_mping(peeridx_t peeridx, const uint8_t * const end,
 
 static const uint8_t *handle_mpong(peeridx_t peeridx, const uint8_t * const end, const uint8_t *data)
 {
-    if (!zhe_unpack_skip(end, &data, 3)) {
+    if (!zhe_unpack_skip(end, &data, 1) ||
+        !zhe_unpack_vle16(end, &data, NULL)) {
         return 0;
     }
     return data;
