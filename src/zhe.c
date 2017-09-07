@@ -1137,7 +1137,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
     if (!(peers[peeridx].state == PEERST_ESTABLISHED && peers[peeridx].ic[cid].synched)) {
         intp = 0;
     } else {
-        if (zhe_seq_le(peers[peeridx].ic[cid].lseqpU, seq)) {
+        if (zhe_seq_le(peers[peeridx].ic[cid].seq, seq + SEQNUM_UNIT) && zhe_seq_lt(peers[peeridx].ic[cid].lseqpU, seq + SEQNUM_UNIT)) {
             peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
         }
         intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq);
@@ -1193,13 +1193,15 @@ static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {
         ZT(RELIABLE, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
-        if (zhe_seq_le(peers[peeridx].ic[cid].seq, seqbase) || !peers[peeridx].ic[cid].synched) {
             if (!peers[peeridx].ic[cid].synched) {
                 ZT(PEERDISC, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
-            }
             peers[peeridx].ic[cid].seq = seqbase;
             peers[peeridx].ic[cid].lseqpU = seqbase + cnt_shifted;
             peers[peeridx].ic[cid].synched = 1;
+        } else if (zhe_seq_le(peers[peeridx].ic[cid].seq, seqbase) || zhe_seq_lt(seqbase + cnt_shifted, peers[peeridx].ic[cid].seq)) {
+            ZT(RELIABLE, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+            peers[peeridx].ic[cid].seq = seqbase;
+            peers[peeridx].ic[cid].lseqpU = seqbase + cnt_shifted;
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }
@@ -1244,7 +1246,8 @@ static const uint8_t *handle_msdata(peeridx_t peeridx, const uint8_t * const end
             ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
         }
     } else if (peers[peeridx].ic[cid].synched) {
-        if (zhe_seq_le(peers[peeridx].ic[cid].lseqpU, seq)) {
+        /* Only move lseqpU forward based on the received sequence number if the seq is greater than the next-to-be-delivered and greater than the latest known, or else we can end up with ic[cid].lseqpU < ic[cid].seq */
+        if (zhe_seq_le(peers[peeridx].ic[cid].seq, seq + SEQNUM_UNIT) && zhe_seq_lt(peers[peeridx].ic[cid].lseqpU, seq + SEQNUM_UNIT)) {
             peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
         }
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
@@ -1331,6 +1334,15 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
         return data;
     }
 
+    if (zhe_seq_lt(seq, c->seqbase) || zhe_seq_lt(c->seq, seq)) {
+        /* If a peer ACKs messages we have dropped already, or if it NACKs ones we have not
+           even sent yet, send a SYNCH and but otherwise ignore the ACKNACK */
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
+        zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
+        zhe_pack_msend();
+        return data;
+    }
+
     DO_FOR_UNICAST_OR_MULTICAST(cid, seq_ack = seq, seq_ack = zhe_minseqheap_update_seq(peeridx, seq, c->seqbase, &out_mconduits[cid].seqbase));
     remove_acked_messages(c, seq_ack);
 
@@ -1341,13 +1353,6 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
         } else {
             ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u ACK", peeridx, cid, seq >> SEQNUM_SHIFT);
         }
-    } else if (zhe_seq_lt(seq, c->seqbase) || zhe_seq_le(c->seq, seq)) {
-        /* If the broker ACKs stuff we have dropped already, or if it NACKs stuff we have not
-           even sent yet, send a SYNCH without the S flag (i.e., let the broker decide what to
-           do with it) */
-        ZT(RELIABLE, "handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
-        zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
-        zhe_pack_msend();
     } else if ((zhe_timediff_t)(tnow - c->last_rexmit) <= ROUNDTRIP_TIME_ESTIMATE && zhe_seq_lt(seq, c->last_rexmit_seq)) {
         ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u mask %08x - suppress", peeridx, cid, seq >> SEQNUM_SHIFT, mask);
     } else {
@@ -1397,7 +1402,7 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
         }
         c->last_rexmit = tnow;
         c->last_rexmit_seq = seq;
-        /* Asserting that seq <= c->seq is a somewhat nonsensical considering the guards for
+        /* Asserting that seq <= c->seq is somewhat nonsensical considering the guards for
            this block and the loop condition, but it clarifies the second zhe_assertion: if we got
            all the way to the most recent sample, then P should point to the first free
            position in the transmit window, a.k.a. c->pos.  */
