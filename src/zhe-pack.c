@@ -14,6 +14,21 @@
 #endif
 #define WORST_CASE_SEQ_SIZE (8 * SEQNUM_LEN / 7)
 
+void zhe_pack_vle8(uint8_t x)
+{
+    do {
+        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
+        x >>= 7;
+    } while (x);
+}
+
+zhe_paysize_t zhe_pack_vle8req(uint8_t x)
+{
+    zhe_paysize_t n = 0;
+    do { n++; x >>= 7; } while (x != 0);
+    return n;
+}
+
 void zhe_pack_vle16(uint16_t x)
 {
     do {

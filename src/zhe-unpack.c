@@ -24,6 +24,30 @@ int zhe_unpack_byte(uint8_t const * const end, uint8_t const * * const data, uin
     return 1;
 }
 
+int zhe_unpack_vle8(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u)
+{
+    uint8_t n;
+    uint8_t shift = 7;
+    uint8_t x;
+    if (end == *data) {
+        return 0;
+    }
+    x = **data; (*data)++;
+    n = x & 0x7f;
+    while (x & 0x80) {
+        if (end == *data) {
+            return 0;
+        }
+        x = **data; (*data)++;
+        if (shift < CHAR_BIT * sizeof(*u)) { /* else behaviour is undefined */
+            n |= ((uint8_t)(x & 0x7f)) << shift;
+            shift += 7;
+        }
+    }
+    if (u) *u = n;
+    return 1;
+}
+
 int zhe_unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
 {
     uint16_t n;

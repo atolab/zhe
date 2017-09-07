@@ -174,11 +174,10 @@ void zhe_rsub_clear(peeridx_t peeridx)
     for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
         const zhe_rid_t rid = pubs[pubidx.idx].rid;
         zhe_assert(rid <= ZHE_MAX_RID);
-        if (rid != 0) {
+        if (rid != 0 && zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
             peeridx_t i;
             for (i = 0; i < MAX_PEERS_1; i++) {
                 if (zhe_bitset_test(peers_rsubs[i].rsubs, rid)) {
-                    zhe_assert(zhe_bitset_test(pubs_rsubs, pubidx.idx));
                     break;
                 }
             }
@@ -248,19 +247,6 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-/* Not currently implementing cancelling subscriptions or stopping publishing, but once that is
- included, should clear pubs_to_declare if it so happens that the publication hasn't been
- declared yet by the time it is deleted */
-struct todeclare {
-    unsigned workpending: 1;
-
-#if MAX_PEERS == 0 /* peers for now only do subs ... probably not wise */
-    DECL_BITSET(pubs, ZHE_MAX_PUBLICATIONS);
-#endif
-    DECL_BITSET(subs, ZHE_MAX_SUBSCRIPTIONS);
-};
-static struct todeclare todeclare;
-static uint8_t must_commit;
 static uint8_t gcommitid;
 
 #define ZHE_MAX_RESOURCES 30
@@ -288,53 +274,48 @@ enum declitem_kind {
 #define DECLITEM_KIND_LAST DIK_SUBSCRIPTION
 #define N_DECLITEM_KINDS ((int)DECLITEM_KIND_LAST + 1)
 
-#if MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT
+typedef peeridx_t cursoridx_t;
+
+#define MULTICAST_CURSORIDX (MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT ? MAX_PEERS : 0)
 
 struct pending_decls {
-    peeridx_t cnt;
-    peeridx_t pos;
-    peeridx_t peers[MAX_PEERS_1];
-    declitem_idx_t cursor[MAX_PEERS_1][N_DECLITEM_KINDS];
+    cursoridx_t cnt;
+    cursoridx_t pos;
+    cursoridx_t peers[MULTICAST_CURSORIDX + 1];
+    declitem_idx_t cursor[MULTICAST_CURSORIDX + 1][N_DECLITEM_KINDS];
 };
 
 static struct pending_decls pending_decls;
 
-#endif
-
 void zhe_accept_peer_sched_hist_decls(peeridx_t peeridx)
 {
 #if MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT
-    for (peeridx_t idx = 0; idx < pending_decls.cnt; idx++) {
-        zhe_assert(pending_decls.peers[idx] != peeridx);
+    const cursoridx_t cursoridx = peeridx;
+    for (cursoridx_t idx = 0; idx < pending_decls.cnt; idx++) {
+        zhe_assert(pending_decls.peers[idx] != cursoridx);
     }
-    zhe_assert(pending_decls.cnt < MAX_PEERS_1);
-    enum declitem_kind kind = DECLITEM_KIND_FIRST;
-    do {
-        pending_decls.cursor[peeridx][kind] = 0;
-    } while(kind++ != DECLITEM_KIND_LAST);
-    pending_decls.peers[pending_decls.cnt++] = peeridx;
+    zhe_assert(pending_decls.cnt < sizeof(pending_decls.cursor) / sizeof(pending_decls.cursor[0]));
+    pending_decls.peers[pending_decls.cnt++] = cursoridx;
 #else
-    todeclare.workpending = 1;
-    memset(todeclare.subs, 0, sizeof(todeclare.subs));
-    memset(todeclare.pubs, 0, sizeof(todeclare.pubs));
-    for (zhe_subidx_t subidx.idx = 0; subidx.idx < ZHE_MAX_SUBSCRIPTIONS; subidx.idx++) {
-        if (subs[subidx.idx].rid != 0) {
-            zhe_bitset_set(todeclare.subs, subidx.idx);
-        }
-    }
-    for (zhe_pubidx_t pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
-        if (pubs[pubidx.idx].rid != 0) {
-            zhe_bitset_set(todeclare.pubs, pubidx.idx);
-        }
+    const cursoridx_t cursoridx = MULTICAST_CURSORIDX;
+    if (pending_decls.cnt == 0) {
+        pending_decls.peers[pending_decls.cnt++] = cursoridx;
+    } else {
+        zhe_assert(pending_decls.cnt == 1 && pending_decls.peers[pending_decls.cnt] == cursoridx);
     }
 #endif
+    enum declitem_kind kind = DECLITEM_KIND_FIRST;
+    do {
+        pending_decls.cursor[cursoridx][kind] = 0;
+    } while(kind++ != DECLITEM_KIND_LAST);
 }
 
 void zhe_reset_peer_unsched_hist_decls(peeridx_t peeridx)
 {
 #if MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT
-    for (peeridx_t idx = 0; idx < pending_decls.cnt; idx++) {
-        if (pending_decls.peers[idx] != peeridx) {
+    cursoridx_t cursoridx = peeridx;
+    for (cursoridx_t idx = 0; idx < pending_decls.cnt; idx++) {
+        if (pending_decls.peers[idx] != cursoridx) {
             continue;
         }
 
@@ -349,19 +330,18 @@ void zhe_reset_peer_unsched_hist_decls(peeridx_t peeridx)
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-#if MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT
 static int send_declare_resource(struct out_conduit *oc, declitem_idx_t res, zhe_time_t tnow)
 {
     return 1;
 }
-#endif
 
-#if MAX_PEERS == 0 || (MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT)
 static int send_declare_pub(struct out_conduit *oc, declitem_idx_t pub, zhe_time_t tnow)
 {
+    /* Currently not pushing publication declarations in peer mode */
+#if MAX_PEERS == 0
     zhe_msgsize_t from;
     if (pubs[pub].rid == 0) {
-        return 0;
+        return 1;
     } else if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending dpub %d rid %ju", pub, (uintmax_t)pubs[pub].rid);
         zhe_pack_dpub(pubs[pub].rid, 0);
@@ -371,14 +351,16 @@ static int send_declare_pub(struct out_conduit *oc, declitem_idx_t pub, zhe_time
         ZT(PUBSUB, "postponing dpub %d rid %ju", pub, (uintmax_t)pubs[pub].rid);
         return 0;
     }
-}
+#else
+    return 1;
 #endif
+}
 
 static int send_declare_sub(struct out_conduit *oc, declitem_idx_t sub, zhe_time_t tnow)
 {
     zhe_msgsize_t from;
     if (subs[sub].rid == 0) {
-        return 0;
+        return 1;
     } else if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending dsub %d rid %ju", sub, (uintmax_t)subs[sub].rid);
         zhe_pack_dsub(subs[sub].rid, 0);
@@ -395,7 +377,7 @@ static int send_declare_commit(struct out_conduit *oc, uint8_t commitid, zhe_tim
     zhe_msgsize_t from;
     if (zhe_oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending commit %u", commitid);
-        zhe_pack_dcommit(commitid++);
+        zhe_pack_dcommit(commitid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
         zhe_pack_msend();
         return 1;
@@ -405,44 +387,54 @@ static int send_declare_commit(struct out_conduit *oc, uint8_t commitid, zhe_tim
     }
 }
 
-#if MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT
-static void zhe_send_historical_declares(zhe_time_t tnow)
+static struct out_conduit *zhe_send_declares1(zhe_time_t tnow, const cursoridx_t cursoridx)
 {
-    typedef int (*declfun_t)(struct out_conduit *oc, declitem_idx_t idx, zhe_time_t tnow);
-    static const declfun_t declfuns[N_DECLITEM_KINDS] = {
-        [DIK_RESOURCE] = send_declare_resource,
-        [DIK_SUBSCRIPTION] = send_declare_sub,
-        [DIK_PUBLICATION] = send_declare_pub
-    };
-
-    if (pending_decls.cnt == 0) {
-        zhe_assert(pending_decls.pos == 0);
-        return;
-    }
-
-    const peeridx_t peeridx = pending_decls.peers[pending_decls.pos];
-    struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, UNICAST_CID);
+    zhe_assert(cursoridx == MULTICAST_CURSORIDX || cursoridx < MAX_PEERS_1);
+#if HAVE_UNICAST_CONDUIT
+    struct out_conduit * const oc = (cursoridx == MULTICAST_CURSORIDX) ? zhe_out_conduit_from_cid(0, 0) : zhe_out_conduit_from_cid(cursoridx, UNICAST_CID);
+#else
+    struct out_conduit * const oc = (cursoridx == MULTICAST_CURSORIDX) ? zhe_out_conduit_from_cid(0, 0) : zhe_out_conduit_from_cid(cursoridx, 0);
+#endif
     declitem_idx_t idx;
     int done = 0;
     enum declitem_kind kind;
 
     kind = DECLITEM_KIND_FIRST;
     do {
-        if ((idx = pending_decls.cursor[peeridx][kind]) == DECLITEM_IDX_INVALID) {
+        if ((idx = pending_decls.cursor[cursoridx][kind]) == DECLITEM_IDX_INVALID) {
             done++;
         } else {
-            if (declfuns[kind](oc, idx, tnow)) {
+            declitem_idx_t max;
+            int success;
+            //ZT(PUBSUB, "send_declares_1 cursoridx %u kind %u idx %u cid %u", (unsigned)cursoridx, (unsigned)kind, (unsigned)idx, (unsigned)zhe_oc_get_cid(oc));
+            switch (kind) {
+                case DIK_RESOURCE:     success = send_declare_resource(oc, idx, tnow); max = ZHE_MAX_RESOURCES; break;
+                case DIK_PUBLICATION:  success = send_declare_pub(oc, idx, tnow); max = ZHE_MAX_PUBLICATIONS;  break;
+                case DIK_SUBSCRIPTION: success = send_declare_sub(oc, idx, tnow); max = ZHE_MAX_SUBSCRIPTIONS;  break;
+            }
+            if (success) {
                 /* FIXME: improve iterator over items to declare */
-                if (++pending_decls.cursor[peeridx][kind] == ZHE_MAX_PUBLICATIONS) {
-                    pending_decls.cursor[peeridx][kind] = DECLITEM_IDX_INVALID;
+                if (++pending_decls.cursor[cursoridx][kind] == max) {
+                    pending_decls.cursor[cursoridx][kind] = DECLITEM_IDX_INVALID;
                     done++;
                 }
             }
         }
     } while (kind++ != DECLITEM_KIND_LAST);
 
-    if (done != N_DECLITEM_KINDS || !send_declare_commit(oc, gcommitid, tnow))
-    {
+    return (done == N_DECLITEM_KINDS) ? oc : NULL;
+}
+
+void zhe_send_declares(zhe_time_t tnow)
+{
+    struct out_conduit *commit_oc;
+    if (pending_decls.cnt == 0) {
+        zhe_assert(pending_decls.pos == 0);
+    } else if ((commit_oc = zhe_send_declares1(tnow, pending_decls.peers[pending_decls.pos])) == NULL) {
+        if (++pending_decls.pos == pending_decls.cnt) {
+            pending_decls.pos = 0;
+        }
+    } else if (!send_declare_commit(commit_oc, gcommitid, tnow)) {
         if (++pending_decls.pos == pending_decls.cnt) {
             pending_decls.pos = 0;
         }
@@ -453,51 +445,6 @@ static void zhe_send_historical_declares(zhe_time_t tnow)
             pending_decls.pos = 0;
         }
     }
-}
-#endif
-
-void zhe_send_declares(zhe_time_t tnow)
-{
-    struct out_conduit * const oc = zhe_out_conduit_from_cid(0, 0);
-    int first;
-
-    if (!todeclare.workpending) {
-#if MAX_PEERS > 1 && HAVE_UNICAST_CONDUIT
-        zhe_send_historical_declares(tnow);
-#endif
-        return;
-    }
-
-    /* Push out any pending declarations.  We keep trying until the transmit window has room.
-     It may therefore be a while before the broker is informed of a new publication, and
-     conceivably data could be published that will be lost.  */
-#if MAX_PEERS == 0
-    if ((first = zhe_bitset_findfirst(todeclare.pubs, ZHE_MAX_PUBLICATIONS)) >= 0) {
-        if (send_declare_pub(oc, (zhe_pubidx_inner_t)first, tnow)) {
-            zhe_bitset_clear(todeclare.pubs, (unsigned)first);
-            must_commit = 1;
-        }
-        return;
-    }
-#endif
-
-    if ((first = zhe_bitset_findfirst(todeclare.subs, ZHE_MAX_SUBSCRIPTIONS)) >= 0) {
-        if (send_declare_sub(oc, (zhe_subidx_inner_t)first, tnow)) {
-            zhe_bitset_clear(todeclare.subs, (unsigned)first);
-            must_commit = 1;
-        } else {
-            ZT(PUBSUB, "postponing dsub %d rid %ju", first, (uintmax_t)subs[first].rid);
-        }
-        return;
-    }
-
-    if (must_commit && send_declare_commit(oc, gcommitid, tnow)) {
-        gcommitid++;
-        must_commit = 0;
-        return;
-    }
-
-    todeclare.workpending = 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -525,8 +472,22 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
     }
     ZT(PUBSUB, "publish: %u rid %ju (%s)", pubidx.idx, (uintmax_t)rid, reliable ? "reliable" : "unreliable");
 #if MAX_PEERS == 0
-    todeclare.workpending = 1;
-    zhe_bitset_set(todeclare.pubs, pubidx.idx);
+    {
+        cursoridx_t idx;
+        for (idx = 0; idx < pending_decls.cnt; idx++) {
+            if (pending_decls.peers[idx] == MULTICAST_CURSORIDX) {
+                break;
+            }
+        }
+        if (idx == pending_decls.cnt + 1) {
+            zhe_assert(pending_decls.cnt < sizeof(pending_decls.cursor) / sizeof(pending_decls.cursor[0]));
+            pending_decls.peers[pending_decls.cnt++] = MULTICAST_CURSORIDX;
+        }
+        if (pending_decls.cursor[MULTICAST_CURSORIDX][DIK_PUBLICATION] > pubidx.idx) {
+            /* FIXME: double declare ... once you can delete publications */
+            pending_decls.cursor[MULTICAST_CURSORIDX][DIK_PUBLICATION] = pubidx.idx;
+        }
+    }
 #else
     for (peeridx_t peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
         if (zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
@@ -571,8 +532,22 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
 #if ZHE_MAX_SUBSCRIPTIONS > RID_TABLE_THRESHOLD
     rid2sub[rid] = subidx;
 #endif
-    todeclare.workpending = 1;
-    zhe_bitset_set(todeclare.subs, subidx.idx);
+    {
+        cursoridx_t idx;
+        for (idx = 0; idx < pending_decls.cnt; idx++) {
+            if (pending_decls.peers[idx] == MULTICAST_CURSORIDX) {
+                break;
+            }
+        }
+        if (idx == pending_decls.cnt + 1) {
+            zhe_assert(pending_decls.cnt < sizeof(pending_decls.cursor) / sizeof(pending_decls.cursor[0]));
+            pending_decls.peers[pending_decls.cnt++] = MULTICAST_CURSORIDX;
+        }
+        if (pending_decls.cursor[MULTICAST_CURSORIDX][DIK_SUBSCRIPTION] > subidx.idx) {
+            /* FIXME: double declare ... once you can delete publications */
+            pending_decls.cursor[MULTICAST_CURSORIDX][DIK_SUBSCRIPTION] = subidx.idx;
+        }
+    }
     ZT(PUBSUB, "subscribe: %u rid %ju", subidx.idx, (uintmax_t)rid);
     return subidx;
 }

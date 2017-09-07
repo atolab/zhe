@@ -6,6 +6,8 @@
 struct out_conduit;
 struct peerid;
 
+void zhe_pack_vle8(uint8_t x);
+zhe_paysize_t zhe_pack_vle8req(uint8_t x);
 void zhe_pack_vle16(uint16_t x);
 zhe_paysize_t zhe_pack_vle16req(uint16_t x);
 void zhe_pack_vle32(uint32_t x);

@@ -802,9 +802,8 @@ static const uint8_t *handle_mhello(peeridx_t peeridx, const uint8_t * const end
     const int state_ok = (peers[peeridx].state == PEERST_UNKNOWN);
 #endif
     struct unpack_locs_iter locs_it;
-    uint8_t hdr;
     uint32_t mask;
-    if (!zhe_unpack_byte(end, &data, &hdr) ||
+    if (!zhe_unpack_skip(end, &data, 1) ||
         !zhe_unpack_vle32(end, &data, &mask) ||
         !zhe_unpack_locs(end, &data, &locs_it) ||
         !zhe_unpack_props(end, &data)) {
@@ -1197,8 +1196,8 @@ static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {
         ZT(RELIABLE, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
-            if (!peers[peeridx].ic[cid].synched) {
-                ZT(PEERDISC, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+        if (!peers[peeridx].ic[cid].synched) {
+            ZT(PEERDISC, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
             peers[peeridx].ic[cid].seq = seqbase;
             peers[peeridx].ic[cid].lseqpU = seqbase + cnt_shifted;
             peers[peeridx].ic[cid].synched = 1;
