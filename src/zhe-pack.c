@@ -14,6 +14,8 @@
 #endif
 #define WORST_CASE_SEQ_SIZE (8 * SEQNUM_LEN / 7)
 
+static const uint8_t auth[] = { 2, 3 }; /* we don't do auth, but this matches Angelo's broker proto */
+
 void zhe_pack_vle8(uint8_t x)
 {
     do {
@@ -155,13 +157,12 @@ static uint32_t conv_zhe_timediff_to_lease(zhe_timediff_t lease_dur)
 
 void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
-    const zhe_paysize_t sizeof_auth = 0;
     const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
-    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth + zhe_pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0), tnow);
+    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof(auth)) + sizeof(auth) + zhe_pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0), tnow);
     zhe_pack2((seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZHE_VERSION);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack_vle32(ld100);
-    zhe_pack_text(0, NULL); /* auth */
+    zhe_pack_vec(sizeof(auth), auth);
     zhe_pack_locs();
     if (seqnumlen != 14) {
         zhe_pack1(seqnumlen);
@@ -170,14 +171,13 @@ void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *
 
 void zhe_pack_maccept(zhe_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
-    const zhe_paysize_t sizeof_auth = 0;
     const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
-    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle16req(peerid->len) + peerid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof_auth) + sizeof_auth, tnow);
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle16req(peerid->len) + peerid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof(auth)) + sizeof(auth), tnow);
     zhe_pack1(MACCEPT);
     zhe_pack_vec(peerid->len, peerid->id);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack_vle32(ld100);
-    zhe_pack_text(0, NULL); /* auth */
+    zhe_pack_vec(sizeof(auth), auth);
 }
 
 void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ownid, zhe_time_t tnow)
