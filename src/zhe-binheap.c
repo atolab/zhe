@@ -31,14 +31,30 @@ static void minseqheap_heapify(peeridx_t j, peeridx_t n, peeridx_t * restrict p,
     }
 }
 
+#ifndef NDEBUG
+static void check_heap(struct minseqheap * const h)
+{
+    peeridx_t cnt = 0;
+    zhe_assert(h->n <= MAX_PEERS_1);
+    for (peeridx_t j = 0; j < MAX_PEERS_1; j++) {
+        zhe_assert(h->ix[j].i == PEERIDX_INVALID || (h->ix[j].i < h->n && h->hx[h->ix[j].i] == j));
+        cnt += (h->ix[j].i != PEERIDX_INVALID);
+    }
+    zhe_assert(cnt == h->n);
+    for (peeridx_t j = 0; j < h->n/2; j++) {
+        peeridx_t k = 2*j+1;
+        zhe_assert (k >= h->n || zhe_seq_le(h->vs[h->hx[j]], h->vs[h->hx[k]]));
+        zhe_assert (k+1 >= h->n || zhe_seq_le(h->vs[h->hx[j]], h->vs[h->hx[k+1]]));
+    }
+}
+#endif
+
 void zhe_minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap * const h)
 {
     peeridx_t i;
 #ifndef NDEBUG
+    check_heap(h);
     zhe_assert(h->ix[peeridx].i == PEERIDX_INVALID);
-    for (peeridx_t j = 0; j < h->n; j++) {
-        zhe_assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
-    }
 #endif
     h->vs[peeridx] = seqbase;
     i = h->n++;
@@ -49,6 +65,9 @@ void zhe_minseqheap_insert(peeridx_t peeridx, seq_t seqbase, struct minseqheap *
     }
     h->hx[i] = peeridx;
     h->ix[h->hx[i]].i = i;
+#ifndef NDEBUG
+    check_heap(h);
+#endif
 }
 
 seq_t zhe_minseqheap_get_min(struct minseqheap const * const h)
@@ -60,12 +79,18 @@ seq_t zhe_minseqheap_get_min(struct minseqheap const * const h)
 seq_t zhe_minseqheap_update_seq(peeridx_t peeridx, seq_t seqbase, seq_t seqbase_if_discarded, struct minseqheap * const h)
 {
     /* peeridx must be contained in heap and new seqbase must be >= h->vs[peeridx] */
+#ifndef NDEBUG
+    check_heap(h);
+#endif
     if (h->ix[peeridx].i == PEERIDX_INVALID || zhe_seq_le(seqbase, h->vs[peeridx])) {
         return seqbase_if_discarded;
     } else {
         zhe_assert(h->hx[h->ix[peeridx].i] == peeridx);
         h->vs[peeridx] = seqbase;
         minseqheap_heapify(h->ix[peeridx].i, h->n, h->hx, h->ix, h->vs);
+#ifndef NDEBUG
+        check_heap(h);
+#endif
         return h->vs[h->hx[0]];
     }
 }
@@ -74,23 +99,26 @@ int zhe_minseqheap_delete(peeridx_t peeridx, struct minseqheap * const h)
 {
     /* returns 0 if peeridx not contained in heap; 1 if it is contained */
     const peeridx_t i = h->ix[peeridx].i;
-    if (i == PEERIDX_INVALID) {
 #ifndef NDEBUG
-        for (peeridx_t j = 0; j < h->n; j++) {
-            zhe_assert(h->hx[j] != peeridx && h->hx[j] < MAX_PEERS_1);
-        }
+    check_heap(h);
 #endif
+    if (i == PEERIDX_INVALID) {
         return 0;
     } else {
         zhe_assert(h->hx[i] == peeridx);
         h->ix[peeridx].i = PEERIDX_INVALID;
-        if (h->n > 1) {
-            h->hx[i] = h->hx[--h->n];
-            h->ix[h->hx[i]].i = i;
-            minseqheap_heapify(i, h->n, h->hx, h->ix, h->vs);
-        } else {
+        if (h->n == 1) {
             h->n = 0;
-            h->hx[0] = PEERIDX_INVALID;
+        } else {
+            h->n--;
+            if (i < h->n) {
+                h->hx[i] = h->hx[h->n];
+                h->ix[h->hx[i]].i = i;
+                minseqheap_heapify(i, h->n, h->hx, h->ix, h->vs);
+            }
+#ifndef NDEBUG
+            check_heap(h);
+#endif
         }
         return 1;
     }
