@@ -216,7 +216,7 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
                 remove_acked_messages(&mc->oc, zhe_minseqheap_get_min(&mc->seqbase));
             }
         } else {
-            zhe_assert(!zhe_bitset_test(p->mc_member, (unsigned)i));
+            zhe_assert(!zhe_bitset_test(p->mc_member, (unsigned)i) || p->state != PEERST_ESTABLISHED);
         }
     }
 #endif
@@ -1405,20 +1405,15 @@ static const uint8_t *handle_macknack(peeridx_t peeridx, const uint8_t * const e
         }
         c->last_rexmit = tnow;
         c->last_rexmit_seq = seq;
-        /* Asserting that seq <= c->seq is somewhat nonsensical considering the guards for
-           this block and the loop condition, but it clarifies the second zhe_assertion: if we got
-           all the way to the most recent sample, then P should point to the first free
-           position in the transmit window, a.k.a. c->pos.  */
-        zhe_assert(zhe_seq_le(seq, c->seq));
-        zhe_assert(seq != c->seq || p == c->spos);
-        /* Since we must have sent at least one message, outspos_tmp must have been set.  Set
-           the S flag in that final message. Also make sure we send a SYNCH not too long after
-           (and so do all that pack_msend would otherwise have done for c). */
-        zhe_assert(outspos_tmp != OUTSPOS_UNSET);
-        /* Note: setting the S bit is not the same as a SYNCH, maybe it would be better to send
-           a SYNCH instead? */
-        outbuf[outspos_tmp] |= MSFLAG;
-        zhe_pack_msend();
+        /* If we sent at least one message, outspos_tmp has been set. Set the S flag in that final
+           message. Also make sure we send a SYNCH not too long after (and so do all that pack_msend
+           would otherwise have done for c). */
+        if(outspos_tmp != OUTSPOS_UNSET) {
+            /* Note: setting the S bit is not the same as a SYNCH, maybe it would be better to send
+             a SYNCH instead? */
+            outbuf[outspos_tmp] |= MSFLAG;
+            zhe_pack_msend();
+        }
     }
     return data;
 }
