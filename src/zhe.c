@@ -700,7 +700,11 @@ static const uint8_t *handle_dcommit(peeridx_t peeridx, const uint8_t * const en
         /* If we can't reserve space in the transmit window, pretend we never received the
          DECLARE message and abandon the rest of the packet.  Eventually we'll get a
          retransmit and retry.  Use worst-case size for result */
-        struct out_conduit * const oc = zhe_out_conduit_from_cid(0, 0);
+#if HAVE_UNICAST_CONDUIT
+        struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, UNICAST_CID);
+#else
+        struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, 0);
+#endif
         zhe_msgsize_t from;
         if (!zhe_oc_pack_mdeclare(oc, 1, WC_DRESULT_SIZE, &from, tnow)) {
             return 0;
