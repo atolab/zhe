@@ -115,7 +115,7 @@ int main(int argc, char * const *argv)
     int reliable = 1;
     uint32_t key = 0;
     struct zhe_config cfg;
-    uint16_t port = 7007;
+    uint16_t port = 7447;
     int drop_pct = 0;
     const char *scoutaddrstr = "239.255.0.1";
     char *mcgroups_join_str = "239.255.0.2,239.255.0.3";

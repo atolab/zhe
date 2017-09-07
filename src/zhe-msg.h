@@ -24,16 +24,18 @@
 #define MFRAGMENT          18 /* FIXME: NIY */
 #define MCONDUIT           19
 
-#define MRFLAG            128
-#define MSFLAG             64
-#define MXFLAG             32
 #define MKIND            0x1f
 
-#define MPFLAG         MXFLAG /* RID of content present in SDATA */
-#define MMFLAG         MXFLAG /* mask present in ACKNACK (i.e., a NACK) */
-#define MLFLAG         MXFLAG /* seqnum length present in OPEN */
-#define MZFLAG         MRFLAG /* beware of MCONDUIT flags! */
-#define MUFLAG         MXFLAG /* count present in SYNCH */
+#define MSFLAG             32
+#define MLFLAG             32
+#define MMFLAG             32
+#define MRFLAG             64
+#define MHFLAG             64
+#define MNFLAG             64
+#define MPFLAG            128
+#define MZFLAG            128
+#define MAFLAG            128
+#define MUFLAG            128
 
 #define DRESOURCE           1
 #define DPUB                2
@@ -44,8 +46,9 @@
 #define DRESULT             7
 #define DKIND             0xf
 
-#define DPFLAG           0x80
-#define DFFLAG           0x40
+#define DPFLAG             32
+#define DFFLAG             64
+#define DGFLAG            128
 
 #define CLR_INVALID_AUTH    1
 #define CLR_UNSUPP_PROTO    2
