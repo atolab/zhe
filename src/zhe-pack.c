@@ -299,7 +299,7 @@ int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen,
         return 0;
     }
     *from = zhe_oc_pack_payload_msgprep(&s, c, 1, sz, tnow);
-    zhe_pack1(MRFLAG | MDECLARE);
+    zhe_pack1(MDECLARE);
     zhe_pack_seq(s);
     zhe_pack_vle16(ndecls);
     return 1;
