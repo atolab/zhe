@@ -1143,7 +1143,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
         if (zhe_seq_le(peers[peeridx].ic[cid].seq, seq + SEQNUM_UNIT) && zhe_seq_lt(peers[peeridx].ic[cid].lseqpU, seq + SEQNUM_UNIT)) {
             peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
         }
-        intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq);
+        intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], MRFLAG, seq);
     }
     ZT(PUBSUB, "handle_mdeclare %p seq %u peeridx %u ndecls %u intp %d", data, seq, peeridx, ndecls, intp);
     while (ndecls > 0 && data < end && data != 0) {
@@ -1172,7 +1172,7 @@ static const uint8_t *handle_mdeclare(peeridx_t peeridx, const uint8_t * const e
            this message.  */
         ZT(PUBSUB, "handle_mdeclare %u .. packet done", peeridx);
         zhe_rsub_precommit_curpkt_done(peeridx);
-        (void)ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
+        (void)ic_update_seq(&peers[peeridx].ic[cid], MRFLAG, seq);
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED && peers[peeridx].ic[cid].synched) {
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
