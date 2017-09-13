@@ -1184,9 +1184,9 @@ static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end
 {
     uint8_t hdr;
     seq_t cnt_shifted;
-    seq_t seqbase;
+    seq_t seq_msg;
     if (!zhe_unpack_byte(end, &data, &hdr) ||
-        !zhe_unpack_seq(end, &data, &seqbase)) {
+        !zhe_unpack_seq(end, &data, &seq_msg)) {
         return 0;
     }
     if (!(hdr & MUFLAG)) {
@@ -1195,16 +1195,17 @@ static const uint8_t *handle_msynch(peeridx_t peeridx, const uint8_t * const end
         return 0;
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {
-        ZT(RELIABLE, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+        seq_t seqbase = seq_msg - cnt_shifted;
+        ZT(RELIABLE, "handle_msynch peeridx %u cid %u seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
         if (!peers[peeridx].ic[cid].synched) {
-            ZT(PEERDISC, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+            ZT(PEERDISC, "handle_msynch peeridx %u cid %u seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
             peers[peeridx].ic[cid].seq = seqbase;
-            peers[peeridx].ic[cid].lseqpU = seqbase + cnt_shifted;
+            peers[peeridx].ic[cid].lseqpU = seq_msg;
             peers[peeridx].ic[cid].synched = 1;
-        } else if (zhe_seq_le(peers[peeridx].ic[cid].seq, seqbase) || zhe_seq_lt(seqbase + cnt_shifted, peers[peeridx].ic[cid].seq)) {
-            ZT(RELIABLE, "handle_msynch peeridx %u cid %u seq %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+        } else if (zhe_seq_le(peers[peeridx].ic[cid].seq, seqbase) || zhe_seq_lt(seq_msg, peers[peeridx].ic[cid].seq)) {
+            ZT(RELIABLE, "handle_msynch peeridx %u cid %u seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
             peers[peeridx].ic[cid].seq = seqbase;
-            peers[peeridx].ic[cid].lseqpU = seqbase + cnt_shifted;
+            peers[peeridx].ic[cid].lseqpU = seq_msg;
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }

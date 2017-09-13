@@ -211,10 +211,11 @@ unsigned zhe_synch_sent;
 void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase, seq_t cnt, zhe_time_t tnow)
 {
     seq_t cnt_shifted = (seq_t)(cnt << SEQNUM_SHIFT);
-    ZT(RELIABLE, "pack_msynch cid %d sflag %u seq %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt);
-    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seqbase) + zhe_pack_seqreq(cnt_shifted), tnow);
+    seq_t seq_msg = seqbase + cnt_shifted;
+    ZT(RELIABLE, "pack_msynch cid %d sflag %u seqbase %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt);
+    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seq_msg) + zhe_pack_seqreq(cnt_shifted), tnow);
     zhe_pack1(MRFLAG | sflag | (cnt > 0 ? MUFLAG : 0) | MSYNCH);
-    zhe_pack_seq(seqbase);
+    zhe_pack_seq(seq_msg);
     if (cnt > 0) {
         zhe_pack_seq(cnt_shifted);
     }
