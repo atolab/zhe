@@ -118,8 +118,13 @@ int main(int argc, char * const *argv)
     uint16_t port = 7447;
     int drop_pct = 0;
     const char *scoutaddrstr = "239.255.0.1";
-    char *mcgroups_join_str = "239.255.0.2,239.255.0.3";
+#if N_OUT_MCONDUITS == 0
+    char *mcgroups_join_str = "";
+    char *mconduit_dstaddrs_str = "";
+#elif N_OUT_MCONDUITS == 2
+    char *mcgroups_join_str = "239.255.0.2,239.255.0.3"; /* in addition to scout */
     char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
+#endif
 
 #ifdef __APPLE__
     srandomdev();
