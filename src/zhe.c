@@ -147,7 +147,7 @@ static xwpos_t peers_oc_rbufidx[MAX_PEERS_1][XMITW_SAMPLES_UNICAST];
 #endif
 #endif
 
-/* In peer mode, always send scouts periodically, with tnextscout giving the time for the next scout 
+/* In peer mode, always send scouts periodically, with tnextscout giving the time for the next scout
    message to go out. In client mode, scouting is conditional upon the state of the broker, in that
    case scouts only go out if peers[0].state = UNKNOWN. We also use it to send KEEPALIVEs, but those
    should be suppressed if data went out recently enough. FIXME: solve that. */
@@ -913,6 +913,13 @@ static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * 
 #endif
     npeers++;
 
+#if MAX_PEERS == 0
+    for (cid_t cid = 0; cid < N_IN_CONDUITS; cid++) {
+        peers[peeridx].ic[cid].synched = 1;
+        peers[peeridx].ic[cid].usynched = 1;
+    }
+#endif
+
     zhe_accept_peer_sched_hist_decls(peeridx);
 }
 
@@ -1545,10 +1552,10 @@ static void maybe_send_scout(zhe_time_t tnow)
         tnextscout = tnow + SCOUT_INTERVAL;
 #if MAX_PEERS == 0
         if (peers[0].state == PEERST_UNKNOWN) {
-        zhe_pack_mscout(&scoutaddr, tnow);
+            zhe_pack_mscout(&scoutaddr, tnow);
         } else {
             zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
-    }
+        }
 #else
         zhe_pack_mscout(&scoutaddr, tnow);
         if (npeers > 0) {
