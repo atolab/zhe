@@ -147,12 +147,11 @@ static xwpos_t peers_oc_rbufidx[MAX_PEERS_1][XMITW_SAMPLES_UNICAST];
 #endif
 #endif
 
-#if MAX_PEERS > 0
 /* In peer mode, always send scouts periodically, with tnextscout giving the time for the next scout 
    message to go out. In client mode, scouting is conditional upon the state of the broker, in that
-   case scouts only go out if peers[0].state = UNKNOWN, and we use peers[0].tlease to time them. */
+   case scouts only go out if peers[0].state = UNKNOWN. We also use it to send KEEPALIVEs, but those
+   should be suppressed if data went out recently enough. FIXME: solve that. */
 static zhe_time_t tnextscout;
-#endif
 
 static void remove_acked_messages(struct out_conduit * const c, seq_t seq);
 
@@ -277,9 +276,7 @@ static void init_globals(zhe_time_t tnow)
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
     outdeadline = tnow;
 #endif
-#if MAX_PEERS > 0
     tnextscout = tnow;
-#endif
 }
 
 int zhe_seq_lt(seq_t a, seq_t b)
@@ -1539,25 +1536,20 @@ int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_
 
 void zhe_start(zhe_time_t tnow)
 {
-#if MAX_PEERS == 0
-    peers[0].tlease = tnow - SCOUT_INTERVAL;
-#else
     tnextscout = tnow - SCOUT_INTERVAL;
-#endif
 }
 
 static void maybe_send_scout(zhe_time_t tnow)
 {
-#if MAX_PEERS == 0
-    if (peers[0].state == PEERST_UNKNOWN && (zhe_timediff_t)(tnow - peers[0].tlease) >= 0) {
-        peers[0].tlease = tnow + SCOUT_INTERVAL;
-        zhe_pack_mscout(&scoutaddr, tnow);
-        zhe_pack_msend();
-    }
-    /* FIXME: send keepalive if connected to a broker? */
-#else
     if ((zhe_timediff_t)(tnow - tnextscout) >= 0) {
         tnextscout = tnow + SCOUT_INTERVAL;
+#if MAX_PEERS == 0
+        if (peers[0].state == PEERST_UNKNOWN) {
+        zhe_pack_mscout(&scoutaddr, tnow);
+        } else {
+            zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
+    }
+#else
         zhe_pack_mscout(&scoutaddr, tnow);
         if (npeers > 0) {
             /* Scout messages are ignored by peers that have established a session with the source
@@ -1565,9 +1557,9 @@ static void maybe_send_scout(zhe_time_t tnow)
                addresses ... so we combine the scout with a keepalive if we know some peers */
             zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
         }
+#endif
         zhe_pack_msend();
     }
-#endif
 }
 
 #if TRANSPORT_MODE == TRANSPORT_PACKET
