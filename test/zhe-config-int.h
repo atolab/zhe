@@ -6,7 +6,7 @@
 #include "platform-udp.h"
 
 /* Maximum number of peers one node can have (that is, the network may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0, it becomes a client rather than a peer, and scouts for a broker instead */
-#define MAX_PEERS 12
+#define MAX_PEERS 4
 
 /* Number of input conduits, that is, the highest conduit id for which it can receive data from any peer/broker is N_IN_CONDUITS-1. The input conduit state is per-peer, per-conduit id, and hence which ones are used and what those are used for is determined on the sending side. It also means that peers may have different configurations for the maximum number of conduits. Input conduits have very little state. */
 #define N_IN_CONDUITS 3

@@ -13,49 +13,14 @@
 
 #include "zhe-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 
+#include "testlib.h"
+
 struct data {
     uint32_t key;
     uint32_t seq;
 };
 
 static uint32_t checkintv = 16384;
-
-static zhe_paysize_t getrandomid(unsigned char *ownid, size_t ownidsize)
-{
-    FILE *fp;
-    if ((fp = fopen("/dev/urandom", "rb")) == NULL) {
-        perror("can't open /dev/urandom\n");
-        exit(1);
-    }
-    if (fread(ownid, ownidsize, 1, fp) != 1) {
-        fprintf(stderr, "can't read %zu random bytes from /dev/urandom\n", ownidsize);
-        fclose(fp);
-        exit(1);
-    }
-    fclose(fp);
-    return (zhe_paysize_t)ownidsize;
-}
-
-static zhe_paysize_t getidfromarg(unsigned char *ownid, size_t ownidsize, const char *in)
-{
-    size_t i = 0;
-    int pos = 0, dpos;
-    while(i < ownidsize && in[pos] && sscanf(in + pos, "%hhx%n", &ownid[i], &dpos) == 1) {
-        pos += dpos;
-        if (in[pos] == ':') {
-            pos++;
-        } else if (in[pos] != 0) {
-            fprintf(stderr, "junk in explicit peer id\n");
-            exit(1);
-        }
-        i++;
-    }
-    if (in[pos]) {
-        fprintf(stderr, "junk at end of explicit peer id\n");
-        exit(1);
-    }
-    return (zhe_paysize_t)i;
-}
 
 extern unsigned zhe_delivered, zhe_discarded;
 
@@ -177,50 +142,7 @@ int main(int argc, char * const *argv)
     cfg.idlen = ownidsize;
 
     struct zhe_platform * const platform = zhe_platform_new(port, drop_pct);
-
-    struct zhe_address scoutaddr;
-    cfg.scoutaddr = &scoutaddr;
-    if (!zhe_platform_string2addr(platform, cfg.scoutaddr, scoutaddrstr)) {
-        fprintf(stderr, "%s: invalid address\n", scoutaddrstr); exit(2);
-    } else {
-        zhe_platform_join(platform, cfg.scoutaddr);
-    }
-
-    struct zhe_address mcgroups_join[MAX_MULTICAST_GROUPS];
-    cfg.n_mcgroups_join = 0;
-    cfg.mcgroups_join = mcgroups_join;
-    mcgroups_join_str = strdup(mcgroups_join_str);
-    for (char *addrstr = strtok(mcgroups_join_str, ","); addrstr != NULL; addrstr = strtok(NULL, ",")) {
-        if (cfg.n_mcgroups_join == MAX_MULTICAST_GROUPS) {
-            fprintf(stderr, "too many multicast groups specified\n"); exit(2);
-        } else if (!zhe_platform_string2addr(platform, &cfg.mcgroups_join[cfg.n_mcgroups_join], addrstr)) {
-            fprintf(stderr, "%s: invalid address\n", addrstr); exit(2);
-        } else if (!zhe_platform_join(platform, &cfg.mcgroups_join[cfg.n_mcgroups_join])) {
-            fprintf(stderr, "%s: join failed\n", addrstr); exit(2);
-        } else {
-            cfg.n_mcgroups_join++;
-        }
-    }
-    free(mcgroups_join_str);
-
-    struct zhe_address mconduit_dstaddrs[N_OUT_MCONDUITS];
-    cfg.n_mconduit_dstaddrs = 0;
-    cfg.mconduit_dstaddrs = mconduit_dstaddrs;
-    mconduit_dstaddrs_str = strdup(mconduit_dstaddrs_str);
-    for (char *addrstr = strtok(mconduit_dstaddrs_str, ","); addrstr != NULL; addrstr = strtok(NULL, ",")) {
-        if (cfg.n_mconduit_dstaddrs == N_OUT_MCONDUITS) {
-            fprintf(stderr, "too many mconduit dstaddrs specified\n"); exit(2);
-        } else if (!zhe_platform_string2addr(platform, &cfg.mconduit_dstaddrs[cfg.n_mconduit_dstaddrs], addrstr)) {
-            fprintf(stderr, "%s: invalid address\n", addrstr); exit(2);
-        } else {
-            cfg.n_mconduit_dstaddrs++;
-        }
-    }
-    if (cfg.n_mconduit_dstaddrs != N_OUT_MCONDUITS) {
-        fprintf(stderr, "too few mconduit dstaddrs specified\n"); exit(2);
-    }
-    free(mconduit_dstaddrs_str);
-
+    cfg_handle_addrs(&cfg, platform, scoutaddrstr, mcgroups_join_str, mconduit_dstaddrs_str);
     if (zhe_init(&cfg, platform, zhe_platform_time()) < 0) {
         fprintf(stderr, "init failed\n");
         exit(1);

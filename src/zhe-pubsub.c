@@ -29,6 +29,8 @@ struct subtable {
     zhe_subhandler_t handler;
 };
 static struct subtable subs[ZHE_MAX_SUBSCRIPTIONS];
+/* FIXME: should support deleting pubs, subs, &c., and then a we need a linked list instead of a simple maximum */
+static zhe_subidx_t max_subidx;
 #if ZHE_MAX_SUBSCRIPTIONS > RID_TABLE_THRESHOLD
 static zhe_subidx_t rid2sub[ZHE_MAX_RID+1];
 #endif
@@ -38,6 +40,8 @@ struct pubtable {
     zhe_rid_t rid;
 };
 static struct pubtable pubs[ZHE_MAX_PUBLICATIONS];
+/* FIXME: should support deleting pubs, subs, &c., and then a we need a linked list instead of a simple maximum */
+static zhe_pubidx_t max_pubidx;
 
 /* FIXME: should switch from publisher determines reliability to subscriber determines
  reliability, i.e., publisher reliability bit gets set to
@@ -408,9 +412,10 @@ static struct out_conduit *zhe_send_declares1(zhe_time_t tnow, const cursoridx_t
             int success;
             //ZT(PUBSUB, "send_declares_1 cursoridx %u kind %u idx %u cid %u", (unsigned)cursoridx, (unsigned)kind, (unsigned)idx, (unsigned)zhe_oc_get_cid(oc));
             switch (kind) {
+                    /* FIXME: the check against max value is ok while we don't delete entities only */
                 case DIK_RESOURCE:     success = send_declare_resource(oc, idx, tnow); max = ZHE_MAX_RESOURCES; break;
-                case DIK_PUBLICATION:  success = send_declare_pub(oc, idx, tnow); max = ZHE_MAX_PUBLICATIONS;  break;
-                case DIK_SUBSCRIPTION: success = send_declare_sub(oc, idx, tnow); max = ZHE_MAX_SUBSCRIPTIONS;  break;
+                case DIK_PUBLICATION:  success = send_declare_pub(oc, idx, tnow); max = max_pubidx.idx+1;  break;
+                case DIK_SUBSCRIPTION: success = send_declare_sub(oc, idx, tnow); max = max_subidx.idx+1;  break;
             }
             if (success) {
                 /* FIXME: improve iterator over items to declare */
@@ -467,6 +472,7 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
     pubs[pubidx.idx].rid = rid;
     /* FIXME: horrible hack ... */
     pubs[pubidx.idx].oc = zhe_out_conduit_from_cid(0, (cid_t)cid);
+    max_pubidx = pubidx;
     if (reliable) {
         zhe_bitset_set(pubs_isrel, pubidx.idx);
     }
@@ -532,7 +538,8 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
 #if ZHE_MAX_SUBSCRIPTIONS > RID_TABLE_THRESHOLD
     rid2sub[rid] = subidx;
 #endif
-    {
+    max_subidx = subidx;
+   {
         cursoridx_t idx;
         for (idx = 0; idx < pending_decls.cnt; idx++) {
             if (pending_decls.peers[idx] == MULTICAST_CURSORIDX) {

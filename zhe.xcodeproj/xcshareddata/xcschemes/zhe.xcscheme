@@ -20,6 +20,20 @@
                ReferencedContainer = "container:zhe.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "037208E11F70E92600AE2144"
+               BuildableName = "roundtrip"
+               BlueprintName = "roundtrip"
+               ReferencedContainer = "container:zhe.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
