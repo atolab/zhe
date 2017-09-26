@@ -249,7 +249,9 @@ The addresses of multicast groups to join are specified as an array of **n\_mcgr
 
 Multicast conduits use the addresses specified as **n_mconduit\_dstaddrs** strings in the **mconduit\_dstaddrs**, again as *IP*:*PORT* pairs, and with the requirement that the ports all be the same as the one used for the scouting address. The number of addresses must match the number of configured multicast output conduits, or **(N\_OUT\_CONDUITS - HAVE\_UNICAST\_CONDUIT)**.
 
-# Test program
+# Test programs
+
+## Throughput test (a.k.a. "zhe")
 
 The small (and admittedly rather lacking in beauty) test program in the "test" directory is essentially a bidrectional throughput tester with a platform implementation for POSIX + UDP/IP.
 
@@ -317,4 +319,26 @@ A quick test is to run: "./zhe -pq -k *k*" on a number of machines, each with a 
 8730.204 [5] 3440640 0 [21488498,15559]
 ```
 
-To build it, `gcc -std=gnu99 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/*.c -o zhe` should suffice; alternatively, on a Mac one can use `xcodebuild -quiet -configuration Release`.
+To build it, `gcc -std=gnu99 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/[mptz]*.c -o zhe` should suffice (the curious wildcard for the "test" directory is because of the roundtrip test program that also lives there). On a Mac one can use `xcodebuild -quiet -configuration Release`.
+
+## Roundtrip
+
+The roundtrip test program is helpfully named "roundtrip" and is inconveniently located in the same test directory. To build it, use `gcc -std=gnu99 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/[rptz]*.c -o zhe`. On a Mac one can use `xcodebuild -quiet -configuration Release` as well. The roundtrip program is really primitive in that it one *must* start the server first by running `roundtrip pong`, then start `roundtrip ping` and hope that the 1s delay built-in to ping is sufficient to cover the discovery time. It can only do reliable communication and does not tolerate sample loss at all.
+
+Typical output (on a pair of RPi3's) is:
+
+```
+7732.156 handle_mdeclare 0x7edcc044 seq 8 peeridx 0 ndecls 1 intp 1
+7732.156 handle_dresult 0 intp 1 | commitid 0 status 0 rid 0
+7732.156 handle_mdeclare 0 .. packet done
+starting loop
+7732.933 handle_msynch peeridx 0 cid 0 seqbase 0 cnt 1
+min        90%        99%        max        avg
+287.498    324.217    397.237    21360.5    316.641
+231.822    313.852    351.299    9494.72    264.402
+182.394    249.009    329.581    9019.83    205.631
+183.592    216.144    297.706    4500.07    199.605
+182.811    214.998    297.185    4477.68    199.208
+```
+
+A "raw" UDP roundtrip takes about 160µs minimum, and one using a bare DDSI-stack some 245µs.
