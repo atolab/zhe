@@ -175,19 +175,47 @@ int zhe_unpack_locs_iter(struct unpack_locs_iter *it, zhe_paysize_t *sz, const u
     }
 }
 
-enum zhe_unpack_result zhe_unpack_props(uint8_t const * const end, uint8_t const * * const data)
+enum zhe_unpack_result zhe_unpack_props(uint8_t const * const end, uint8_t const * * const data, struct unpack_props_iter *it)
 {
     enum zhe_unpack_result res;
-   uint16_t n;
+    uint16_t n;
+    uint8_t propid;
     zhe_paysize_t dummy;
     if ((res = zhe_unpack_vle16(end, data, &n)) != ZUR_OK) {
         return res;
     }
+    it->n = n;
+    it->data = *data;
     while (n--) {
-        if ((res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK ||
-            (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
+        /* overflow is ok on property ids, we don't interpret them, but we can skip them */
+        if ((res = zhe_unpack_vle8(end, data, &propid)) != ZUR_OK && res != ZUR_OVERFLOW) {
+            return res;
+        }
+        if ((res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
             return res;
         }
     }
+    it->end = *data;
     return ZUR_OK;
+}
+
+int zhe_unpack_props_iter(struct unpack_props_iter *it, uint8_t *propid, zhe_paysize_t *sz, const uint8_t **data)
+{
+    /* The only way to get a valid iterator is a successful call to zhe_unpack_props(), therefore we
+       know the structure of the sequence to be valid; skips props with out-of-range propids */
+    while (it->n != 0) {
+        enum zhe_unpack_result res, x;
+        res = zhe_unpack_vle8(it->end, &it->data, propid);
+        zhe_assert(res == ZUR_OK || res == ZUR_OVERFLOW);
+        x = zhe_unpack_vle16(it->end, &it->data, sz);
+        zhe_assert(x == ZUR_OK);
+        (void)x;
+        *data = it->data;
+        it->data += *sz;
+        it->n--;
+        if (res == ZUR_OK) {
+            return 1;
+        }
+    }
+    return 0;
 }

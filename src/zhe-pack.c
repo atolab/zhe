@@ -146,7 +146,6 @@ void zhe_pack_mhello(zhe_address_t *dst, zhe_time_t tnow)
     zhe_pack_reserve(dst, NULL, 3 + zhe_pack_locs_calcsize(), tnow);
     zhe_pack2(MHELLO, mask);
     zhe_pack_locs();
-    zhe_pack1(0);
 }
 
 static uint32_t conv_zhe_timediff_to_lease(zhe_timediff_t lease_dur)
@@ -158,26 +157,61 @@ static uint32_t conv_zhe_timediff_to_lease(zhe_timediff_t lease_dur)
 void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
     const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
-    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof(auth)) + sizeof(auth) + zhe_pack_locs_calcsize() + (seqnumlen != 14 ? 1 : 0), tnow);
-    zhe_pack2((seqnumlen != 14 ? MLFLAG : 0) | MOPEN, ZHE_VERSION);
+    zhe_paysize_t propsize = 0;
+    uint8_t nprops = 0;
+    /* Determine size of properties; if properties are present, also need space for number of properties
+       (some of this stuff is VLE encoded, but for now we're only dealing with property codes <= 127 and
+       fewer than 127 properties, so it will fit in a single byte */
+    if (seqnumlen != 14) { /* 1 byte prop code + 1 byte payload size + 1 byte content */
+        propsize += 3;
+        nprops++;
+    }
+    if (sizeof(auth) != 0) { /* 1 byte prop code + arbitrary data vector */
+        propsize += 1 + zhe_pack_vle16req(sizeof(auth)) + sizeof(auth);
+        nprops++;
+    }
+    if (nprops > 0) {
+        propsize += 1;
+    }
+    zhe_pack_reserve(dst, NULL, 2 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle32req(ld100) + zhe_pack_locs_calcsize() + propsize, tnow);
+    zhe_pack2((nprops ? MPFLAG : 0) | MOPEN, ZHE_VERSION);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack_vle32(ld100);
-    zhe_pack_vec(sizeof(auth), auth);
     zhe_pack_locs();
-    if (seqnumlen != 14) {
-        zhe_pack1(seqnumlen);
+    if (nprops) {
+        zhe_pack1(nprops);
+        if (seqnumlen != 14) {
+            zhe_pack1(PROP_SEQLEN); zhe_pack2(1, seqnumlen);
+        }
+        if (sizeof(auth) != 0) {
+            zhe_pack1(PROP_AUTHDATA); zhe_pack_vec(sizeof(auth), auth);
+        }
     }
 }
 
 void zhe_pack_maccept(zhe_address_t *dst, const struct peerid *ownid, const struct peerid *peerid, zhe_timediff_t lease_dur, zhe_time_t tnow)
 {
     const uint32_t ld100 = conv_zhe_timediff_to_lease(lease_dur);
-    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle16req(peerid->len) + peerid->len + zhe_pack_vle32req(ld100) + zhe_pack_vle16req(sizeof(auth)) + sizeof(auth), tnow);
-    zhe_pack1(MACCEPT);
+    zhe_paysize_t propsize = 0;
+    uint8_t nprops = 0;
+    if (sizeof(auth) != 0) { /* 1 byte prop code + arbitrary data vector */
+        propsize += 1 + zhe_pack_vle16req(sizeof(auth)) + sizeof(auth);
+        nprops++;
+    }
+    if (nprops > 0) {
+        propsize += 1;
+    }
+    zhe_pack_reserve(dst, NULL, 1 + zhe_pack_vle16req(ownid->len) + ownid->len + zhe_pack_vle16req(peerid->len) + peerid->len + zhe_pack_vle32req(ld100) + propsize, tnow);
+    zhe_pack1((nprops ? MPFLAG : 0) | MACCEPT);
     zhe_pack_vec(peerid->len, peerid->id);
     zhe_pack_vec(ownid->len, ownid->id);
     zhe_pack_vle32(ld100);
-    zhe_pack_vec(sizeof(auth), auth);
+    if (nprops) {
+        zhe_pack1(nprops);
+        if (sizeof(auth) != 0) {
+            zhe_pack1(PROP_AUTHDATA); zhe_pack_vec(sizeof(auth), auth);
+        }
+    }
 }
 
 void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ownid, zhe_time_t tnow)
@@ -260,7 +294,7 @@ int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_pa
     /* Use worst-case number of bytes for sequence number, instead of getting the sequence number
        earlier than as an output of oc_pack_payload_msgprep and using the exact value */
     const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_ridreq(rid) + zhe_pack_vle16req(payloadlen) + payloadlen;
-    uint8_t hdr = MSDATA | (relflag ? MRFLAG : 0);
+    const uint8_t hdr = MSDATA | (relflag ? MRFLAG : 0);
     zhe_msgsize_t from;
     seq_t s;
 
@@ -314,26 +348,26 @@ void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_ti
 
 /* FIXME: not doing properties at the moment */
 
-void zhe_pack_dresource(zhe_rid_t rid, const char *res, int forget)
+void zhe_pack_dresource(zhe_rid_t rid, const char *res)
 {
     size_t ressz = strlen(res);
     zhe_assert(ressz <= (zhe_paysize_t)-1);
-    zhe_pack1(DRESOURCE | (forget ? DFFLAG : 0));
+    zhe_pack1(DRESOURCE);
     zhe_pack_rid(rid);
     zhe_pack_text((zhe_paysize_t)ressz, res);
 }
 
 /* FIXME: do I need DELETE? Not yet anyway */
 
-void zhe_pack_dpub(zhe_rid_t rid, int forget)
+void zhe_pack_dpub(zhe_rid_t rid)
 {
-    zhe_pack1(DPUB | (forget ? DFFLAG : 0));
+    zhe_pack1(DPUB);
     zhe_pack_rid(rid);
 }
 
-void zhe_pack_dsub(zhe_rid_t rid, int forget)
+void zhe_pack_dsub(zhe_rid_t rid)
 {
-    zhe_pack1(DSUB | (forget ? DFFLAG : 0));
+    zhe_pack1(DSUB);
     zhe_pack_rid(rid);
     zhe_pack1(SUBMODE_PUSH); /* FIXME: should be a parameter */
 }

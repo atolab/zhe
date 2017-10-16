@@ -348,7 +348,7 @@ static int send_declare_pub(struct out_conduit *oc, declitem_idx_t pub, zhe_time
         return 1;
     } else if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending dpub %d rid %ju", pub, (uintmax_t)pubs[pub].rid);
-        zhe_pack_dpub(pubs[pub].rid, 0);
+        zhe_pack_dpub(pubs[pub].rid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
         return 1;
     } else {
@@ -367,7 +367,7 @@ static int send_declare_sub(struct out_conduit *oc, declitem_idx_t sub, zhe_time
         return 1;
     } else if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending dsub %d rid %ju", sub, (uintmax_t)subs[sub].rid);
-        zhe_pack_dsub(subs[sub].rid, 0);
+        zhe_pack_dsub(subs[sub].rid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
         return 1;
     } else {

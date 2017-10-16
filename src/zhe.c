@@ -193,6 +193,7 @@ static void reset_outbuf(void)
 static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
 {
     struct peer * const p = &peers[peeridx];
+    ZT(PEERDISC, "reset_peer @ %u", peeridx);
     /* FIXME: stupid naming */
     zhe_rsub_clear(peeridx);
     /* If data destined for this peer, drop it it */
@@ -597,18 +598,31 @@ enum declaration_interpretation_mode {
     DIM_ABORT
 };
 
+#if ENABLE_TRACING
+static const char *decl_intp_mode_str(enum declaration_interpretation_mode m)
+{
+    const char *res = "?";
+    switch (m) {
+        case DIM_INTERPRET: res = "interpret"; break;
+        case DIM_IGNORE: res = "ignore"; break;
+        case DIM_ABORT: res = "abort"; break;
+    }
+    return res;
+}
+#endif
+
 static enum zhe_unpack_result handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    /* No use for a broker declaring its resources, but we don't bug out over it */
     enum zhe_unpack_result res;
     uint8_t hdr;
     zhe_paysize_t dummy;
+    struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
          (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK ||
          (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
         return res;
     }
-    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data)) != ZUR_OK) {
+    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
     return ZUR_OK;
@@ -616,14 +630,14 @@ static enum zhe_unpack_result handle_dresource(peeridx_t peeridx, const uint8_t 
 
 static enum zhe_unpack_result handle_dpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    /* No use for a broker declaring its publications, but we don't bug out over it */
     enum zhe_unpack_result res;
     uint8_t hdr;
+    struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
         return res;
     }
-    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data)) != ZUR_OK) {
+    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
     return ZUR_OK;
@@ -634,6 +648,7 @@ static enum zhe_unpack_result handle_dsub(peeridx_t peeridx, const uint8_t * con
     enum zhe_unpack_result res;
     zhe_rid_t rid;
     uint8_t hdr, mode;
+    struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK ||
         (res = zhe_unpack_byte(end, data, &mode)) != ZUR_OK) {
@@ -649,7 +664,7 @@ static enum zhe_unpack_result handle_dsub(peeridx_t peeridx, const uint8_t * con
             return res;
         }
     }
-    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data)) != ZUR_OK) {
+    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
@@ -665,12 +680,13 @@ static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t
     zhe_rid_t sid;
     uint8_t hdr;
     zhe_paysize_t dummy;
+    struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, &sid)) != ZUR_OK ||
         (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
         return res;
     }
-    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data)) != ZUR_OK) {
+    if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
@@ -744,7 +760,7 @@ static enum zhe_unpack_result handle_dresult(peeridx_t peeridx, const uint8_t * 
     if (status && (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK) {
         return res;
     }
-    ZT(PUBSUB, "handle_dresult %u intp %d | commitid %u status %u rid %ju", (unsigned)peeridx, (int)*interpret, commitid, status, (uintmax_t)rid);
+    ZT(PUBSUB, "handle_dresult %u intp %s | commitid %u status %u rid %ju", (unsigned)peeridx, decl_intp_mode_str(*interpret), commitid, status, (uintmax_t)rid);
     if (*interpret == DIM_INTERPRET && status != 0) {
         /* Don't know what to do when the broker refuses my declarations - although I guess it
          would make some sense to close the connection and try again.  But even if that is
@@ -756,6 +772,49 @@ static enum zhe_unpack_result handle_dresult(peeridx_t peeridx, const uint8_t * 
     }
     return ZUR_OK;
 }
+
+static enum zhe_unpack_result handle_dfresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+{
+    enum zhe_unpack_result res;
+    if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
+        (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
+        return res;
+    }
+    return ZUR_OK;
+}
+
+static enum zhe_unpack_result handle_dfpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+{
+    enum zhe_unpack_result res;
+    if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
+        (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
+        return res;
+    }
+    return ZUR_OK;
+}
+
+static enum zhe_unpack_result handle_dfsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+{
+    enum zhe_unpack_result res;
+    zhe_rid_t rid;
+    if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
+        (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK) {
+        return res;
+    }
+    return ZUR_OK;
+}
+
+static enum zhe_unpack_result handle_dfselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+{
+    enum zhe_unpack_result res;
+    zhe_rid_t sid;
+    if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
+        (res = zhe_unpack_rid(end, data, &sid))) {
+        return res;
+    }
+    return ZUR_OK;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -771,8 +830,12 @@ static enum zhe_unpack_result handle_mscout(peeridx_t peeridx, const uint8_t * c
     enum zhe_unpack_result res;
     uint8_t hdr;
     uint32_t mask;
+    struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_vle32(end, data, &mask)) != ZUR_OK) {
+        return res;
+    }
+    if ((hdr & MPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
     /* For a client all activity is really client-initiated, so we can get away
@@ -815,16 +878,19 @@ static enum zhe_unpack_result handle_mhello(peeridx_t peeridx, const uint8_t * c
 #endif
     enum zhe_unpack_result res;
     struct unpack_locs_iter locs_it;
+    struct unpack_props_iter props_it;
+    uint8_t hdr;
     uint32_t mask;
-    if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
+    if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_vle32(end, data, &mask)) != ZUR_OK ||
-        (res = zhe_unpack_locs(end, data, &locs_it)) != ZUR_OK ||
-        (res = zhe_unpack_props(end, data)) != ZUR_OK) {
+        (res = zhe_unpack_locs(end, data, &locs_it)) != ZUR_OK) {
+        return res;
+    }
+    if ((hdr & MPFLAG) && (res = zhe_unpack_props(end, data, &props_it)) != ZUR_OK) {
         return res;
     }
     if ((mask & lookfor) && state_ok) {
         int send_open = 1;
-
         ZT(PEERDISC, "got a hello! sending an open");
         if (peers[peeridx].state != PEERST_ESTABLISHED) {
             if (!set_peer_mcast_locs(peeridx, &locs_it)) {
@@ -952,31 +1018,51 @@ static enum zhe_unpack_result handle_mopen(peeridx_t * restrict peeridx, const u
 {
     enum zhe_unpack_result res;
     uint8_t hdr, version;
-    uint16_t seqsize;
     zhe_paysize_t idlen;
     uint8_t id[PEERID_SIZE];
-    zhe_paysize_t dummy;
     uint8_t reason;
     uint32_t ld100;
     zhe_timediff_t ld;
     struct unpack_locs_iter locs_it;
+    struct unpack_props_iter props_it;
     struct peer *p;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_byte(end, data, &version)) != ZUR_OK /* version */ ||
         (res = zhe_unpack_vec(end, data, sizeof(id), &idlen, id)) != ZUR_OK /* peer id */ ||
         (res = zhe_unpack_vle32(end, data, &ld100)) != ZUR_OK /* lease duration */ ||
-        (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK /* auth */ ||
         (res = zhe_unpack_locs(end, data, &locs_it)) != ZUR_OK) {
         return res;
     }
-    if (!(hdr & MLFLAG)) {
-        seqsize = 14;
-    } else if ((res = zhe_unpack_vle16(end, data, &seqsize)) != ZUR_OK) {
+    if ((hdr & MPFLAG) && (res = zhe_unpack_props(end, data, &props_it)) != ZUR_OK) {
         return res;
-    } else if (seqsize != SEQNUM_LEN) {
-        ZT(PEERDISC, "got an open with an unsupported sequence number size (%hu)", seqsize);
-        reason = CLR_UNSUPP_SEQLEN;
-        goto reject;
+    } else {
+        uint8_t propid;
+        zhe_paysize_t propsz;
+        const uint8_t *prop;
+        while (zhe_unpack_props_iter(&props_it, &propid, &propsz, &prop)) {
+            if (propid == PROP_SEQLEN) {
+                uint8_t seqlen;
+                res = zhe_unpack_vle8(prop + propsz, &prop, &seqlen);
+                switch (res) {
+                    case ZUR_OK:
+                        if (seqlen != SEQNUM_LEN) {
+                            ZT(PEERDISC, "got an open with an unsupported sequence number size (%hhu)", seqlen);
+                            reason = CLR_UNSUPP_SEQLEN;
+                            goto reject;
+                        }
+                        break;
+                    case ZUR_OVERFLOW:
+                        ZT(PEERDISC, "got an open with an unsupported sequence number size (> 255)");
+                        reason = CLR_UNSUPP_SEQLEN;
+                        goto reject;
+                    case ZUR_SHORT:
+                    case ZUR_ABORT:
+                        ZT(PEERDISC, "got an open with an invalid sequence number property");
+                        reason = CLR_ERROR;
+                        goto reject;
+                }
+            }
+        }
     }
     if (version != ZHE_VERSION) {
         ZT(PEERDISC, "got an open with an unsupported version (%hhu)", version);
@@ -1029,10 +1115,11 @@ static enum zhe_unpack_result handle_maccept(peeridx_t * restrict peeridx, const
     zhe_paysize_t idlen;
     uint8_t id[PEERID_SIZE];
     uint32_t ld100;
+    uint8_t hdr;
     zhe_timediff_t ld;
-    zhe_paysize_t dummy;
+    struct unpack_props_iter props_it;
     int forme;
-    if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
+    if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_vec(end, data, sizeof(id), &idlen, id)) != ZUR_OK) {
         return res;
     }
@@ -1042,8 +1129,10 @@ static enum zhe_unpack_result handle_maccept(peeridx_t * restrict peeridx, const
     }
     forme = (idlen == ownid.len && memcmp(id, ownid.id, idlen) == 0);
     if ((res = zhe_unpack_vec(end, data, sizeof (id), &idlen, id)) != ZUR_OK ||
-        (res = zhe_unpack_vle32(end, data, &ld100)) != ZUR_OK ||
-        (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
+        (res = zhe_unpack_vle32(end, data, &ld100)) != ZUR_OK) {
+        return res;
+    }
+    if ((hdr & MPFLAG) && (res = zhe_unpack_props(end, data, &props_it)) != ZUR_OK) {
         return res;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
@@ -1169,17 +1258,21 @@ static enum zhe_unpack_result handle_mdeclare(peeridx_t peeridx, const uint8_t *
         }
         intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], MRFLAG, seq) ? DIM_INTERPRET : DIM_IGNORE;
     }
-    ZT(PUBSUB, "handle_mdeclare %p seq %u peeridx %u ndecls %u intp %d", data, seq, peeridx, ndecls, (int)intp);
+    ZT(PUBSUB, "handle_mdeclare %p seq %u peeridx %u ndecls %u intp %s", data, seq, peeridx, ndecls, decl_intp_mode_str(intp));
     while (ndecls > 0 && *data < end && res == ZUR_OK) {
         switch (**data & DKIND) {
-            case DRESOURCE:  res = handle_dresource(peeridx, end, data, &intp); break;
-            case DPUB:       res = handle_dpub(peeridx, end, data, &intp); break;
-            case DSUB:       res = handle_dsub(peeridx, end, data, &intp); break;
-            case DSELECTION: res = handle_dselection(peeridx, end, data, &intp); break;
-            case DBINDID:    res = handle_dbindid(peeridx, end, data, &intp); break;
-            case DCOMMIT:    res = handle_dcommit(peeridx, end, data, &intp, tnow); break;
-            case DRESULT:    res = handle_dresult(peeridx, end, data, &intp); break;
-            default:         res = ZUR_OVERFLOW; break;
+            case DRESOURCE:   res = handle_dresource(peeridx, end, data, &intp); break;
+            case DPUB:        res = handle_dpub(peeridx, end, data, &intp); break;
+            case DSUB:        res = handle_dsub(peeridx, end, data, &intp); break;
+            case DSELECTION:  res = handle_dselection(peeridx, end, data, &intp); break;
+            case DBINDID:     res = handle_dbindid(peeridx, end, data, &intp); break;
+            case DCOMMIT:     res = handle_dcommit(peeridx, end, data, &intp, tnow); break;
+            case DRESULT:     res = handle_dresult(peeridx, end, data, &intp); break;
+            case DFRESOURCE:  res = handle_dfresource(peeridx, end, data, &intp); break;
+            case DFPUB:       res = handle_dfpub(peeridx, end, data, &intp); break;
+            case DFSUB:       res = handle_dfsub(peeridx, end, data, &intp); break;
+            case DFSELECTION: res = handle_dfselection(peeridx, end, data, &intp); break;
+            default:          res = ZUR_OVERFLOW; break;
         }
         if (res == ZUR_OK) {
             ndecls--;
@@ -1260,7 +1353,7 @@ static enum zhe_unpack_result handle_msdata(peeridx_t peeridx, const uint8_t * c
         (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK) {
         return res;
     }
-    if (!(hdr & MPFLAG)) {
+    if (!(hdr & MAFLAG)) {
         prid = rid;
     } else if ((res = zhe_unpack_rid(end, data, &prid)) != ZUR_OK) {
         return res;
@@ -1525,6 +1618,7 @@ static enum zhe_unpack_result handle_packet(peeridx_t * restrict peeridx, const 
     const uint8_t *data1 = *data;
     cid_t cid = 0;
     do {
+        ZT(DEBUG, "handle_packet: kind = %u", (unsigned)(*data1 & MKIND));
         switch (*data1 & MKIND) {
             case MSCOUT:     res = handle_mscout(*peeridx, end, &data1, tnow); break;
             case MHELLO:     res = handle_mhello(*peeridx, end, &data1, tnow); break;

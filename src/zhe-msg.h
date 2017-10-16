@@ -23,16 +23,19 @@
 #define MCONDUIT_CLOSE     17 /* FIXME: NIY */
 #define MFRAGMENT          18 /* FIXME: NIY */
 #define MCONDUIT           19
+#define MMIGRATE           20 /* FIXME: NIY */
+#define MSDDATA            21 /* FIXME: NIY */
+#define MBDDATA            22 /* FIXME: NIY */
+#define MWDDATA            23 /* FIXME: NIY */
 
 #define MKIND            0x1f
 
 #define MSFLAG             32
-#define MLFLAG             32
 #define MMFLAG             32
+#define MPFLAG             32
 #define MRFLAG             64
 #define MHFLAG             64
 #define MNFLAG             64
-#define MPFLAG            128
 #define MZFLAG            128
 #define MAFLAG            128
 #define MUFLAG            128
@@ -44,10 +47,13 @@
 #define DBINDID             5
 #define DCOMMIT             6
 #define DRESULT             7
+#define DFRESOURCE          8
+#define DFPUB               9
+#define DFSUB              10
+#define DFSELECTION        11
 #define DKIND             0xf
 
 #define DPFLAG             32
-#define DFFLAG             64
 #define DGFLAG            128
 
 #define CLR_INVALID_AUTH    1
@@ -55,6 +61,15 @@
 #define CLR_OUT_OF_RES      3
 #define CLR_UNSUPP_SEQLEN   4
 #define CLR_ERROR         255
+
+#define PROP_VENDORID       0
+#define PROP_MAXCONDUITS    2
+#define PROP_SEQLEN         4
+#define PROP_RELIABILITY    6
+#define PROP_DURABILITY     8
+#define PROP_COMMITMODE    10
+#define PROP_AUTHDATA      12
+#define PROP_CLIENTHASH    14
 
 #define MSCOUT_BROKER       1
 #define MSCOUT_DURABILITY   2
