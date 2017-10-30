@@ -22,10 +22,15 @@
 
 /* Transmit window size for multicast conduits (XMITW_BYTES) and for unicast conduits (XMITW_BYTES_UNICAST). Neither type of conduit need be enabled, and no sizes needs to be given for the one that is not configured. Each reliable message is stored in the window prefixed by its size in represented as a "zhe_msgsize_t" (for which, see below). */
 #define XMITW_BYTES 16384u
-#define XMITW_BYTES_UNICAST 384u
+#define XMITW_BYTES_UNICAST 16384u
 #define XMITW_SAMPLES 1600u
-#define XMITW_SAMPLES_UNICAST 63u
+#define XMITW_SAMPLES_UNICAST 1600u // 63u
 #define XMITW_SAMPLE_INDEX 1
+
+/* Constraints on storing URIs -- if MAX_URISPACE is set to 0, no URIs will be stored and resource declarations will be ignored */
+#define ZHE_MAX_URISPACE 3072
+#define ZHE_MAX_RESOURCES 20
+#define ZHE_MAX_URILENGTH 100
 
 /* Whether or not to enable tracing */
 #define ENABLE_TRACING 1

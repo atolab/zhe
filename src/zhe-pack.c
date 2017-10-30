@@ -118,11 +118,6 @@ zhe_paysize_t zhe_pack_ridreq(zhe_rid_t x)
     return INFIX_WITH_SIZE(zhe_pack_vle, ZHE_RID_SIZE, req) ((zhe_rid_t)(x << 1));
 }
 
-void zhe_pack_text(zhe_paysize_t n, const char *text)
-{
-    zhe_pack_vec(n, (const uint8_t *) text);
-}
-
 void zhe_pack_mscout(zhe_address_t *dst, zhe_time_t tnow)
 {
     /* Client mode should only look for a broker, but a peer should look for peers and brokers
@@ -325,7 +320,7 @@ void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow
     zhe_oc_pack_payload_done(c, relflag, tnow);
 }
 
-int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zhe_msgsize_t *from, zhe_time_t tnow)
+int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, zhe_paysize_t decllen, zhe_msgsize_t *from, zhe_time_t tnow)
 {
     const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(ndecls) + decllen;
     seq_t s;
@@ -348,13 +343,11 @@ void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_ti
 
 /* FIXME: not doing properties at the moment */
 
-void zhe_pack_dresource(zhe_rid_t rid, const char *res)
+void zhe_pack_dresource(zhe_rid_t rid, zhe_paysize_t urisz, const uint8_t *res)
 {
-    size_t ressz = strlen(res);
-    zhe_assert(ressz <= (zhe_paysize_t)-1);
     zhe_pack1(DRESOURCE);
     zhe_pack_rid(rid);
-    zhe_pack_text((zhe_paysize_t)ressz, res);
+    zhe_pack_vec(urisz, res);
 }
 
 /* FIXME: do I need DELETE? Not yet anyway */

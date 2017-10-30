@@ -15,6 +15,10 @@
 #include "zhe-binheap.h"
 #include "zhe-pubsub.h"
 
+#if ZHE_MAX_URISPACE > 0
+#include "zhe-uristore.h"
+#endif
+
 #define PEERST_UNKNOWN       0
 #define PEERST_OPENING_MIN   1
 #define PEERST_OPENING_MAX   5
@@ -198,6 +202,7 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     zhe_rsub_clear(peeridx);
     /* If data destined for this peer, drop it it */
     zhe_reset_peer_unsched_hist_decls(peeridx);
+    zhe_uristore_reset_peer(peeridx);
 #if HAVE_UNICAST_CONDUIT
     if (outdst == &p->oc.addr) {
         reset_outbuf();
@@ -278,6 +283,7 @@ static void init_globals(zhe_time_t tnow)
     outdeadline = tnow;
 #endif
     tnextscout = tnow;
+    zhe_uristore_init();
 }
 
 int zhe_seq_lt(seq_t a, seq_t b)
@@ -592,6 +598,18 @@ struct out_conduit *zhe_out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
+/* What the combination of (*interpret and return value) results in:
+ *               DIM_INTERPRET     DIM_IGNORE     DIM_ABORT
+ * ZUR_OK        C&ack             ignore         abort-txn
+ * ZUR_SHORT     abort-txn,X       X              abort-txn,X
+ * ZUR_OVERFLOW  abort-txn,close   close          abort-txn,close
+ * where
+ * - X = close if packet mode, try again when more data arrives if stream mode
+ *   interpretation starts in {INTERPRET,IGNORE} and where INTERPRET may transition to
+ * - ABORT - so IGNORE need not do "abort-txn"
+ * - C = commit & send a SUCCESS result if the transaction contents are acceptable, or
+ *   abort & send an error code if the transaction contents are unacceptable. */
+
 enum declaration_interpretation_mode {
     DIM_INTERPRET,
     DIM_IGNORE,
@@ -615,16 +633,37 @@ static enum zhe_unpack_result handle_dresource(peeridx_t peeridx, const uint8_t 
 {
     enum zhe_unpack_result res;
     uint8_t hdr;
-    zhe_paysize_t dummy;
+    zhe_rid_t rid;
+    zhe_paysize_t urisize;
+    const uint8_t *uri;
     struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
-         (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK ||
-         (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
+         (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK ||
+         (res = zhe_unpack_vecref(end, data, &urisize, &uri)) != ZUR_OK) {
         return res;
     }
     if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
+#if ZHE_MAX_URISPACE > 0
+    if (*interpret == DIM_INTERPRET) {
+        switch (zhe_uristore_store(peeridx, rid, uri, urisize)) {
+            case USR_OK:
+                /* all is well, continue happily */
+                return ZUR_OK;
+            case USR_AGAIN:
+                /* pretend we never received this declare message - trying again on retransmit */
+                *interpret = DIM_ABORT;
+                return ZUR_OK;
+            case USR_NOSPACE:
+            case USR_MISMATCH:
+            case USR_OVERSIZE:
+                /* note an error so that a COMMIT will result in a RESULT with an error code */
+                zhe_decl_note_error_curpkt(16, rid);
+                return ZUR_OK;
+        }
+    }
+#endif
     return ZUR_OK;
 }
 
@@ -690,7 +729,7 @@ static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
-        zhe_decl_note_error(4, sid);
+        zhe_decl_note_error_curpkt(4, sid);
     }
     return ZUR_OK;
 }
@@ -706,7 +745,7 @@ static enum zhe_unpack_result handle_dbindid(peeridx_t peeridx, const uint8_t * 
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
-        zhe_decl_note_error(8, sid);
+        zhe_decl_note_error_curpkt(8, sid);
     }
     return ZUR_OK;
 }
@@ -1851,6 +1890,7 @@ void zhe_housekeeping(zhe_time_t tnow)
 
     zhe_send_declares(tnow);
     maybe_send_scout(tnow);
+    zhe_uristore_gc();
 
     /* Flush any pending output if the latency budget has been exceeded */
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF

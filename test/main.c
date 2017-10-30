@@ -149,6 +149,12 @@ int main(int argc, char * const *argv)
     }
     zhe_start(zhe_platform_time());
 
+    zhe_declare_resource(1, "/t/data");
+    zhe_declare_resource(2, "/t/pong");
+    if (mode == 1) {
+        zhe_declare_resource(3, "/t/test");
+    }
+    
     switch (mode) {
         case 0: case -1: {
             zhe_time_t tstart = zhe_platform_time();
