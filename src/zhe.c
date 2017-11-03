@@ -202,7 +202,9 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     zhe_rsub_clear(peeridx);
     /* If data destined for this peer, drop it it */
     zhe_reset_peer_unsched_hist_decls(peeridx);
+#if ZHE_MAX_URISPACE > 0
     zhe_uristore_reset_peer(peeridx);
+#endif
 #if HAVE_UNICAST_CONDUIT
     if (outdst == &p->oc.addr) {
         reset_outbuf();
@@ -283,7 +285,9 @@ static void init_globals(zhe_time_t tnow)
     outdeadline = tnow;
 #endif
     tnextscout = tnow;
+#if ZHE_MAX_URISPACE > 0
     zhe_uristore_init();
+#endif
 }
 
 int zhe_seq_lt(seq_t a, seq_t b)
@@ -714,7 +718,6 @@ static enum zhe_unpack_result handle_dsub(peeridx_t peeridx, const uint8_t * con
 
 static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    /* FIXME: support selections? */
     enum zhe_unpack_result res;
     zhe_rid_t sid;
     uint8_t hdr;
@@ -736,7 +739,6 @@ static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t
 
 static enum zhe_unpack_result handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    /* FIXME: support bindings?  I don't think there's a need. */
     enum zhe_unpack_result res;
     zhe_rid_t sid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
@@ -940,7 +942,7 @@ static enum zhe_unpack_result handle_mhello(peeridx_t peeridx, const uint8_t * c
                 peers[peeridx].tlease = tnow;
             }
         } else {
-            /* FIXME: a hello when established indicates a reconnect for the other one => should at least clear ic[.].synched, usynched - but maybe more if we want some kind of nothing of the event ... */
+            /* FIXME: a hello when established indicates a reconnect for the other one => should at least clear ic[.].synched, usynched - but maybe more if we want some kind of notification of the event ... */
             for (cid_t cid = 0; cid < N_IN_CONDUITS; cid++) {
                 peers[peeridx].ic[cid].synched = 0;
                 peers[peeridx].ic[cid].usynched = 0;
@@ -1846,7 +1848,7 @@ void zhe_flush(void)
 
 void zhe_housekeeping(zhe_time_t tnow)
 {
-    /* FIXME: obviously, this is a big waste of CPU time if MAX_PEERS is biggish (but worst-case cost isn't affected) */
+    /* FIXME: obviously, this is a waste of CPU time if MAX_PEERS is biggish (but worst-case cost isn't affected) */
     for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
         switch(peers[i].state) {
             case PEERST_UNKNOWN:
@@ -1890,7 +1892,9 @@ void zhe_housekeeping(zhe_time_t tnow)
 
     zhe_send_declares(tnow);
     maybe_send_scout(tnow);
+#if ZHE_MAX_URISPACE > 0
     zhe_uristore_gc();
+#endif
 
     /* Flush any pending output if the latency budget has been exceeded */
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF

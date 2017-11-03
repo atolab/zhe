@@ -100,6 +100,7 @@
 		037208F21F70E96900AE2144 /* testlib.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = testlib.c; path = test/testlib.c; sourceTree = "<group>"; };
 		037208F51F70E99100AE2144 /* testlib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = testlib.h; path = test/testlib.h; sourceTree = "<group>"; };
 		0394B85D1F72C92700ABE751 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		03EBCBF41FABF9E7006E316D /* TODO.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODO.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +131,7 @@
 		0305875D1EF92BEB0040F446 = {
 			isa = PBXGroup;
 			children = (
+				03EBCBF41FABF9E7006E316D /* TODO.md */,
 				0394B85D1F72C92700ABE751 /* README.md */,
 				034BDFA01F5472FD00F261D1 /* test */,
 				030587681EF92BEB0040F446 /* src */,

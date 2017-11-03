@@ -341,16 +341,12 @@ void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_ti
     zhe_oc_pack_payload_done(c, 1, tnow);
 }
 
-/* FIXME: not doing properties at the moment */
-
 void zhe_pack_dresource(zhe_rid_t rid, zhe_paysize_t urisz, const uint8_t *res)
 {
     zhe_pack1(DRESOURCE);
     zhe_pack_rid(rid);
     zhe_pack_vec(urisz, res);
 }
-
-/* FIXME: do I need DELETE? Not yet anyway */
 
 void zhe_pack_dpub(zhe_rid_t rid)
 {
@@ -364,8 +360,6 @@ void zhe_pack_dsub(zhe_rid_t rid)
     zhe_pack_rid(rid);
     zhe_pack1(SUBMODE_PUSH); /* FIXME: should be a parameter */
 }
-
-/* Do I need SELECTION, BINDID? Probably not, certainly not yet */
 
 void zhe_pack_dcommit(uint8_t commitid)
 {

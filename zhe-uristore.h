@@ -1,6 +1,7 @@
 #ifndef ZHE_URISTORE_H
 #define ZHE_URISTORE_H
 
+#if ZHE_MAX_URISPACE > 0
 #include <stdbool.h>
 
 enum uristore_result {
@@ -19,5 +20,6 @@ void zhe_uristore_drop(peeridx_t peeridx, zhe_rid_t rid);
 void zhe_uristore_reset_peer(peeridx_t peeridx);
 /* FIXME: need a proper type for the cursor */
 bool zhe_uristore_geturi(unsigned idx, zhe_rid_t *rid, zhe_paysize_t *sz, const uint8_t **uri);
+#endif
 
 #endif
