@@ -47,13 +47,14 @@
 
 /* Scouts are sent periodically by a peer; by a client only when not connected to, or trying to connect to, a broker. The interval is configurable. Scouts are always multicasted (however implemented by the transport). */
 #define SCOUT_INTERVAL       3000 /* units, see ZHE_TIMEBASE */
+#define SCOUT_COUNT            10 /* send 10 scouts then stop scouting (0: unlimited; MAX_PEERS == 0 requires 0) */
 
 /* Once new peer/a broker has been discovered, a number of attempts at establishing a connection take place. The interval between these attempts is OPEN_INTERVAL, the number of attempts before giving up and relying on scouting again is OPEN_RETRIES. */
 #define OPEN_INTERVAL        1000 /* units, see ZHE_TIMEBASE */
 #define OPEN_RETRIES           10 /* limited by OPENING_MIN .. _MAX */
 
-/* Lease duration should be greater than SCOUT_INTERVAL */
-#define LEASE_DURATION       5000 /* units, see ZHE_TIMEBASE */
+/* Lease duration should be greater than SCOUT_INTERVAL (or 0, for infinite lease) */
+#define LEASE_DURATION          0 /* units, see ZHE_TIMEBASE */
 
 /* Peer IDs are non-empty byte vectors of at most PEERID_SIZE. Peers that provide a peer id that does not meet these requirements are ignored */
 #define PEERID_SIZE            16

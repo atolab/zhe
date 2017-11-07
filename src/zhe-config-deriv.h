@@ -35,8 +35,13 @@
 #  warning "should use a unicast conduit in a client or if there can be at most one peer"
 #endif
 
-#if LEASE_DURATION <= SCOUT_INTERVAL
+#if 0 < LEASE_DURATION && LEASE_DURATION <= SCOUT_INTERVAL
 #  warning "scout interval should be shorter than lease duration"
+#endif
+
+/* Limiting number of scouts sent can make sense in a peer-to-peer setting, but it doesn't make sense for a client: the client only scouts when it is looking for a broker, and it may not ever find one if it doesn't keep looking */
+#if MAX_PEERS == 0 && SCOUT_COUNT > 0
+#  error "max scout count must be 0 in client mode"
 #endif
 
 #if MAX_PEERS < 255

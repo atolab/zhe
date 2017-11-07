@@ -127,7 +127,7 @@ Finally, the platform specification must include a definition of a macro **zhe_a
 #define zhe_assert(x) assert(x)
 ```
 
-is an excellent choice on a hosted environment.****
+is an excellent choice on a hosted environment.
 
 # Compile-time configuration
 

@@ -155,6 +155,13 @@ static xwpos_t peers_oc_rbufidx[MAX_PEERS_1][XMITW_SAMPLES_UNICAST];
    message to go out. In client mode, scouting is conditional upon the state of the broker, in that
    case scouts only go out if peers[0].state = UNKNOWN. We also use it to send KEEPALIVEs, but those
    should be suppressed if data went out recently enough. FIXME: solve that. */
+#if SCOUT_COUNT > 0
+#if SCOUT_COUNT <= 255
+static uint8_t scout_count = SCOUT_COUNT;
+#elif SCOUT_COUNT <= 65535
+static uint16_t scout_count = SCOUT_COUNT;
+#endif
+#endif /* SCOUT_COUNT > 0 */
 static zhe_time_t tnextscout;
 
 static void remove_acked_messages(struct out_conduit * const c, seq_t seq);
@@ -1731,16 +1738,26 @@ static void maybe_send_scout(zhe_time_t tnow)
         if (peers[0].state == PEERST_UNKNOWN) {
             zhe_pack_mscout(&scoutaddr, tnow);
         } else {
+#if LEASE_DURATION > 0
             zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
+#endif
         }
+#else /* MAX_PEERS > 0 */
+#if SCOUT_COUNT == 0
 #else
-        zhe_pack_mscout(&scoutaddr, tnow);
+        if (scout_count > 0) {
+            --scout_count;
+            zhe_pack_mscout(&scoutaddr, tnow);
+        }
+#endif
+#if LEASE_DURATION > 0
         if (npeers > 0) {
             /* Scout messages are ignored by peers that have established a session with the source
                of the scout message, and then there is also the issue of potentially changing source
                addresses ... so we combine the scout with a keepalive if we know some peers */
             zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
         }
+#endif
 #endif
         zhe_pack_msend();
     }
