@@ -251,9 +251,9 @@ Multicast conduits use the addresses specified as **n_mconduit\_dstaddrs** strin
 
 # Test programs
 
-## Throughput test (a.k.a. "zhe")
+## Throughput test
 
-The small (and admittedly rather lacking in beauty) test program in the "test" directory is essentially a bidrectional throughput tester with a platform implementation for POSIX + UDP/IP.
+The small (and admittedly rather lacking in beauty) test program named "throughput" in the "test" directory is essentially a bidrectional throughput tester with a platform implementation for POSIX + UDP/IP.
 
 It has three modes:
 
@@ -301,7 +301,7 @@ The default is to enable full tracing, which is a bit too much, the `-q` option 
 
 The `-X` option can be used to simulate packet loss on transmission, its argument is a percentage. (This is implemented in the UDP part of the platform code.)
 
-A quick test is to run: "./zhe -pq -k *k*" on a number of machines, each with a different *k*. Following some initial prefix of traces, this should produce an output reminiscent of:
+A quick test is to run: "./throughput -pq -k *k*" on a number of machines, each with a different *k*. Following some initial prefix of traces, this should produce an output reminiscent of:
 
 ```
 8728.416 4374528 [4034]
@@ -319,11 +319,9 @@ A quick test is to run: "./zhe -pq -k *k*" on a number of machines, each with a 
 8730.204 [5] 3440640 0 [21488498,15559]
 ```
 
-To build it, `gcc -std=gnu99 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/[mptz]*.c -o zhe` should suffice (the curious wildcard for the "test" directory is because of the roundtrip test program that also lives there). On a Mac one can use `xcodebuild -quiet -configuration Release`.
-
 ## Roundtrip
 
-The roundtrip test program is helpfully named "roundtrip" and is inconveniently located in the same test directory. To build it, use `gcc -std=gnu99 -g -Wall -O2 -DNDEBUG -Isrc -Itest src/*.c test/[rptz]*.c -o zhe`. On a Mac one can use `xcodebuild -quiet -configuration Release` as well. The roundtrip program is really primitive in that it one *must* start the server first by running `roundtrip pong`, then start `roundtrip ping` and hope that the 1s delay built-in to ping is sufficient to cover the discovery time. It can only do reliable communication and does not tolerate sample loss at all.
+The roundtrip test program is helpfully named "roundtrip" and is located in the same test directory. The roundtrip program is really primitive in that it one *must* start the server first by running `roundtrip pong`, then start `roundtrip ping` and hope that the 1s delay built-in to ping is sufficient to cover the discovery time. It can only do reliable communication and does not tolerate sample loss at all.
 
 Typical output (on a pair of RPi3's) is:
 
