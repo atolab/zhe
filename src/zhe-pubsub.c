@@ -341,7 +341,7 @@ void zhe_reset_peer_unsched_hist_decls(peeridx_t peeridx)
 /////////////////////////////////////////////////////////////////////////////////////
 
 #if ZHE_MAX_URISPACE > 0
-static int send_declare_resource(struct out_conduit *oc, declitem_idx_t res, zhe_time_t tnow)
+static int send_declare_resource(struct out_conduit *oc, declitem_idx_t res, bool committed, zhe_time_t tnow)
 {
     zhe_msgsize_t from;
     zhe_paysize_t urisz;
@@ -351,7 +351,7 @@ static int send_declare_resource(struct out_conduit *oc, declitem_idx_t res, zhe
         return 1;
     }
     const zhe_paysize_t declsz = 1 + zhe_pack_ridreq(rid) + zhe_pack_vle16req(urisz) + urisz;
-    if (zhe_oc_pack_mdeclare(oc, 1, declsz, &from, tnow)) {
+    if (zhe_oc_pack_mdeclare(oc, committed, 1, declsz, &from, tnow)) {
         ZT(PUBSUB, "sending dres %d rid %ju %*.*s", res, (uintmax_t)rid, (int)urisz, (int)urisz, (char*)uri);
         zhe_pack_dresource(rid, urisz, uri);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -363,14 +363,14 @@ static int send_declare_resource(struct out_conduit *oc, declitem_idx_t res, zhe
 }
 #endif
 
-static int send_declare_pub(struct out_conduit *oc, declitem_idx_t pub, zhe_time_t tnow)
+static int send_declare_pub(struct out_conduit *oc, declitem_idx_t pub, bool committed, zhe_time_t tnow)
 {
     /* Currently not pushing publication declarations in peer mode */
 #if MAX_PEERS == 0
     zhe_msgsize_t from;
     if (pubs[pub].rid == 0) {
         return 1;
-    } else if (zhe_oc_pack_mdeclare(oc, 1, WC_DPUB_SIZE, &from, tnow)) {
+    } else if (zhe_oc_pack_mdeclare(oc, committed, 1, WC_DPUB_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending dpub %d rid %ju", pub, (uintmax_t)pubs[pub].rid);
         zhe_pack_dpub(pubs[pub].rid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -384,12 +384,12 @@ static int send_declare_pub(struct out_conduit *oc, declitem_idx_t pub, zhe_time
 #endif
 }
 
-static int send_declare_sub(struct out_conduit *oc, declitem_idx_t sub, zhe_time_t tnow)
+static int send_declare_sub(struct out_conduit *oc, declitem_idx_t sub, bool committed, zhe_time_t tnow)
 {
     zhe_msgsize_t from;
     if (subs[sub].rid == 0) {
         return 1;
-    } else if (zhe_oc_pack_mdeclare(oc, 1, WC_DSUB_SIZE, &from, tnow)) {
+    } else if (zhe_oc_pack_mdeclare(oc, committed, 1, WC_DSUB_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending dsub %d rid %ju", sub, (uintmax_t)subs[sub].rid);
         zhe_pack_dsub(subs[sub].rid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -403,7 +403,7 @@ static int send_declare_sub(struct out_conduit *oc, declitem_idx_t sub, zhe_time
 static int send_declare_commit(struct out_conduit *oc, uint8_t commitid, zhe_time_t tnow)
 {
     zhe_msgsize_t from;
-    if (zhe_oc_pack_mdeclare(oc, 1, WC_DCOMMIT_SIZE, &from, tnow)) {
+    if (zhe_oc_pack_mdeclare(oc, false, 1, WC_DCOMMIT_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending commit %u", commitid);
         zhe_pack_dcommit(commitid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -423,11 +423,10 @@ static struct out_conduit *zhe_send_declares1(zhe_time_t tnow, const cursoridx_t
 #else
     struct out_conduit * const oc = (cursoridx == MULTICAST_CURSORIDX) ? zhe_out_conduit_from_cid(0, 0) : zhe_out_conduit_from_cid(cursoridx, 0);
 #endif
+    const bool committed = (cursoridx != MULTICAST_CURSORIDX);
     declitem_idx_t idx;
     int done = 0;
     enum declitem_kind kind;
-
-    /* FIXME: if it's historical declarations, set the C flag & skip the commit */
 
     kind = DECLITEM_KIND_FIRST;
     do {
@@ -440,10 +439,10 @@ static struct out_conduit *zhe_send_declares1(zhe_time_t tnow, const cursoridx_t
             switch (kind) {
                     /* FIXME: the check against max value is only ok as long as we don't delete entities */
 #if ZHE_MAX_URISPACE > 0
-                case DIK_RESOURCE:     success = send_declare_resource(oc, idx, tnow); max = ZHE_MAX_RESOURCES; break;
+                case DIK_RESOURCE:     success = send_declare_resource(oc, idx, committed, tnow); max = ZHE_MAX_RESOURCES; break;
 #endif
-                case DIK_PUBLICATION:  success = send_declare_pub(oc, idx, tnow); max = max_pubidx.idx+1;  break;
-                case DIK_SUBSCRIPTION: success = send_declare_sub(oc, idx, tnow); max = max_subidx.idx+1;  break;
+                case DIK_PUBLICATION:  success = send_declare_pub(oc, idx, committed, tnow); max = max_pubidx.idx+1;  break;
+                case DIK_SUBSCRIPTION: success = send_declare_sub(oc, idx, committed, tnow); max = max_subidx.idx+1;  break;
             }
             if (success) {
                 /* FIXME: improve iterator over items to declare */
@@ -463,19 +462,24 @@ void zhe_send_declares(zhe_time_t tnow)
     struct out_conduit *commit_oc;
     if (pending_decls.cnt == 0) {
         zhe_assert(pending_decls.pos == 0);
-    } else if ((commit_oc = zhe_send_declares1(tnow, pending_decls.peers[pending_decls.pos])) == NULL) {
-        if (++pending_decls.pos == pending_decls.cnt) {
-            pending_decls.pos = 0;
-        }
-    } else if (!send_declare_commit(commit_oc, gcommitid, tnow)) {
-        if (++pending_decls.pos == pending_decls.cnt) {
-            pending_decls.pos = 0;
-        }
     } else {
-        gcommitid++;
-        pending_decls.peers[pending_decls.pos] = pending_decls.peers[--pending_decls.cnt];
-        if (pending_decls.pos == pending_decls.cnt) {
-            pending_decls.pos = 0;
+        const bool fresh = (pending_decls.peers[pending_decls.pos] == MULTICAST_CURSORIDX);
+        if ((commit_oc = zhe_send_declares1(tnow, pending_decls.peers[pending_decls.pos])) == NULL) {
+            if (++pending_decls.pos == pending_decls.cnt) {
+                pending_decls.pos = 0;
+            }
+        } else if (fresh && !send_declare_commit(commit_oc, gcommitid, tnow)) {
+            if (++pending_decls.pos == pending_decls.cnt) {
+                pending_decls.pos = 0;
+            }
+        } else {
+            if (fresh) {
+                gcommitid++;
+            }
+            pending_decls.peers[pending_decls.pos] = pending_decls.peers[--pending_decls.cnt];
+            if (pending_decls.pos == pending_decls.cnt) {
+                pending_decls.pos = 0;
+            }
         }
     }
 }

@@ -320,7 +320,7 @@ void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow
     zhe_oc_pack_payload_done(c, relflag, tnow);
 }
 
-int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, zhe_paysize_t decllen, zhe_msgsize_t *from, zhe_time_t tnow)
+int zhe_oc_pack_mdeclare(struct out_conduit *c, bool committed, uint8_t ndecls, zhe_paysize_t decllen, zhe_msgsize_t *from, zhe_time_t tnow)
 {
     const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(ndecls) + decllen;
     seq_t s;
@@ -329,7 +329,7 @@ int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, zhe_paysize_t de
         return 0;
     }
     *from = zhe_oc_pack_payload_msgprep(&s, c, 1, sz, tnow);
-    zhe_pack1(MDECLARE);
+    zhe_pack1(MDECLARE | (committed ? MCFLAG : 0));
     zhe_pack_seq(s);
     zhe_pack_vle16(ndecls);
     return 1;

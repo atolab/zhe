@@ -777,7 +777,7 @@ static enum zhe_unpack_result handle_dcommit(peeridx_t peeridx, const uint8_t * 
         zhe_msgsize_t from;
         uint8_t commitres;
         /* Use worst-case size for result */
-        if (!zhe_oc_pack_mdeclare(oc, 1, WC_DRESULT_SIZE, &from, tnow)) {
+        if (!zhe_oc_pack_mdeclare(oc, false, 1, WC_DRESULT_SIZE, &from, tnow)) {
             /* If we can't reserve space in the transmit window, pretend we never received the
                DECLARE message: eventually we'll get a retransmit and retry. */
             *interpret = DIM_ABORT;
@@ -1346,6 +1346,21 @@ static enum zhe_unpack_result handle_mdeclare(peeridx_t peeridx, const uint8_t *
             ZT(PUBSUB, "handle_mdeclare %u .. packet done", peeridx);
             zhe_rsub_precommit_curpkt_done(peeridx);
             (void)ic_update_seq(&peers[peeridx].ic[cid], MRFLAG, seq);
+            /* If C flag set, commit, closing the connection if an error is encountered */
+            if (hdr & MCFLAG) {
+                uint8_t commitres;
+                zhe_rid_t err_rid;
+                ZT(PUBSUB, "handle_mdeclare %u .. C flag set", peeridx);
+                if ((commitres = zhe_rsub_precommit(peeridx, &err_rid)) == 0) {
+                    zhe_rsub_commit(peeridx);
+                }
+                if (commitres != 0) {
+                    ZT(PUBSUB, "handle_mdeclare %u .. commit failed, close", peeridx);
+                    zhe_pack_mclose(&peers[peeridx].oc.addr, CLR_INCOMPAT_DECL, &ownid, tnow);
+                    zhe_pack_msend();
+                    reset_peer(peeridx, tnow);
+                }
+            }
             break;
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED && peers[peeridx].ic[cid].synched) {

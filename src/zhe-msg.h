@@ -34,8 +34,8 @@
 #define MMFLAG             32
 #define MPFLAG             32
 #define MRFLAG             64
-#define MHFLAG             64
 #define MNFLAG             64
+#define MCFLAG             64
 #define MZFLAG            128
 #define MAFLAG            128
 #define MUFLAG            128
@@ -60,6 +60,8 @@
 #define CLR_UNSUPP_PROTO    2
 #define CLR_OUT_OF_RES      3
 #define CLR_UNSUPP_SEQLEN   4
+#define CLR_UNSUPP_PARAM    5
+#define CLR_INCOMPAT_DECL   6
 #define CLR_ERROR         255
 
 #define PROP_VENDORID       0
