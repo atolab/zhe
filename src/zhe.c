@@ -15,6 +15,10 @@
 #include "zhe-binheap.h"
 #include "zhe-pubsub.h"
 
+#if ZHE_MAX_URISPACE > 0
+#include "zhe-uristore.h"
+#endif
+
 #define PEERST_UNKNOWN       0
 #define PEERST_OPENING_MIN   1
 #define PEERST_OPENING_MAX   5
@@ -151,6 +155,13 @@ static xwpos_t peers_oc_rbufidx[MAX_PEERS_1][XMITW_SAMPLES_UNICAST];
    message to go out. In client mode, scouting is conditional upon the state of the broker, in that
    case scouts only go out if peers[0].state = UNKNOWN. We also use it to send KEEPALIVEs, but those
    should be suppressed if data went out recently enough. FIXME: solve that. */
+#if SCOUT_COUNT > 0
+#if SCOUT_COUNT <= 255
+static uint8_t scout_count = SCOUT_COUNT;
+#elif SCOUT_COUNT <= 65535
+static uint16_t scout_count = SCOUT_COUNT;
+#endif
+#endif /* SCOUT_COUNT > 0 */
 static zhe_time_t tnextscout;
 
 static void remove_acked_messages(struct out_conduit * const c, seq_t seq);
@@ -198,6 +209,9 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     zhe_rsub_clear(peeridx);
     /* If data destined for this peer, drop it it */
     zhe_reset_peer_unsched_hist_decls(peeridx);
+#if ZHE_MAX_URISPACE > 0
+    zhe_uristore_reset_peer(peeridx);
+#endif
 #if HAVE_UNICAST_CONDUIT
     if (outdst == &p->oc.addr) {
         reset_outbuf();
@@ -278,6 +292,9 @@ static void init_globals(zhe_time_t tnow)
     outdeadline = tnow;
 #endif
     tnextscout = tnow;
+#if ZHE_MAX_URISPACE > 0
+    zhe_uristore_init();
+#endif
 }
 
 int zhe_seq_lt(seq_t a, seq_t b)
@@ -592,6 +609,18 @@ struct out_conduit *zhe_out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
+/* What the combination of (*interpret and return value) results in:
+ *               DIM_INTERPRET     DIM_IGNORE     DIM_ABORT
+ * ZUR_OK        C&ack             ignore         abort-txn
+ * ZUR_SHORT     abort-txn,X       X              abort-txn,X
+ * ZUR_OVERFLOW  abort-txn,close   close          abort-txn,close
+ * where
+ * - X = close if packet mode, try again when more data arrives if stream mode
+ *   interpretation starts in {INTERPRET,IGNORE} and where INTERPRET may transition to
+ * - ABORT - so IGNORE need not do "abort-txn"
+ * - C = commit & send a SUCCESS result if the transaction contents are acceptable, or
+ *   abort & send an error code if the transaction contents are unacceptable. */
+
 enum declaration_interpretation_mode {
     DIM_INTERPRET,
     DIM_IGNORE,
@@ -615,16 +644,37 @@ static enum zhe_unpack_result handle_dresource(peeridx_t peeridx, const uint8_t 
 {
     enum zhe_unpack_result res;
     uint8_t hdr;
-    zhe_paysize_t dummy;
+    zhe_rid_t rid;
+    zhe_paysize_t urisize;
+    const uint8_t *uri;
     struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
-         (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK ||
-         (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
+         (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK ||
+         (res = zhe_unpack_vecref(end, data, &urisize, &uri)) != ZUR_OK) {
         return res;
     }
     if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
+#if ZHE_MAX_URISPACE > 0
+    if (*interpret == DIM_INTERPRET) {
+        switch (zhe_uristore_store(peeridx, rid, uri, urisize)) {
+            case USR_OK:
+                /* all is well, continue happily */
+                return ZUR_OK;
+            case USR_AGAIN:
+                /* pretend we never received this declare message - trying again on retransmit */
+                *interpret = DIM_ABORT;
+                return ZUR_OK;
+            case USR_NOSPACE:
+            case USR_MISMATCH:
+            case USR_OVERSIZE:
+                /* note an error so that a COMMIT will result in a RESULT with an error code */
+                zhe_decl_note_error_curpkt(16, rid);
+                return ZUR_OK;
+        }
+    }
+#endif
     return ZUR_OK;
 }
 
@@ -675,7 +725,6 @@ static enum zhe_unpack_result handle_dsub(peeridx_t peeridx, const uint8_t * con
 
 static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    /* FIXME: support selections? */
     enum zhe_unpack_result res;
     zhe_rid_t sid;
     uint8_t hdr;
@@ -690,14 +739,13 @@ static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
-        zhe_decl_note_error(4, sid);
+        zhe_decl_note_error_curpkt(4, sid);
     }
     return ZUR_OK;
 }
 
 static enum zhe_unpack_result handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    /* FIXME: support bindings?  I don't think there's a need. */
     enum zhe_unpack_result res;
     zhe_rid_t sid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
@@ -706,7 +754,7 @@ static enum zhe_unpack_result handle_dbindid(peeridx_t peeridx, const uint8_t * 
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
-        zhe_decl_note_error(8, sid);
+        zhe_decl_note_error_curpkt(8, sid);
     }
     return ZUR_OK;
 }
@@ -729,7 +777,7 @@ static enum zhe_unpack_result handle_dcommit(peeridx_t peeridx, const uint8_t * 
         zhe_msgsize_t from;
         uint8_t commitres;
         /* Use worst-case size for result */
-        if (!zhe_oc_pack_mdeclare(oc, 1, WC_DRESULT_SIZE, &from, tnow)) {
+        if (!zhe_oc_pack_mdeclare(oc, false, 1, WC_DRESULT_SIZE, &from, tnow)) {
             /* If we can't reserve space in the transmit window, pretend we never received the
                DECLARE message: eventually we'll get a retransmit and retry. */
             *interpret = DIM_ABORT;
@@ -901,7 +949,7 @@ static enum zhe_unpack_result handle_mhello(peeridx_t peeridx, const uint8_t * c
                 peers[peeridx].tlease = tnow;
             }
         } else {
-            /* FIXME: a hello when established indicates a reconnect for the other one => should at least clear ic[.].synched, usynched - but maybe more if we want some kind of nothing of the event ... */
+            /* FIXME: a hello when established indicates a reconnect for the other one => should at least clear ic[.].synched, usynched - but maybe more if we want some kind of notification of the event ... */
             for (cid_t cid = 0; cid < N_IN_CONDUITS; cid++) {
                 peers[peeridx].ic[cid].synched = 0;
                 peers[peeridx].ic[cid].usynched = 0;
@@ -1298,6 +1346,21 @@ static enum zhe_unpack_result handle_mdeclare(peeridx_t peeridx, const uint8_t *
             ZT(PUBSUB, "handle_mdeclare %u .. packet done", peeridx);
             zhe_rsub_precommit_curpkt_done(peeridx);
             (void)ic_update_seq(&peers[peeridx].ic[cid], MRFLAG, seq);
+            /* If C flag set, commit, closing the connection if an error is encountered */
+            if (hdr & MCFLAG) {
+                uint8_t commitres;
+                zhe_rid_t err_rid;
+                ZT(PUBSUB, "handle_mdeclare %u .. C flag set", peeridx);
+                if ((commitres = zhe_rsub_precommit(peeridx, &err_rid)) == 0) {
+                    zhe_rsub_commit(peeridx);
+                }
+                if (commitres != 0) {
+                    ZT(PUBSUB, "handle_mdeclare %u .. commit failed, close", peeridx);
+                    zhe_pack_mclose(&peers[peeridx].oc.addr, CLR_INCOMPAT_DECL, &ownid, tnow);
+                    zhe_pack_msend();
+                    reset_peer(peeridx, tnow);
+                }
+            }
             break;
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED && peers[peeridx].ic[cid].synched) {
@@ -1690,16 +1753,26 @@ static void maybe_send_scout(zhe_time_t tnow)
         if (peers[0].state == PEERST_UNKNOWN) {
             zhe_pack_mscout(&scoutaddr, tnow);
         } else {
+#if LEASE_DURATION > 0
             zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
+#endif
         }
+#else /* MAX_PEERS > 0 */
+#if SCOUT_COUNT == 0
 #else
-        zhe_pack_mscout(&scoutaddr, tnow);
+        if (scout_count > 0) {
+            --scout_count;
+            zhe_pack_mscout(&scoutaddr, tnow);
+        }
+#endif
+#if LEASE_DURATION > 0
         if (npeers > 0) {
             /* Scout messages are ignored by peers that have established a session with the source
                of the scout message, and then there is also the issue of potentially changing source
                addresses ... so we combine the scout with a keepalive if we know some peers */
             zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
         }
+#endif
 #endif
         zhe_pack_msend();
     }
@@ -1807,7 +1880,7 @@ void zhe_flush(void)
 
 void zhe_housekeeping(zhe_time_t tnow)
 {
-    /* FIXME: obviously, this is a big waste of CPU time if MAX_PEERS is biggish (but worst-case cost isn't affected) */
+    /* FIXME: obviously, this is a waste of CPU time if MAX_PEERS is biggish (but worst-case cost isn't affected) */
     for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
         switch(peers[i].state) {
             case PEERST_UNKNOWN:
@@ -1851,6 +1924,9 @@ void zhe_housekeeping(zhe_time_t tnow)
 
     zhe_send_declares(tnow);
     maybe_send_scout(tnow);
+#if ZHE_MAX_URISPACE > 0
+    zhe_uristore_gc();
+#endif
 
     /* Flush any pending output if the latency budget has been exceeded */
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF

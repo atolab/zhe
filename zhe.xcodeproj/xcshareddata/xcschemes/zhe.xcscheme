@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "030587651EF92BEB0040F446"
-               BuildableName = "zhe"
-               BlueprintName = "zhe"
+               BuildableName = "throughput"
+               BlueprintName = "throughput"
                ReferencedContainer = "container:zhe.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -49,8 +49,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "030587651EF92BEB0040F446"
-            BuildableName = "zhe"
-            BlueprintName = "zhe"
+            BuildableName = "throughput"
+            BlueprintName = "throughput"
             ReferencedContainer = "container:zhe.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
@@ -73,8 +73,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "030587651EF92BEB0040F446"
-            BuildableName = "zhe"
-            BlueprintName = "zhe"
+            BuildableName = "throughput"
+            BlueprintName = "throughput"
             ReferencedContainer = "container:zhe.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -97,8 +97,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "030587651EF92BEB0040F446"
-            BuildableName = "zhe"
-            BlueprintName = "zhe"
+            BuildableName = "throughput"
+            BlueprintName = "throughput"
             ReferencedContainer = "container:zhe.xcodeproj">
          </BuildableReference>
       </MacroExpansion>

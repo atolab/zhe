@@ -22,6 +22,7 @@ enum zhe_unpack_result zhe_unpack_seq(uint8_t const * const end, uint8_t const *
 const uint8_t *zhe_skip_validated_vle(const uint8_t *data);
 enum zhe_unpack_result zhe_unpack_rid(uint8_t const * const end, uint8_t const * * const data, zhe_rid_t * restrict u);
 enum zhe_unpack_result zhe_unpack_vec(uint8_t const * const end, uint8_t const * * const data, size_t lim, zhe_paysize_t * restrict u, uint8_t * restrict v);
+enum zhe_unpack_result zhe_unpack_vecref(uint8_t const * const end, uint8_t const * * const data, zhe_paysize_t *u, uint8_t const **v);
 
 struct unpack_props_iter {
     uint16_t n;

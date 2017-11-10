@@ -6,7 +6,7 @@
 #include "platform-udp.h"
 
 /* Maximum number of peers one node can have (that is, the network may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0, it becomes a client rather than a peer, and scouts for a broker instead */
-#define MAX_PEERS 4
+#define MAX_PEERS 5
 
 /* Number of input conduits, that is, the highest conduit id for which it can receive data from any peer/broker is N_IN_CONDUITS-1. The input conduit state is per-peer, per-conduit id, and hence which ones are used and what those are used for is determined on the sending side. It also means that peers may have different configurations for the maximum number of conduits. Input conduits have very little state. */
 #define N_IN_CONDUITS 3
@@ -25,7 +25,14 @@
 #define XMITW_BYTES_UNICAST 384u
 #define XMITW_SAMPLES 1600u
 #define XMITW_SAMPLES_UNICAST 63u
+
+/* Whether or not to maintain a index of samples in the transmit windows that maps sequence number to byte position */
 #define XMITW_SAMPLE_INDEX 1
+
+/* Constraints on storing URIs -- if MAX_URISPACE is set to 0, no URIs will be stored and resource declarations will be ignored */
+#define ZHE_MAX_URISPACE 3072
+#define ZHE_MAX_RESOURCES 20
+#define ZHE_MAX_URILENGTH 100
 
 /* Whether or not to enable tracing */
 #define ENABLE_TRACING 1
@@ -40,12 +47,13 @@
 
 /* Scouts are sent periodically by a peer; by a client only when not connected to, or trying to connect to, a broker. The interval is configurable. Scouts are always multicasted (however implemented by the transport). */
 #define SCOUT_INTERVAL       3000 /* units, see ZHE_TIMEBASE */
+#define SCOUT_COUNT             0 /* send 10 scouts then stop scouting (0: unlimited; MAX_PEERS == 0 requires 0) */
 
 /* Once new peer/a broker has been discovered, a number of attempts at establishing a connection take place. The interval between these attempts is OPEN_INTERVAL, the number of attempts before giving up and relying on scouting again is OPEN_RETRIES. */
 #define OPEN_INTERVAL        1000 /* units, see ZHE_TIMEBASE */
 #define OPEN_RETRIES           10 /* limited by OPENING_MIN .. _MAX */
 
-/* Lease duration should be greater than SCOUT_INTERVAL */
+/* Lease duration should be greater than SCOUT_INTERVAL (or 0, for infinite lease) */
 #define LEASE_DURATION       5000 /* units, see ZHE_TIMEBASE */
 
 /* Peer IDs are non-empty byte vectors of at most PEERID_SIZE. Peers that provide a peer id that does not meet these requirements are ignored */

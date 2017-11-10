@@ -1,6 +1,7 @@
 #ifndef ZHE_PACK_H
 #define ZHE_PACK_H
 
+#include <stdbool.h>
 #include "zhe-config-deriv.h"
 
 struct out_conduit;
@@ -18,7 +19,6 @@ void zhe_pack_seq(seq_t x);
 zhe_paysize_t zhe_pack_seqreq(seq_t x);
 void zhe_pack_rid(zhe_rid_t x);
 zhe_paysize_t zhe_pack_ridreq(zhe_rid_t x);
-void zhe_pack_text(zhe_paysize_t n, const char *text);
 void zhe_pack_mscout(zhe_address_t *dst, zhe_time_t tnow);
 void zhe_pack_mhello(zhe_address_t *dst, zhe_time_t tnow);
 void zhe_pack_mopen(zhe_address_t *dst, uint8_t seqnumlen, const struct peerid *ownid, zhe_timediff_t lease_dur, zhe_time_t tnow);
@@ -33,9 +33,9 @@ void zhe_pack_mkeepalive(zhe_address_t *dst, const struct peerid *ownid, zhe_tim
 int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_paysize_t payloadlen, zhe_time_t tnow);
 void zhe_oc_pack_msdata_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, const void *vdata);
 void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow);
-int zhe_oc_pack_mdeclare(struct out_conduit *c, uint8_t ndecls, uint8_t decllen, zhe_msgsize_t *from, zhe_time_t tnow);
+int zhe_oc_pack_mdeclare(struct out_conduit *c, bool committed, uint8_t ndecls, zhe_paysize_t decllen, zhe_msgsize_t *from, zhe_time_t tnow);
 void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_time_t tnow);
-void zhe_pack_dresource(zhe_rid_t rid, const char *res);
+void zhe_pack_dresource(zhe_rid_t rid, zhe_paysize_t urisz, const uint8_t *uri);
 void zhe_pack_dpub(zhe_rid_t rid);
 void zhe_pack_dsub(zhe_rid_t rid);
 void zhe_pack_dcommit(uint8_t commitid);

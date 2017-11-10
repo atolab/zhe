@@ -107,8 +107,14 @@ int main(int argc, char * const *argv)
 #if N_OUT_MCONDUITS == 0
     char *mcgroups_join_str = "";
     char *mconduit_dstaddrs_str = "";
+#elif N_OUT_MCONDUITS == 1
+    char *mcgroups_join_str = "239.255.0.2"; /* in addition to scout */
+    char *mconduit_dstaddrs_str = "239.255.0.2";
 #elif N_OUT_MCONDUITS == 2
     char *mcgroups_join_str = "239.255.0.2,239.255.0.3"; /* in addition to scout */
+    char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
+#elif N_OUT_MCONDUITS == 3
+    char *mcgroups_join_str = "239.255.0.2,239.255.0.3,239.255.0.4"; /* in addition to scout */
     char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
 #endif
 

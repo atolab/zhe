@@ -139,6 +139,22 @@ enum zhe_unpack_result zhe_unpack_vec(uint8_t const * const end, uint8_t const *
     return ZUR_OK;
 }
 
+enum zhe_unpack_result zhe_unpack_vecref(uint8_t const * const end, uint8_t const * * const data, zhe_paysize_t *u, uint8_t const **v)
+{
+    enum zhe_unpack_result res;
+    if ((res = zhe_unpack_vle16(end, data, u)) != ZUR_OK) {
+        return res;
+    }
+    if (end - *data < *u) {
+        return ZUR_SHORT;
+    }
+    if (v) {
+        *v = *data;
+    }
+    (*data) += *u;
+    return ZUR_OK;
+}
+
 enum zhe_unpack_result zhe_unpack_locs(uint8_t const * const end, uint8_t const * * const data, struct unpack_locs_iter *it)
 {
     enum zhe_unpack_result res;
@@ -150,7 +166,7 @@ enum zhe_unpack_result zhe_unpack_locs(uint8_t const * const end, uint8_t const 
     it->n = n;
     it->data = *data;
     while (n--) {
-        if ((res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
+        if ((res = zhe_unpack_vecref(end, data, &dummy, NULL)) != ZUR_OK) {
             return res;
         }
     }
@@ -191,7 +207,7 @@ enum zhe_unpack_result zhe_unpack_props(uint8_t const * const end, uint8_t const
         if ((res = zhe_unpack_vle8(end, data, &propid)) != ZUR_OK && res != ZUR_OVERFLOW) {
             return res;
         }
-        if ((res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
+        if ((res = zhe_unpack_vecref(end, data, &dummy, NULL)) != ZUR_OK) {
             return res;
         }
     }
@@ -204,14 +220,10 @@ int zhe_unpack_props_iter(struct unpack_props_iter *it, uint8_t *propid, zhe_pay
     /* The only way to get a valid iterator is a successful call to zhe_unpack_props(), therefore we
        know the structure of the sequence to be valid; skips props with out-of-range propids */
     while (it->n != 0) {
-        enum zhe_unpack_result res, x;
+        enum zhe_unpack_result res;
         res = zhe_unpack_vle8(it->end, &it->data, propid);
         zhe_assert(res == ZUR_OK || res == ZUR_OVERFLOW);
-        x = zhe_unpack_vle16(it->end, &it->data, sz);
-        zhe_assert(x == ZUR_OK);
-        (void)x;
-        *data = it->data;
-        it->data += *sz;
+        (void)zhe_unpack_vecref(it->end, &it->data, sz, data);
         it->n--;
         if (res == ZUR_OK) {
             return 1;
