@@ -408,22 +408,24 @@ static void check_xmitw(const struct out_conduit *c)
 
 void zhe_pack_msend(void)
 {
-    zhe_assert ((outspos == OUTSPOS_UNSET) == (outc == NULL));
-    zhe_assert (outdst != NULL);
-    if (outspos != OUTSPOS_UNSET) {
-        /* FIXME: not-so-great proxy for transition past 3/4 of window size */
-        xwpos_t cnt = zhe_xmitw_bytesavail(outc);
-        if (cnt < outc->xmitw_bytes / 4 && cnt + outspos >= outc->xmitw_bytes / 4) {
-            outbuf[outspos] |= MSFLAG;
+    if (outp > 0) {
+        zhe_assert ((outspos == OUTSPOS_UNSET) == (outc == NULL));
+        zhe_assert (outdst != NULL);
+        if (outspos != OUTSPOS_UNSET) {
+            /* FIXME: not-so-great proxy for transition past 3/4 of window size */
+            xwpos_t cnt = zhe_xmitw_bytesavail(outc);
+            if (cnt < outc->xmitw_bytes / 4 && cnt + outspos >= outc->xmitw_bytes / 4) {
+                outbuf[outspos] |= MSFLAG;
+            }
         }
+        if (zhe_platform_send(zhe_platform, outbuf, outp, outdst) < 0) {
+            zhe_assert(0);
+        }
+        outp = 0;
+        outspos = OUTSPOS_UNSET;
+        outc = NULL;
+        outdst = NULL;
     }
-    if (zhe_platform_send(zhe_platform, outbuf, outp, outdst) < 0) {
-        zhe_assert(0);
-    }
-    outp = 0;
-    outspos = OUTSPOS_UNSET;
-    outc = NULL;
-    outdst = NULL;
 }
 
 static void pack_check_avail(uint16_t n)
