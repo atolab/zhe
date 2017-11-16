@@ -33,6 +33,9 @@ void zhe_pack_mkeepalive(zhe_address_t *dst, const struct peerid *ownid, zhe_tim
 int zhe_oc_pack_msdata(struct out_conduit *c, int relflag, zhe_rid_t rid, zhe_paysize_t payloadlen, zhe_time_t tnow);
 void zhe_oc_pack_msdata_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, const void *vdata);
 void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow);
+int zhe_oc_pack_mwdata(struct out_conduit *c, int relflag, zhe_paysize_t urisz, const void *uri, zhe_paysize_t payloadlen, zhe_time_t tnow);
+void zhe_oc_pack_mwdata_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, const void *vdata);
+void zhe_oc_pack_mwdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow);
 int zhe_oc_pack_mdeclare(struct out_conduit *c, bool committed, uint8_t ndecls, zhe_paysize_t decllen, zhe_msgsize_t *from, zhe_time_t tnow);
 void zhe_oc_pack_mdeclare_done(struct out_conduit *c, zhe_msgsize_t from, zhe_time_t tnow);
 void zhe_pack_dresource(zhe_rid_t rid, zhe_paysize_t urisz, const uint8_t *uri);

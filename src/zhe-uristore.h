@@ -3,6 +3,15 @@
 
 #if ZHE_MAX_URISPACE > 0
 #include <stdbool.h>
+#include "zhe-icgcb.h"
+
+#if ZHE_MAX_RESOURCES <= UINT8_MAX-1
+typedef uint8_t zhe_residx_t;
+#elif ZHE_MAX_RESOURCES <= UINT16_MAX-1
+typedef uint16_t zhe_residx_t;
+#elif ZHE_MAX_RESOURCES <= UINT32_MAX-1
+typedef uint32_t zhe_residx_t;
+#endif
 
 enum uristore_result {
     USR_OK,       /* stored */

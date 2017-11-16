@@ -607,6 +607,13 @@ struct out_conduit *zhe_out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
     return c;
 }
 
+bool zhe_out_conduit_is_connected(peeridx_t peeridx, cid_t cid)
+{
+    bool c;
+    DO_FOR_UNICAST_OR_MULTICAST(cid, c = (peers[peeridx].state == PEERST_ESTABLISHED), c = zhe_ocm_have_peers(&out_mconduits[cid]));
+    return c;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 /* What the combination of (*interpret and return value) results in:
@@ -1409,6 +1416,7 @@ static enum zhe_unpack_result handle_msdata(peeridx_t peeridx, const uint8_t * c
     enum zhe_unpack_result res;
     uint8_t hdr;
     zhe_paysize_t paysz;
+    const uint8_t *pay;
     seq_t seq;
     zhe_rid_t rid, prid;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
@@ -1421,12 +1429,7 @@ static enum zhe_unpack_result handle_msdata(peeridx_t peeridx, const uint8_t * c
     } else if ((res = zhe_unpack_rid(end, data, &prid)) != ZUR_OK) {
         return res;
     }
-
-    /* Attempt to "extract" payload -- we don't actually extract it but leave it in place to save memory
-       and time.  If it is fully present, pay will still point to the payload size and all
-       we need to redo is skip the VLE encoded length in what we know to be a valid buffer */
-    const uint8_t * const pay = *data;
-    if ((res = zhe_unpack_vec(end, data, 0, &paysz, NULL)) != ZUR_OK) {
+    if ((res = zhe_unpack_vecref(end, data, &paysz, &pay)) != ZUR_OK) {
         return res;
     }
 
@@ -1437,7 +1440,7 @@ static enum zhe_unpack_result handle_msdata(peeridx_t peeridx, const uint8_t * c
 
     if (!(hdr & MRFLAG)) {
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
-            (void)zhe_handle_msdata_deliver(prid, paysz, zhe_skip_validated_vle(pay));
+            (void)zhe_handle_msdata_deliver(prid, paysz, pay);
             ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
         }
     } else if (peers[peeridx].ic[cid].synched) {
@@ -1447,13 +1450,67 @@ static enum zhe_unpack_result handle_msdata(peeridx_t peeridx, const uint8_t * c
         }
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
             ZT(RELIABLE, "handle_msdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
-            if (zhe_handle_msdata_deliver(prid, paysz, zhe_skip_validated_vle(pay))) {
+            if (zhe_handle_msdata_deliver(prid, paysz, pay)) {
                 /* if failed to deliver, we must retry, which necessitates a retransmit and not updating the conduit state */
                 ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
             }
             zhe_delivered++;
         } else {
             ZT(RELIABLE, "handle_msdata peeridx %u cid %u seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
+            zhe_discarded++;
+        }
+        acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
+    }
+
+    return ZUR_OK;
+}
+
+static enum zhe_unpack_result handle_mwdata(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
+{
+    enum zhe_unpack_result res;
+    uint8_t hdr;
+    zhe_paysize_t paysz;
+    const uint8_t *pay = *data;
+    seq_t seq;
+    zhe_paysize_t urisz;
+    const uint8_t *uri;
+    if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
+        (res = zhe_unpack_seq(end, data, &seq)) != ZUR_OK ||
+        (res = zhe_unpack_vecref(end, data, &urisz, &uri)) != ZUR_OK ||
+        (res = zhe_unpack_vecref(end, data, &paysz, &pay)) != ZUR_OK) {
+        return res;
+    }
+
+    if (peers[peeridx].state != PEERST_ESTABLISHED) {
+        /* Not accepting data from peers that we haven't (yet) established a connection with */
+        return ZUR_OK;
+    }
+
+    if (!(hdr & MRFLAG)) {
+        if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
+#if ZHE_MAX_URISPACE > 0
+            (void)zhe_handle_mwdata_deliver(urisz, uri, paysz, pay);
+#endif
+            ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
+        }
+    } else if (peers[peeridx].ic[cid].synched) {
+        /* Only move lseqpU forward based on the received sequence number if the seq is greater than the next-to-be-delivered and greater than the latest known, or else we can end up with ic[cid].lseqpU < ic[cid].seq */
+        if (zhe_seq_le(peers[peeridx].ic[cid].seq, seq + SEQNUM_UNIT) && zhe_seq_lt(peers[peeridx].ic[cid].lseqpU, seq + SEQNUM_UNIT)) {
+            peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
+        }
+        if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
+#if ZHE_MAX_URISPACE > 0
+            ZT(RELIABLE, "handle_mwdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
+            if (zhe_handle_mwdata_deliver(urisz, uri, paysz, pay)) {
+                /* if failed to deliver, we must retry, which necessitates a retransmit and not updating the conduit state */
+                ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
+            }
+#else
+            ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
+#endif
+            zhe_delivered++;
+        } else {
+            ZT(RELIABLE, "handle_mwdata peeridx %u cid %u seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
             zhe_discarded++;
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
@@ -1690,6 +1747,7 @@ static enum zhe_unpack_result handle_packet(peeridx_t * restrict peeridx, const 
             case MCLOSE:     res = handle_mclose(peeridx, end, &data1, tnow); break;
             case MDECLARE:   res = handle_mdeclare(*peeridx, end, &data1, cid, tnow); break;
             case MSDATA:     res = handle_msdata(*peeridx, end, &data1, cid, tnow); break;
+            case MWDATA:     res = handle_mwdata(*peeridx, end, &data1, cid, tnow); break;
             case MPING:      res = handle_mping(*peeridx, end, &data1, tnow); break;
             case MPONG:      res = handle_mpong(*peeridx, end, &data1); break;
             case MSYNCH:     res = handle_msynch(*peeridx, end, &data1, cid, tnow); break;

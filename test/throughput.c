@@ -36,6 +36,11 @@ static void shandler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, voi
     static uint32_t lastseq_init;
     const struct data * const d = payload;
     assert(size == sizeof(*d));
+    if (rid == 0) {
+        zhe_time_t tnow = zhe_platform_time();
+        printf ("%4"PRIu32".%03"PRIu32" got a WriteData %u %u\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), d->key, d->seq);
+        return;
+    }
     if (lastseq_init & (1u << d->key)) {
         if (d->seq != lastseq[d->key]+1) {
             oooc++;
@@ -160,7 +165,6 @@ int main(int argc, char * const *argv)
     if (mode == 1) {
         zhe_declare_resource(3, "/t/test");
     }
-    
     switch (mode) {
         case 0: case -1: {
             zhe_time_t tstart = zhe_platform_time();
@@ -217,6 +221,9 @@ int main(int argc, char * const *argv)
                                 extern unsigned zhe_synch_sent;
                                 printf ("%4"PRIu32".%03"PRIu32" %u [%u]\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), d.seq, zhe_synch_sent);
                                 tprint = tnow;
+
+                                struct data d1 = { .key = key, .seq = UINT32_MAX };
+                                zhe_write_uri("/t/data", &d1, sizeof(d1), tnow);
                             }
                         }
                         d.seq++;

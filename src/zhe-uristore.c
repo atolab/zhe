@@ -5,13 +5,10 @@
 #include "zhe-config-deriv.h"
 #include "zhe-assert.h"
 #include "zhe-bitset.h"
-#include "zhe-icgcb.h"
 #include "zhe-tracing.h"
 #include "zhe-uristore.h"
 
 #if ZHE_MAX_URISPACE > 0
-
-typedef uripos_t zhe_residx_t;
 
 static union {
     uint8_t store[sizeof(struct icgcb) + ZHE_MAX_URISPACE];

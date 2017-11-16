@@ -320,6 +320,42 @@ void zhe_oc_pack_msdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow
     zhe_oc_pack_payload_done(c, relflag, tnow);
 }
 
+int zhe_oc_pack_mwdata(struct out_conduit *c, int relflag, zhe_paysize_t urisz, const void *uri, zhe_paysize_t payloadlen, zhe_time_t tnow)
+{
+    /* Use worst-case number of bytes for sequence number, instead of getting the sequence number
+     earlier than as an output of oc_pack_payload_msgprep and using the exact value */
+    const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(urisz) + urisz + zhe_pack_vle16req(payloadlen) + payloadlen;
+    const uint8_t hdr = MWDATA | (relflag ? MRFLAG : 0);
+    zhe_msgsize_t from;
+    seq_t s;
+
+    if (relflag && !zhe_xmitw_hasspace(c, sz)) {
+        /* Reliable, insufficient space in transmit window (accounting for preceding length byte) */
+        zhe_oc_hit_full_window(c, tnow);
+        return 0;
+    }
+
+    from = zhe_oc_pack_payload_msgprep(&s, c, relflag, sz, tnow);
+    zhe_pack1(hdr);
+    zhe_pack_seq(s);
+    zhe_pack_vec(urisz, uri);
+    zhe_pack_vle16(payloadlen);
+    if (relflag) {
+        zhe_oc_pack_copyrel(c, from);
+    }
+    return 1;
+}
+
+void zhe_oc_pack_mwdata_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, const void *vdata)
+{
+    zhe_oc_pack_msdata_payload(c, relflag, sz, vdata);
+}
+
+void zhe_oc_pack_mwdata_done(struct out_conduit *c, int relflag, zhe_time_t tnow)
+{
+    zhe_oc_pack_msdata_done(c, relflag, tnow);
+}
+
 int zhe_oc_pack_mdeclare(struct out_conduit *c, bool committed, uint8_t ndecls, zhe_paysize_t decllen, zhe_msgsize_t *from, zhe_time_t tnow)
 {
     const zhe_paysize_t sz = 1 + WORST_CASE_SEQ_SIZE + zhe_pack_vle16req(ndecls) + decllen;

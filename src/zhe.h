@@ -54,5 +54,6 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable);
 zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, zhe_subhandler_t handler, void *arg);
 
 int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_t tnow);
+int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_t tnow);
 
 #endif

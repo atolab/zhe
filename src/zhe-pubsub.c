@@ -250,6 +250,57 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
     }
 }
 
+#if ZHE_MAX_URISPACE > 0
+static bool zhe_urimatch(zhe_paysize_t asz, const uint8_t *a, zhe_paysize_t bsz, const uint8_t *b)
+{
+    /* FIXME: figure out URI matching ... */
+    return (asz == bsz && memcmp(a, b, asz) == 0);
+}
+
+/* A WriteData should be delivered to all matching subscriptions or to none (and then retried later) -- delivering to some but not all seems like a really bad idea! -- but that means we first need to check the the available space in transmit windows.  Obviously doing the URI matching more often than strictly necessary is not a good idea -- indeed it is bad enough with caching ... perhaps so bad that it would be best to handle this as part of housekeeping, bit by bit ...  FIXME: for now, let's just cache. */
+static zhe_subidx_t zhe_handle_mwdata_matches[ZHE_MAX_SUBSCRIPTIONS];
+
+int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysize_t paysz, const void *pay)
+{
+    zhe_subidx_t nm = { 0 };
+    for (zhe_subidx_t k = { 0 }; k.idx < ZHE_MAX_SUBSCRIPTIONS; k.idx++) {
+        const struct subtable * const s = &subs[k.idx];
+        zhe_residx_t uidx;
+        zhe_rid_t rid;
+        zhe_paysize_t suburisz;
+        const uint8_t *suburi;
+        /* FIXME: should keep resource index in subs table, this is embarrasingly expensive ... (and perhaps should also scan resources rather than subscriptions -- or do both in parallel, or cache the results or ...) */
+        for (uidx = 0; uidx < ZHE_MAX_RESOURCES; uidx++) {
+            if (zhe_uristore_geturi(uidx, &rid, &suburisz, &suburi) && rid == s->rid) {
+                if (zhe_urimatch(urisz, uri, suburisz, suburi)) {
+                    zhe_handle_mwdata_matches[nm.idx++] = k;
+                }
+            }
+        }
+    }
+    /* FIXME: this doesn't work for unicast conduits; perhaps should speed things up in the trivial cases */
+    zhe_paysize_t xmitneed[N_OUT_CONDUITS];
+    memset(xmitneed, 0, sizeof(xmitneed));
+    for (zhe_subidx_t k = { 0 }; k.idx < nm.idx; k.idx++) {
+        const struct subtable *s = &subs[k.idx];
+        if (s->xmitneed > 0) {
+            xmitneed[zhe_oc_get_cid(s->oc)] += s->xmitneed;
+        }
+    }
+    for (cid_t cid = 0; cid < N_OUT_CONDUITS; cid++) {
+        if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(0, cid), xmitneed[cid])) {
+            return 0;
+        }
+    }
+    for (zhe_subidx_t k = { 0 }; k.idx < nm.idx; k.idx++) {
+        const struct subtable *s = &subs[k.idx];
+        /* FIXME: which resource id should we pass to the handler? 0 is not a valid one, so that's kinda reasonable */
+        s->handler(0, pay, paysz, s->arg);
+    }
+    return 1;
+}
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////
 
 static uint8_t gcommitid;
@@ -633,5 +684,32 @@ int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_
 #endif
         /* not flushing to allow packing */
         return 1;
+    }
+}
+
+int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_t tnow)
+{
+    if (!zhe_out_conduit_is_connected(0, 0)) {
+        return 1;
+    } else {
+        struct out_conduit * const oc = zhe_out_conduit_from_cid(0, 0);
+        size_t urisz = strlen(uri);
+        if (urisz > ZHE_MAX_URILENGTH) {
+            /* FIXME: maybe I should do proper return values after all -- or just switch to Ada2012*/
+            return 0;
+        }
+        if (zhe_oc_am_draining_window(oc)) {
+            return 0;
+        } else if (!zhe_oc_pack_mwdata(oc, 1, (zhe_paysize_t)urisz, uri, sz, tnow)) {
+            return 0;
+        } else {
+            zhe_oc_pack_msdata_payload(oc, 1, sz, data);
+            zhe_oc_pack_msdata_done(oc, 1, tnow);
+#if LATENCY_BUDGET == 0
+            zhe_pack_msend();
+#endif
+            /* not flushing to allow packing */
+            return 1;
+        }
     }
 }

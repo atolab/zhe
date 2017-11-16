@@ -12,7 +12,7 @@
 #define MDECLARE            6
 #define MSDATA              7
 #define MBDATA              8 /* FIXME: NIY */
-#define MWDATA              9 /* FIXME: NIY */
+#define MWDATA              9
 #define MQUERY             10 /* FIXME: NIY */
 #define MPULL              11 /* FIXME: NIY */
 #define MPING              12
