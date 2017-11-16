@@ -1759,6 +1759,7 @@ static void maybe_send_scout(zhe_time_t tnow)
         }
 #else /* MAX_PEERS > 0 */
 #if SCOUT_COUNT == 0
+        zhe_pack_mscout(&scoutaddr, tnow);
 #else
         if (scout_count > 0) {
             --scout_count;
