@@ -4,9 +4,11 @@
 
 #include <stdint.h>
 
-#define ZHE_MAX_RID 10
-#define ZHE_MAX_SUBSCRIPTIONS 10
-#define ZHE_MAX_PUBLICATIONS 10
+#define ZHE_MAX_RID 3
+#define ZHE_MAX_SUBSCRIPTIONS 2
+#define ZHE_MAX_PUBLICATIONS 2
+#define ZHE_MAX_RESOURCES 0
+#define ZHE_MAX_URILENGTH 0
 
 /* Types for representing timestamps (with an arbitrary reference,
    no assumed time alignment, and roll-over perfectly acceptable),

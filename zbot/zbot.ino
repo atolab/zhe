@@ -9,11 +9,6 @@ extern "C" {
 }
 #include "zhe-assert.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wnarrowing"
-#include "mCore.h"
-#pragma GCC diagnostic pop
-
 static const uint8_t peerid[] = { 'z', 'b', 'o', 't' };
 static uint8_t inbuf[TRANSPORT_MTU];
 static uint8_t inp;
@@ -22,6 +17,15 @@ static struct zhe_address dummyaddr;
 #define RID_BASE     ((zhe_rid_t)0x00010000) /* unique for this mBot */
 #define RID_DISTANCE (RID_BASE + 0x1)
 #define RID_MOTOR    (RID_BASE + 0x2)
+
+#define BLINKENLIGHTS 0
+
+#if BLINKENLIGHTS
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnarrowing"
+#include "mCore.h"
+#pragma GCC diagnostic pop
 
 static MeDCMotor MotorL(M1);
 static MeDCMotor MotorR(M2);
@@ -154,6 +158,15 @@ void xrce_panic(uint16_t line, uint16_t code)
     }
 }
 
+#else
+
+void xrce_panic(uint16_t line, uint16_t code)
+{
+    while (1) { }
+}
+
+#endif /* BLINKENLIGHTS */
+
 size_t zhe_platform_addr2string(const struct zhe_platform *pf, char * restrict str, size_t size, const zhe_address_t * restrict addr)
 {
     zhe_assert(size > 0);
@@ -188,12 +201,15 @@ int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *
 
 void pre_panic_handler(void)
 {
+#if BLINKENLIGHTS
     MotorL.run(0);
     MotorR.run(0);
+#endif
 }
 
 static void handle_motorstate(zhe_rid_t rid, const void *payload, zhe_paysize_t sz, void *arg)
 {
+#if BLINKENLIGHTS
     const struct motorstate *ms = (const struct motorstate *)payload;
     if (sizeof(*ms) > sz) {
         /* malformed */
@@ -204,6 +220,7 @@ static void handle_motorstate(zhe_rid_t rid, const void *payload, zhe_paysize_t 
     flashled(0,15,3);
     MotorL.run(ms->speedL);
     MotorR.run(ms->speedR);
+#endif
 }
 
 void setup(void)
@@ -213,13 +230,16 @@ void setup(void)
     memset(&config, 0, sizeof(config));
     config.id = peerid;
     config.idlen = sizeof(peerid);
-    config.scoutaddr = &dummyaddr; 
+    config.scoutaddr = &dummyaddr;
+
+#if BLINKENLIGHTS
     buzzer.tone(440, 300);
     delay(50);
     buzzer.noTone();
     rgb.setNumber(2);
     rgb.show();
     rgb.setColor(2, 2, 2);
+#endif
 
     Serial.begin(115200);
 
@@ -268,6 +288,7 @@ static void handle_input(zhe_time_t tnow)
 
         if (inp == sizeof(inbuf) || (inp > 0 && tnow > t_progress + 300)) {
             /* No progress: discard whatever we have buffered and hope for the best. */
+#if BLINKENLIGHTS
             switch (inp) {
                 case 1:  flashled(15,0,0); break;
                 case 2:  flashled(15,15,0); break;
@@ -278,11 +299,13 @@ static void handle_input(zhe_time_t tnow)
             for (uint8_t i = 0; i < inp && i < 4; i++) {
                 blinkbyte(inbuf[i]);
             }
+#endif
             inp = 0;
         }
     }
 }
 
+#if BLINKENLIGHTS
 static void flashOnButton(void)
 {
     static boolean buttonPressed = false;
@@ -294,6 +317,7 @@ static void flashOnButton(void)
     }
     buttonPressed = currentPressed;
 }
+#endif
 
 void loop(void)
 {
@@ -308,12 +332,18 @@ void loop(void)
     while(1)
     {
         zhe_time_t tnow = millis();
+#if BLINKENLIGHTS
         led0blinker();
         flashOnButton();
+#endif
         zhe_housekeeping(tnow);
         handle_input(tnow);
         if (tnow > tlast_meas + 10) {
+#if BLINKENLIGHTS
             float d = ultr.distanceCm();
+#else
+            float d = 1.0;
+#endif
             tlast_meas = tnow;
             if (tnow >= tlast_pub + 1000 || (0 < d && d < 5 && tnow >= tlast_pub + 300) || (0 < d && d < 2.5 && tnow >= tlast_pub + 100)) {
                 uint8_t x = (uint8_t)(10 * d + 0.5);
