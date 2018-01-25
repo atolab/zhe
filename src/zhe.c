@@ -1904,7 +1904,7 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
         const uint8_t *bufp = buf;
         peeridx_t peeridx = 0;
         res = handle_packet(&peeridx, buf + sz, &bufp, tnow);
-        if (bufp > buf && peers[0].state == PEERST_ESTABLISHED) {
+        if (bufp > (const uint8_t *)buf && peers[0].state == PEERST_ESTABLISHED) {
             /* any complete message is considered proof of liveliness of the broker once a connection has been established */
             peers[0].tlease = tnow;
         }
