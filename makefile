@@ -23,8 +23,8 @@ LDFLAGS = $(OPT)
 SRC_roundtrip = roundtrip.c testlib.c $(ZHE)
 SRC_throughput = throughput.c testlib.c $(ZHE)
 
-.PHONY: all clean zz
-.PRECIOUS: %.o
+.PHONY: all clean zz test-configs
+.PRECIOUS: %.o %/.STAMP
 .SECONDEXPANSION:
 %: %.o
 %: %.c
@@ -32,6 +32,15 @@ SRC_throughput = throughput.c testlib.c $(ZHE)
 all: $(TARGETS)
 
 $(TARGETS): $$(patsubst %.c, %.o, $$(SRC_$$@))
+
+test-configs: $(addprefix test-configs/build/throughput-, $(notdir $(wildcard test-configs/*)))
+
+%/.STAMP:
+	[ -d $* ] || mkdir -p $*
+	touch $@
+
+test-configs/build/throughput-%: test-configs/build/.STAMP $(SRC_throughput) 
+	$(CC) -Itest-configs/$* $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(wordlist 2, 999, $^) -o $@
 
 %:
 	$(CC) $(LDFLAGS) $^ -o $@
