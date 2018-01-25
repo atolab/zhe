@@ -66,7 +66,7 @@ static void set_props_list(struct restable * const r, const uint8_t *tag, size_t
     } while(tag[-1] == ',');
 }
 
-enum uristore_result zhe_uristore_store(peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in)
+enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in)
 {
     zhe_assert(peeridx <= MAX_PEERS_1); /* MAX_PEERS_1 is self */
     if (urilen_in > ZHE_MAX_URILENGTH) {
@@ -82,8 +82,9 @@ enum uristore_result zhe_uristore_store(peeridx_t peeridx, zhe_rid_t rid, const 
             const uripos_t sz = zhe_icgcb_getsize(&uris.b, uris.store + ress[idx].uripos);
             ZT(PUBSUB, "uristore_store: check against %u %*.*s", (unsigned)idx, (int)sz, (int)sz, (char*)uris.store + ress[idx].uripos);
             if (sz == urilen && memcmp(uri, uris.store + ress[idx].uripos, urilen) == 0) {
-                zhe_bitset_set(ress[idx].peers, peeridx);
                 ZT(PUBSUB, "uristore_store: match");
+                zhe_bitset_set(ress[idx].peers, peeridx);
+                *res_idx = idx;
                 return USR_OK;
             } else {
                 ZT(PUBSUB, "uristore_store: mismatch");
@@ -127,7 +128,8 @@ enum uristore_result zhe_uristore_store(peeridx_t peeridx, zhe_rid_t rid, const 
     if (free_idx > max_residx) {
         max_residx = free_idx;
     }
-   ZT(PUBSUB, "uristore_store: ok, index %u", (unsigned)free_idx);
+    ZT(PUBSUB, "uristore_store: ok, index %u", (unsigned)free_idx);
+    *res_idx = free_idx;
     return USR_OK;
 }
 
@@ -160,6 +162,7 @@ bool zhe_uristore_geturi(unsigned idx, zhe_rid_t *rid, zhe_paysize_t *sz, const 
 void zhe_uristore_reset_peer(peeridx_t peeridx)
 {
     /* FIXME: find a better way */
+    zhe_uristore_abort_tentative(peeridx);
     for (zhe_residx_t idx = 0; idx <= max_residx; idx++) {
         if (ress[idx].rid !=0 && zhe_bitset_test(ress[idx].peers, peeridx)) {
             zhe_bitset_clear(ress[idx].peers, peeridx);
@@ -180,6 +183,27 @@ static void move_cb(uripos_t ref, void *newptr, void *arg)
 void zhe_uristore_gc(void)
 {
     zhe_icgcb_gc(&uris.b, move_cb, NULL);
+}
+
+zhe_residx_t zhe_uristore_maxidx(void)
+{
+    return max_residx;
+}
+
+enum icgcb_alloc_result zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx)
+{
+    /* FIXME: obviously something's missing here */
+    return IAR_OK;
+}
+
+void zhe_uristore_abort_tentative(peeridx_t peeridx)
+{
+    /* FIXME: obviously something's missing here */
+}
+
+void zhe_uristore_commit_tentative(peeridx_t peeridx)
+{
+    /* FIXME: obviously something's missing here */
 }
 
 #endif /* ZHE_MAX_URISPACE > 0 */

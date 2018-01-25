@@ -23,12 +23,17 @@ enum uristore_result {
 
 void zhe_uristore_init(void);
 void zhe_uristore_gc(void);
+zhe_residx_t zhe_uristore_maxidx(void);
 #define URISTORE_PEERIDX_SELF MAX_PEERS
-enum uristore_result zhe_uristore_store(peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in);
+enum uristore_result zhe_uristore_store(zhe_residx_t *idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in);
 void zhe_uristore_drop(peeridx_t peeridx, zhe_rid_t rid);
 void zhe_uristore_reset_peer(peeridx_t peeridx);
 /* FIXME: need a proper type for the cursor */
 bool zhe_uristore_geturi(unsigned idx, zhe_rid_t *rid, zhe_paysize_t *sz, const uint8_t **uri);
-#endif
+
+enum icgcb_alloc_result zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx);
+void zhe_uristore_abort_tentative(peeridx_t peeridx);
+void zhe_uristore_commit_tentative(peeridx_t peeridx);
+#endif /* ZHE_MAX_URISPACE > 0 */
 
 #endif

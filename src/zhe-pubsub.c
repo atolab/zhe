@@ -490,7 +490,7 @@ static struct out_conduit *zhe_send_declares1(zhe_time_t tnow, const cursoridx_t
             switch (kind) {
                     /* FIXME: the check against max value is only ok as long as we don't delete entities */
 #if ZHE_MAX_URISPACE > 0
-                case DIK_RESOURCE:     success = send_declare_resource(oc, idx, committed, tnow); max = ZHE_MAX_RESOURCES; break;
+                case DIK_RESOURCE:     success = send_declare_resource(oc, idx, committed, tnow); max = zhe_uristore_maxidx()+1; break;
 #endif
                 case DIK_PUBLICATION:  success = send_declare_pub(oc, idx, committed, tnow); max = max_pubidx.idx+1;  break;
                 case DIK_SUBSCRIPTION: success = send_declare_sub(oc, idx, committed, tnow); max = max_subidx.idx+1;  break;
@@ -540,8 +540,9 @@ void zhe_send_declares(zhe_time_t tnow)
 bool zhe_declare_resource(zhe_rid_t rid, const char *uri)
 {
 #if ZHE_MAX_URISPACE > 0
+    zhe_residx_t dummy;
     const size_t urisz = strlen(uri);
-    const enum uristore_result res = zhe_uristore_store(URISTORE_PEERIDX_SELF, rid, (const uint8_t *)uri, urisz);
+    const enum uristore_result res = zhe_uristore_store(&dummy, URISTORE_PEERIDX_SELF, rid, (const uint8_t *)uri, urisz);
     if (res == USR_OK) {
         return true;
     } else {

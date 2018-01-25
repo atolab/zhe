@@ -667,9 +667,11 @@ static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * c
     }
 #if ZHE_MAX_URISPACE > 0
     if (*interpret == DIM_INTERPRET) {
-        switch (zhe_uristore_store(peeridx, rid, uri, urisize)) {
+        zhe_residx_t idx;
+        switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize)) {
             case USR_OK:
                 /* all is well, continue happily */
+                zhe_uristore_record_tentative(peeridx, idx);
                 return ZUR_OK;
             case USR_AGAIN:
                 /* pretend we never received this declare message - trying again on retransmit */
@@ -795,6 +797,13 @@ static zhe_unpack_result_t handle_dcommit(peeridx_t peeridx, const uint8_t * con
             zhe_rsub_precommit_curpkt_done(peeridx);
             if ((commitres = zhe_rsub_precommit(peeridx, &err_rid)) == 0) {
                 zhe_rsub_commit(peeridx);
+#if ZHE_MAX_URISPACE > 0
+                zhe_uristore_commit_tentative(peeridx);
+#endif
+            } else {
+#if ZHE_MAX_URISPACE > 0
+                zhe_uristore_abort_tentative(peeridx);
+#endif
             }
             zhe_pack_dresult(commitid, commitres, err_rid);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
@@ -1346,6 +1355,9 @@ static zhe_unpack_result_t handle_mdeclare(peeridx_t peeridx, const uint8_t * co
             break;
         case DIM_ABORT:
             ZT(PUBSUB, "handle_mdeclare %u .. abort res = %d", peeridx, (int)res);
+#if ZHE_MAX_URISPACE > 0
+            zhe_uristore_abort_tentative(peeridx);
+#endif
             zhe_rsub_precommit_curpkt_abort(peeridx);
             break;
         case DIM_INTERPRET:
