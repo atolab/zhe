@@ -649,17 +649,17 @@ static const char *decl_intp_mode_str(enum declaration_interpretation_mode m)
 }
 #endif
 
-static enum zhe_unpack_result handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr;
     zhe_rid_t rid;
     zhe_paysize_t urisize;
     const uint8_t *uri;
     struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
-         (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK ||
-         (res = zhe_unpack_vecref(end, data, &urisize, &uri)) != ZUR_OK) {
+        (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK ||
+        (res = zhe_unpack_vecref(end, data, &urisize, &uri)) != ZUR_OK) {
         return res;
     }
     if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
@@ -687,9 +687,9 @@ static enum zhe_unpack_result handle_dresource(peeridx_t peeridx, const uint8_t 
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr;
     struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
@@ -702,9 +702,9 @@ static enum zhe_unpack_result handle_dpub(peeridx_t peeridx, const uint8_t * con
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_rid_t rid;
     uint8_t hdr, mode;
     struct unpack_props_iter it;
@@ -732,9 +732,9 @@ static enum zhe_unpack_result handle_dsub(peeridx_t peeridx, const uint8_t * con
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_rid_t sid;
     uint8_t hdr;
     zhe_paysize_t dummy;
@@ -753,9 +753,9 @@ static enum zhe_unpack_result handle_dselection(peeridx_t peeridx, const uint8_t
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_rid_t sid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, &sid)) != ZUR_OK ||
@@ -768,9 +768,9 @@ static enum zhe_unpack_result handle_dbindid(peeridx_t peeridx, const uint8_t * 
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dcommit(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret, zhe_time_t tnow)
+static zhe_unpack_result_t handle_dcommit(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t commitid;
     zhe_rid_t err_rid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
@@ -804,9 +804,9 @@ static enum zhe_unpack_result handle_dcommit(peeridx_t peeridx, const uint8_t * 
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dresult(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dresult(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t commitid, status;
     zhe_rid_t rid = 0;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
@@ -830,9 +830,9 @@ static enum zhe_unpack_result handle_dresult(peeridx_t peeridx, const uint8_t * 
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dfresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dfresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
         return res;
@@ -840,9 +840,9 @@ static enum zhe_unpack_result handle_dfresource(peeridx_t peeridx, const uint8_t
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dfpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dfpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
         return res;
@@ -850,9 +850,9 @@ static enum zhe_unpack_result handle_dfpub(peeridx_t peeridx, const uint8_t * co
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dfsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dfsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_rid_t rid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK) {
@@ -861,9 +861,9 @@ static enum zhe_unpack_result handle_dfsub(peeridx_t peeridx, const uint8_t * co
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_dfselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dfselection(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_rid_t sid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, &sid))) {
@@ -875,7 +875,7 @@ static enum zhe_unpack_result handle_dfselection(peeridx_t peeridx, const uint8_
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-static enum zhe_unpack_result handle_mscout(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mscout(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER;
@@ -884,7 +884,7 @@ static enum zhe_unpack_result handle_mscout(peeridx_t peeridx, const uint8_t * c
     const uint32_t lookfor = MSCOUT_CLIENT;
     const int state_ok = 1;
 #endif
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr;
     uint32_t mask;
     struct unpack_props_iter it;
@@ -924,7 +924,7 @@ static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
     return 1;
 }
 
-static enum zhe_unpack_result handle_mhello(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mhello(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
 #if MAX_PEERS > 0
     const uint32_t lookfor = MSCOUT_PEER | MSCOUT_BROKER;
@@ -933,7 +933,7 @@ static enum zhe_unpack_result handle_mhello(peeridx_t peeridx, const uint8_t * c
     const uint32_t lookfor = MSCOUT_BROKER;
     const int state_ok = (peers[peeridx].state == PEERST_UNKNOWN);
 #endif
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     struct unpack_locs_iter locs_it;
     struct unpack_props_iter props_it;
     uint8_t hdr;
@@ -1071,9 +1071,9 @@ static int conv_lease_to_ztimediff(zhe_timediff_t *res, uint32_t ld100)
     return 1;
 }
 
-static enum zhe_unpack_result handle_mopen(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mopen(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr, version;
     zhe_paysize_t idlen;
     uint8_t id[PEERID_SIZE];
@@ -1166,9 +1166,9 @@ reject_no_close:
     return ZUR_ABORT;
 }
 
-static enum zhe_unpack_result handle_maccept(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_maccept(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_paysize_t idlen;
     uint8_t id[PEERID_SIZE];
     uint32_t ld100;
@@ -1217,9 +1217,9 @@ reject_no_close:
     return ZUR_ABORT;
 }
 
-static enum zhe_unpack_result handle_mclose(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mclose(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_paysize_t idlen;
     uint8_t id[PEERID_SIZE];
     uint8_t reason;
@@ -1287,7 +1287,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, zhe_ti
     }
 }
 
-static enum zhe_unpack_result handle_mdeclare(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mdeclare(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
 {
     /* Note 1: not buffering data received out-of-order, so but need to decode everything to
        find next message, which we may "have to" interpret - we don't really "have to", but to
@@ -1297,7 +1297,7 @@ static enum zhe_unpack_result handle_mdeclare(peeridx_t peeridx, const uint8_t *
        of a full transmit window in the reliable channel.  The elegant option is to suspend
        further input processing, until space is available again, the inelegant one is to verify
        we have space beforehand, and pretend we never received the DECLARE if we don't. */
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr;
     uint16_t ndecls;
     seq_t seq;
@@ -1378,9 +1378,9 @@ static enum zhe_unpack_result handle_mdeclare(peeridx_t peeridx, const uint8_t *
     return res;
 }
 
-static enum zhe_unpack_result handle_msynch(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
+static zhe_unpack_result_t handle_msynch(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr;
     seq_t cnt_shifted;
     seq_t seq_msg;
@@ -1413,9 +1413,9 @@ static enum zhe_unpack_result handle_msynch(peeridx_t peeridx, const uint8_t * c
 
 unsigned zhe_delivered, zhe_discarded;
 
-static enum zhe_unpack_result handle_msdata(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
+static zhe_unpack_result_t handle_msdata(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr;
     zhe_paysize_t paysz;
     const uint8_t *pay;
@@ -1467,9 +1467,9 @@ static enum zhe_unpack_result handle_msdata(peeridx_t peeridx, const uint8_t * c
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_mwdata(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mwdata(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr;
     zhe_paysize_t paysz;
     const uint8_t *pay = *data;
@@ -1565,10 +1565,10 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
     }
 }
 
-static enum zhe_unpack_result handle_macknack(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
+static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
 {
     struct out_conduit * const c = zhe_out_conduit_from_cid(peeridx, cid);
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     seq_t seq, seq_ack;
     uint8_t hdr;
     uint32_t mask;
@@ -1638,7 +1638,7 @@ static enum zhe_unpack_result handle_macknack(peeridx_t peeridx, const uint8_t *
             if ((mask & 1) == 0) {
                 p = xmitw_skip_sample(c, p);
             } else {
-                /* Out conduit is NULL so that the invariant that (outspos == OUTSPOS_UNSET) <=> 
+                /* Out conduit is NULL so that the invariant that (outspos == OUTSPOS_UNSET) <=>
                    (outc == NULL) is maintained, and also in consideration of the fact that keeping
                    track of the conduit and the position of the last reliable message is solely
                    for the purpose of setting the S flag and scheduling SYNCH messages.  Retransmits
@@ -1671,9 +1671,9 @@ static enum zhe_unpack_result handle_macknack(peeridx_t peeridx, const uint8_t *
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_mping(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mping(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint16_t hash;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_vle16(end, data, &hash)) != ZUR_OK) {
@@ -1684,9 +1684,9 @@ static enum zhe_unpack_result handle_mping(peeridx_t peeridx, const uint8_t * co
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_mpong(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data)
+static zhe_unpack_result_t handle_mpong(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_vle16(end, data, NULL)) != ZUR_OK) {
         return res == ZUR_OVERFLOW ? ZUR_OK : res;
@@ -1694,9 +1694,9 @@ static enum zhe_unpack_result handle_mpong(peeridx_t peeridx, const uint8_t * co
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_mkeepalive(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mkeepalive(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     zhe_paysize_t idlen;
     uint8_t id[PEERID_SIZE];
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
@@ -1711,9 +1711,9 @@ static enum zhe_unpack_result handle_mkeepalive(peeridx_t * restrict peeridx, co
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_mconduit(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t * restrict cid, zhe_time_t tnow)
+static zhe_unpack_result_t handle_mconduit(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t * restrict cid, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     uint8_t hdr, cid_byte;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK) {
         return res;
@@ -1734,9 +1734,9 @@ static enum zhe_unpack_result handle_mconduit(peeridx_t peeridx, const uint8_t *
     return ZUR_OK;
 }
 
-static enum zhe_unpack_result handle_packet(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
+static zhe_unpack_result_t handle_packet(peeridx_t * restrict peeridx, const uint8_t * const end, const uint8_t **data, zhe_time_t tnow)
 {
-    enum zhe_unpack_result res;
+    zhe_unpack_result_t res;
     const uint8_t *data1 = *data;
     cid_t cid = 0;
     do {
@@ -1868,7 +1868,7 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
     }
 
     if (peeridx < MAX_PEERS_1) {
-        enum zhe_unpack_result res;
+        zhe_unpack_result_t res;
         const uint8_t *bufp = buf;
         ZT(DEBUG, "handle message from %s @ %u", addrstr, peeridx);
         if (peers[peeridx].state == PEERST_ESTABLISHED) {
@@ -1900,7 +1900,7 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
     if (sz == 0) {
         return 0;
     } else {
-        enum zhe_unpack_result res;
+        zhe_unpack_result_t res;
         const uint8_t *bufp = buf;
         peeridx_t peeridx = 0;
         res = handle_packet(&peeridx, buf + sz, &bufp, tnow);
