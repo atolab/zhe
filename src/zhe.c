@@ -17,6 +17,7 @@
 
 #if ZHE_MAX_URISPACE > 0
 #include "zhe-uristore.h"
+#include "zhe-uri.h"
 #endif
 
 #define PEERST_UNKNOWN       0
@@ -199,6 +200,11 @@ static void reset_outbuf(void)
     outp = 0;
     outc = NULL;
     outdst = NULL;
+}
+
+bool zhe_established_peer(peeridx_t peeridx)
+{
+    return peers[peeridx].state == PEERST_ESTABLISHED;
 }
 
 static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
@@ -665,24 +671,37 @@ static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * c
     if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
         return res;
     }
-#if ZHE_MAX_URISPACE > 0
+#if ZHE_MAX_URISPACE > 0 /* FIXME: I think I should reject non-wildcard URIs, rather than ignore them */
     if (*interpret == DIM_INTERPRET) {
         zhe_residx_t idx;
-        switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize)) {
-            case USR_OK:
-                /* all is well, continue happily */
-                zhe_uristore_record_tentative(peeridx, idx);
-                return ZUR_OK;
-            case USR_AGAIN:
-                /* pretend we never received this declare message - trying again on retransmit */
-                *interpret = DIM_ABORT;
-                return ZUR_OK;
-            case USR_NOSPACE:
-            case USR_MISMATCH:
-            case USR_OVERSIZE:
-                /* note an error so that a COMMIT will result in a RESULT with an error code */
-                zhe_decl_note_error_curpkt(16, rid);
-                return ZUR_OK;
+        if (zhe_rid_in_use_anonymously(rid)) {
+            zhe_decl_note_error_curpkt(16, rid);
+            return ZUR_OK;
+        } else {
+            switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize)) {
+                case USR_OK:
+                    /* all is well, continue happily */
+                    /* FIXME: shouldn't update subs here, but then, should also not commit the resources prematurely */
+#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
+                    zhe_update_subs_for_resource_decl(rid);
+#endif
+                    zhe_uristore_record_tentative(peeridx, idx);
+                    return ZUR_OK;
+                case USR_DUPLICATE:
+                    zhe_uristore_record_tentative(peeridx, idx);
+                    return ZUR_OK;
+                case USR_AGAIN:
+                    /* pretend we never received this declare message - trying again on retransmit */
+                    *interpret = DIM_ABORT;
+                    return ZUR_OK;
+                case USR_NOSPACE:
+                case USR_MISMATCH:
+                case USR_OVERSIZE:
+                case USR_INVALID:
+                    /* note an error so that a COMMIT will result in a RESULT with an error code */
+                    zhe_decl_note_error_curpkt(16, rid);
+                    return ZUR_OK;
+            }
         }
     }
 #endif
@@ -1503,6 +1522,9 @@ static zhe_unpack_result_t handle_mwdata(peeridx_t peeridx, const uint8_t * cons
     if (!(hdr & MRFLAG)) {
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
 #if ZHE_MAX_URISPACE > 0
+            if (!zhe_urivalid(uri, urisz)) {
+                goto err_invalid_uri;
+            }
             (void)zhe_handle_mwdata_deliver(urisz, uri, paysz, pay);
 #endif
             ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
@@ -1515,6 +1537,9 @@ static zhe_unpack_result_t handle_mwdata(peeridx_t peeridx, const uint8_t * cons
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
 #if ZHE_MAX_URISPACE > 0
             ZT(RELIABLE, "handle_mwdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
+            if (!zhe_urivalid(uri, urisz)) {
+                goto err_invalid_uri;
+            }
             if (zhe_handle_mwdata_deliver(urisz, uri, paysz, pay)) {
                 /* if failed to deliver, we must retry, which necessitates a retransmit and not updating the conduit state */
                 ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
@@ -1529,8 +1554,12 @@ static zhe_unpack_result_t handle_mwdata(peeridx_t peeridx, const uint8_t * cons
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
     }
-
     return ZUR_OK;
+
+#if ZHE_MAX_URISPACE > 0
+err_invalid_uri:
+    return ZUR_OVERFLOW;
+#endif
 }
 
 #if ! XMITW_SAMPLE_INDEX

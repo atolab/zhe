@@ -15,6 +15,9 @@
 		034BDF9F1F5472F700F261D1 /* zhe.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF961F5472F700F261D1 /* zhe.c */; };
 		034BDFA41F54730900F261D1 /* throughput.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDFA11F54730900F261D1 /* throughput.c */; };
 		034BDFA71F54734000F261D1 /* platform-udp.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDFA51F54734000F261D1 /* platform-udp.c */; };
+		0362B513202085E700EF87EC /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
+		0362B514202085E700EF87EC /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
+		0362B515202085E700EF87EC /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
 		036D95401F8CF05E003C047B /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
 		036D95461F93D6A8003C047B /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
 		036D95561F93D6C3003C047B /* icgcbtest.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D95421F93D692003C047B /* icgcbtest.c */; };
@@ -95,6 +98,8 @@
 		0362B4FF201A1D7B00EF87EC /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
 		0362B50C201A1D7B00EF87EC /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
 		0362B50D201A1D7B00EF87EC /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
+		0362B511202085E700EF87EC /* zhe-uri.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-uri.h"; path = "src/zhe-uri.h"; sourceTree = SOURCE_ROOT; };
+		0362B512202085E700EF87EC /* zhe-uri.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "zhe-uri.c"; path = "src/zhe-uri.c"; sourceTree = SOURCE_ROOT; };
 		036D953F1F8CF05D003C047B /* zhe-icgcb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-icgcb.c"; path = "src/zhe-icgcb.c"; sourceTree = SOURCE_ROOT; };
 		036D95411F93CFD3003C047B /* zhe-icgcb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-icgcb.h"; path = "src/zhe-icgcb.h"; sourceTree = SOURCE_ROOT; };
 		036D95421F93D692003C047B /* icgcbtest.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = icgcbtest.c; sourceTree = "<group>"; };
@@ -179,6 +184,8 @@
 				034BDF951F5472F700F261D1 /* zhe-tracing.h */,
 				034BDF8E1F5472F700F261D1 /* zhe-unpack.c */,
 				034BDF8F1F5472F700F261D1 /* zhe-unpack.h */,
+				0362B512202085E700EF87EC /* zhe-uri.c */,
+				0362B511202085E700EF87EC /* zhe-uri.h */,
 				036F3B601F975F7700987F3B /* zhe-uristore.c */,
 				036F3B641F97720800987F3B /* zhe-uristore.h */,
 				034BDF961F5472F700F261D1 /* zhe.c */,
@@ -352,6 +359,7 @@
 				034BDFA41F54730900F261D1 /* throughput.c in Sources */,
 				034BDF9F1F5472F700F261D1 /* zhe.c in Sources */,
 				034BDF9A1F5472F700F261D1 /* zhe-pack.c in Sources */,
+				0362B513202085E700EF87EC /* zhe-uri.c in Sources */,
 				037208F31F70E96900AE2144 /* testlib.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -361,6 +369,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				036D95461F93D6A8003C047B /* zhe-icgcb.c in Sources */,
+				0362B515202085E700EF87EC /* zhe-uri.c in Sources */,
 				036D95561F93D6C3003C047B /* icgcbtest.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -379,6 +388,7 @@
 				037208E91F70E92600AE2144 /* zhe.c in Sources */,
 				037208EA1F70E92600AE2144 /* zhe-pack.c in Sources */,
 				037208F41F70E96900AE2144 /* testlib.c in Sources */,
+				0362B514202085E700EF87EC /* zhe-uri.c in Sources */,
 				036F3B631F9771D100987F3B /* zhe-icgcb.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

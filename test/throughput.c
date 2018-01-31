@@ -114,6 +114,7 @@ int main(int argc, char * const *argv)
     int drop_pct = 0;
     int check_likely_success = 0;
     const char *scoutaddrstr = "239.255.0.1";
+    bool sub_to_wildcard = false;
     zhe_time_t duration = (zhe_time_t)~0;
 #if N_OUT_MCONDUITS == 0
     char *mcgroups_join_str = "";
@@ -140,7 +141,7 @@ int main(int argc, char * const *argv)
 #endif
 
     scoutaddrstr = "239.255.0.1";
-    while((opt = getopt(argc, argv, "D:C:k:c:h:psquS:G:M:X:x")) != EOF) {
+    while((opt = getopt(argc, argv, "D:C:k:c:h:psquS:G:M:X:xw")) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'k':
@@ -169,6 +170,7 @@ int main(int argc, char * const *argv)
             case 'G': mcgroups_join_str = optarg; break;
             case 'M': mconduit_dstaddrs_str = optarg; break;
             case 'D': duration = (zhe_time_t)atoi(optarg); break;
+            case 'w': sub_to_wildcard = true; break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
@@ -195,6 +197,7 @@ int main(int argc, char * const *argv)
     if (mode == 1) {
         zhe_declare_resource(3, "/t/test");
     }
+    zhe_declare_resource(4, "**/data");
     switch (mode) {
         case 0: case -1: {
             zhe_pubidx_t p;
@@ -223,7 +226,7 @@ int main(int argc, char * const *argv)
             struct data d = { .key = key, .seq = 0 };
             zhe_pubidx_t p = zhe_publish(1, cid, reliable);
             zhe_pubidx_t p2 = zhe_publish(2, cid, 1);
-            (void)zhe_subscribe(1, 0, 0, shandler, &p2);
+            (void)zhe_subscribe(sub_to_wildcard ? 4 : 1, 0, 0, shandler, &p2);
             (void)zhe_subscribe(2, 0, 0, rhandler, 0);
             zhe_time_t tprint = tstart;
             for (zhe_time_t tnow = tstart; ZTIME_TO_SECu32(tnow - tstart) <= duration; tnow = zhe_platform_time()) {
@@ -250,7 +253,8 @@ int main(int argc, char * const *argv)
                                 tprint = tnow;
 
                                 struct data d1 = { .key = key, .seq = UINT32_MAX };
-                                zhe_write_uri("/t/data", &d1, sizeof(d1), tnow);
+                                //zhe_write_uri("/t/data", &d1, sizeof(d1), tnow);
+                                zhe_write_uri("**?ta", &d1, sizeof(d1), tnow);
                             }
                         }
                         d.seq++;

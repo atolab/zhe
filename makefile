@@ -16,7 +16,7 @@ TARGETS = roundtrip throughput
 ZHE_PLATFORM := platform-udp.c
 ZHE := $(notdir $(wildcard $(SRCDIR)/src/*.c)) $(ZHE_PLATFORM)
 
-OPT = -O2
+OPT = #-O2
 CFLAGS = $(OPT) -g -Wall $(SUBDIRS:%=-I$(SRCDIR)/%)
 LDFLAGS = $(OPT)
 

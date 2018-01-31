@@ -7,6 +7,7 @@
 #include "zhe-bitset.h"
 #include "zhe-tracing.h"
 #include "zhe-uristore.h"
+#include "zhe-uri.h"
 
 #if ZHE_MAX_URISPACE > 0
 
@@ -69,8 +70,8 @@ static void set_props_list(struct restable * const r, const uint8_t *tag, size_t
 enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in)
 {
     zhe_assert(peeridx <= MAX_PEERS_1); /* MAX_PEERS_1 is self */
-    if (urilen_in > ZHE_MAX_URILENGTH) {
-        return USR_OVERSIZE;
+    if (!zhe_urivalid(uri, urilen_in)) {
+        return USR_INVALID;
     }
     const uripos_t urilen = (uripos_t)urilen_in;
     zhe_residx_t free_idx = max_residx + 1;
@@ -85,7 +86,7 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
                 ZT(PUBSUB, "uristore_store: match");
                 zhe_bitset_set(ress[idx].peers, peeridx);
                 *res_idx = idx;
-                return USR_OK;
+                return USR_DUPLICATE;
             } else {
                 ZT(PUBSUB, "uristore_store: mismatch");
                 return USR_MISMATCH;
@@ -157,6 +158,35 @@ bool zhe_uristore_geturi(unsigned idx, zhe_rid_t *rid, zhe_paysize_t *sz, const 
         *sz = zhe_icgcb_getsize(&uris.b, *uri);
         return true;
     }
+}
+
+void zhe_uristore_iter_init(uristore_iter_t *it)
+{
+    it->cursor = 0;
+}
+
+bool zhe_uristore_iter_next(uristore_iter_t *it, zhe_rid_t *rid, zhe_paysize_t *sz, const uint8_t **uri)
+{
+    while (it->cursor < ZHE_MAX_RESOURCES) {
+        if (zhe_uristore_geturi(it->cursor++, rid, sz, uri)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool zhe_uristore_geturi_for_rid(zhe_rid_t rid, zhe_paysize_t *sz, const uint8_t **uri)
+{
+    /* FIXME: so inefficient ... */
+    uristore_iter_t it;
+    zhe_rid_t ridret;
+    zhe_uristore_iter_init(&it);
+    while (zhe_uristore_iter_next(&it, &ridret, sz, uri)) {
+        if (ridret == rid) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void zhe_uristore_reset_peer(peeridx_t peeridx)
