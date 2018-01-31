@@ -43,6 +43,16 @@ The return value is the length in bytes of the prefix of buf that consists of co
 
 A malformed message on input may result in a failure to continue decoding. In a stream-based system this may require resetting the connection if progress cannot be made for some time. (*Note*: this is something that will be changed, distinguishing between incomplete and invalid messages.)
 
+## Declaring Resources
+
+A resource with id *rid* and URI *uri* can be declared using:
+
+* bool **zhe\_declare\_resource**(zhe\_rid\_t rid, const char *uri)
+
+provided the use of URIs has been enabled by defining **ZHE\_MAX\_URISPACE** > 0. The return value indicates where the declaration was successful. Currently, a definition will be accepted if (1) *rid* is locally unknown and no local publications or subscriptions exist; or (2) if it is bound to *uri*. A declaration is sent to all peers, and the peers will store the definition internally if the same conditions are met. If the conditions are not met, an error will be reported back.
+
+Currently aborting a transaction will not result in removing any tentatively defined resources. This is most definitely a bug.
+
 ## Publishing data
 
 To publish data of a resource *rid* over a conduit *cid*, the
@@ -162,6 +172,7 @@ Session management — discovery, opening sessions, lease renewal — are all 
 Timing is configured in terms of units of (configurable) **zhe\_time\_t**. Currently only a 1ms timebase has been tested, but the intent is that this timebase is configurable by setting **ZHE\_TIMEBASE** to the number of nanoseconds in one unit of **zhe\_time\_t**.
 
 * **SCOUT\_INTERVAL** is the interval between *scout* and *keepalive* messages. A peer-to-peer *zhe* node sends *scout* messages periodically (provided the housekeeping function is invoked in a timely manner), and *keepalive* only when there is another node. Client-mode doesn't send *scout* messages when connected to a broker.
+* **SCOUT\_COUNT** is the number of *scout* messages sent after starting in peer-to-peer mode, 0 means it will scout forever.
 * **OPEN\_INTERVAL** is the interval between *open* messages when trying to establish a session with another node. After **OPEN\_RETRIES** without a response, it will abandon the attempt to establish a connection with this peer. It will try again once it receives a *hello* message again.
 * **LEASE\_DURATION** is the advertised lease duration of this node and must (for now) be greater than **SCOUT\_INTERVAL**. When a remote node does not receive any message from this node for this long, that remote node will close the session. For now it simply sends *keepalive* messages at a shorter period than **LEASE\_DURATION**.
 
@@ -229,9 +240,14 @@ Communication *zhe* is done by publishing updates to resources, which are then d
 
 * **ZHE\_MAX\_PUBLICATIONS** is the maximum number of simultaneous publications.
 * **ZHE\_MAX\_SUBSCRIPTIONS** is the maximum number of simultaneous subscriptions. If multiple subscriptions to the same resource are taken, the handlers associated with these subscriptions are called in turn.
-* **ZHE\_MAX\_RID** is the highest allowed resource id. The subscription table is direct-mapped on resource id when **ZHE\_MAX\_SUBSCRIPTIONS** is over a threshold (currently 32), and this is table is wh****at requires the limit on the resource ids.
+* **ZHE\_MAX\_RESOURCES** is the maximum number of resource URIs.
+* **ZHE\_MAX\_RID** is the highest allowed resource id. The subscription table is direct-mapped on resource id when **ZHE\_MAX\_SUBSCRIPTIONS** is over a threshold (currently 32), or when **ZHE\_MAX\_URISPACE** is non-zero in peer-to-peer mode, and this table is sized by this setting: if (**ZHE\_MAX\_URISPACE** > 0 and **MAX\_PEERS** > 0), then its dimension is (**ZHE\_MAX\_RID**+1)*(**ZHE\_MAX\_SUBSCRIPTIONS**); else if it exists, its dimension is simply **ZHE\_MAX\_RID**+1;
 
-## Resource IDs
+## Resource URIs
+
+If **ZHE\_MAX\_URISPACE** > 0, then that much memory is reserved for storing URIs. Internal fragmentation is not an issue as an incremental, compacting garbage collector is used to ensure all memory is actually usable, even when URIs are removed (which currently isn't implemented yet). Also, this adds URI matching in the publish-subscribe administration. URIs can contain wildcards, and so two URIs match if there is a string that matches both.
+
+The current PoC has hopelessly inefficient matching, both in time and space ...
 
 # Run-time configuration
 
