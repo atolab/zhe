@@ -28,10 +28,11 @@ SRC_throughput = throughput.c testlib.c $(ZHE)
 .SECONDEXPANSION:
 %: %.o
 %: %.c
+%.o: %.c
 
 all: $(TARGETS)
 
-$(TARGETS): $$(patsubst %.c, %.o, $$(SRC_$$@))
+$(TARGETS): $$(patsubst %.c, gen/%.o, $$(SRC_$$@))
 
 test-configs: $(addprefix test-configs/build/throughput-, $(notdir $(wildcard test-configs/*)))
 
@@ -45,14 +46,17 @@ test-configs/build/throughput-%: test-configs/build/.STAMP $(SRC_throughput)
 %:
 	$(CC) $(LDFLAGS) $^ -o $@
 
-%.d: %.c
+gen/%.o: %.c gen/.STAMP
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+gen/%.d: %.c gen/.STAMP
 	$(CC) $(CPPFLAGS) $(CFLAGS) -M $< -o $@
 
-clean: ; rm -f $(TARGETS) *.[od]
+clean: ; rm -rf $(TARGETS) gen
 
 zz:
 	@echo $(ZHE)
 
 ifneq ($(MAKECMDGOALS),clean)
-  -include $(patsubst %.c, %.d, $(sort $(foreach x, $(TARGETS), $(SRC_$x))))
+  -include $(patsubst %.c, gen/%.d, $(sort $(foreach x, $(TARGETS), $(SRC_$x))))
 endif
