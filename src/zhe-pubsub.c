@@ -180,10 +180,9 @@ void zhe_rsub_commit(peeridx_t peeridx)
     }
 #else
     for (size_t i = 0; i < sizeof(peers_rsubs[peeridx].rsubs); i++) {
-        peers_rsubs[peeridx].rsubs[i] |= precommit[peeridx].rsubs[i];
         for (size_t j = 0; j < CHAR_BIT * sizeof(precommit[peeridx].rsubs[i]); j++) {
             const zhe_rid_t rid = (zhe_rid_t)(CHAR_BIT * i+j);
-            if (rid <= ZHE_MAX_RID && zhe_bitset_test(precommit[peeridx].rsubs, rid)) {
+            if (rid <= ZHE_MAX_RID && zhe_bitset_test(precommit[peeridx].rsubs, rid) && !zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
                 zhe_pubidx_t pubidx;
                 for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
                     /* FIXME: can/should cache URI for "rid" */
@@ -199,6 +198,7 @@ void zhe_rsub_commit(peeridx_t peeridx)
                 }
             }
         }
+        peers_rsubs[peeridx].rsubs[i] |= precommit[peeridx].rsubs[i];
     }
 #endif
     memset(&precommit[peeridx], 0, sizeof(precommit[peeridx]));
