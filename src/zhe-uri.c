@@ -19,7 +19,7 @@ bool zhe_urimatch(const uint8_t *a, size_t asz, const uint8_t *b, size_t bsz)
         /* Empty string is matched by a (possibly empty) string of *s */
         return juststars(asz, a) && juststars(bsz, b);
     } else if (*a == '*') {
-        if (asz >= 2 || *(a+1) == '*') {
+        if (asz >= 2 && *(a+1) == '*') {
             /* ** allows any number of characters including slashes, which means some suffix of b should match the remainder of a. Any string matched by ** is also matched by * so it is safe to ignore *s in b */
             return zhe_urimatch(a+2, asz-2, b, bsz) || zhe_urimatch(a, asz, b+1, bsz-1);
         } else {
