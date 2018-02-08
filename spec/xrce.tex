@@ -5,6 +5,12 @@
 \usepackage{syntax}
 \usepackage{tabu}
 \usepackage{syntax}
+\usepackage{verbatim}
+\usepackage{minted}
+\makeatletter
+\newcommand{\verbatimfont}[1]{\def\verbatim@font{#1}}%
+\makeatother
+\verbatimfont{\small}%
 
 % all verbatim blocks that contain definitions related to messages type are marked with % MSG
 % therefore:
@@ -14,6 +20,7 @@
 % readFile "xrce/zeno-doc/spec/qq.txt" >>= return . parseType
 
 \begin{document}
+
 
 \title{Zenoh: a protocol for extending DDS to eXtremely Resource Constrained Environments}
 \author{Angelo Corsaro\thanks{angelo.corsaro@adlinktech.com} and Erik Boasson\thanks{erik.boasson@adlinktech.com} \\ ADLINK Technology}
@@ -49,17 +56,18 @@ may only include path expansions.  Note, for compactness we take the liberty of 
 resources by the single element that constitutes the set as opposed to the single element set.
 
 Below are some non-normative examples of XRCE resources:
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small]{html}
 -- These are Resources
 xrce://myhouse/**/bedroom/*/LightStatus 
 xrce://myhouse/**/musicroom/LightStatus
 xrce://myhouse/**/LightStatus
 xrce://myhouse/**
+
 -- These are Trivial Resources
 xrce://myhouse/floor/1/musicroom/LightStatus
 xrce://myhouse/floor/2/musicroom/LightStatus
 xrce://myhouse/floor/2/bedroom/erik/LightStatus
-\end{verbatim}
+\end{minted}
 
 The canonical representation of a resource shall not contain white space characters.
 
@@ -72,13 +80,13 @@ terms, instances may be addressed by including the instance-id in the URI, or in
 implemented by a layer on top of XRCE.
 
 The formal syntax for resources is defined below:
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small]{haskell}
 resource         ::= "xrce://" path markers
 path             ::= name | name "/" path 
 markers          ::= "#" | "#" markerlist
 markerList       ::= name | "{" nonemptynamelist "}"
 nonemptynamelist ::= name | name "," nonemptynamelist
-\end{verbatim}
+\end{minted}
 
 Where name is a valid URI name extended with ``?'', ``*'', and ``**'' wildcards.  Of these: ``?''
 matches exactly one character excluding the path separator, ``*'' matches any number of characters
@@ -94,20 +102,23 @@ Resources are reliable by default unless differently specified as part of the re
 Resources may be durable or volatile. The nature of durability is defined by naming convention in
 the resource and interpretation by the durability service. For instance:
 
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small]{html}
 -- Volatile Data
 xrce://myhouse/floor/1/musicroom/LightStatus 
 xrce://myhouse/floor/1/musicroom/LightStatus/ID12345 
--- 
+
 xrce://myhouse/floor/1/musicroom/LightStatus/property
+
 -- Persistent Data
 xrce://myhouse/floor/1/musicroom/LightStatus#persistent
+
 -- Transient    
 xrce://myhouse/floor/1/musicroom/LightStatus#transient
+
 -- All Resources that may be either transient or persistent 
 xrce://**#{transient,persistent}
 xrce://**#{transient,persistent}
-\end{verbatim}
+\end{minted}
 
 \subsection{Selections}
 
@@ -117,12 +128,13 @@ string representation of the resource, the list of hashes and the predicate.  Th
 list of hashes are separated by a ``\#'' while the hashes and the predicate are separated by a ``?''.
 
 For instance, these are legal XRCE queries:
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small]{html}
 xrce://myhouse/floor/2/bedroom/erik/LightStatus#?
 xrce://myhouse/floor/*/bedroom/*/LightStatus#?{luminosity>0}
 xrce://myhouse/floor/*/bedroom/*/LightStatus#{transient}?{luminosity>0}
-xrce://myhouse/floor/1/musicroom/LightStatus/ID12345?{inRange(property.location, someLocation,radius)}
-\end{verbatim}
+xrce://myhouse/floor/1/musicroom/LightStatus/ID12345?{inRange(property.location,
+                                                              someLocation,radius)}
+\end{minted}
 
 If the predicate is a tautology on the resource content, then the predicate can be omitted.
 
@@ -132,16 +144,17 @@ For brevity, when the list of hashes is empty than the ``\#'' can be omitted. Li
 predicate is a tautology the ``?'' can also be omitted.
 
 Consequently, the two queries below are equivalent:
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small]{html}
 xrce://myhouse/floor/2/bedroom/erik/LightStatus#?
 xrce://myhouse/floor/2/bedroom/erik/LightStatus
-\end{verbatim}
+\end{minted}
 
 The formal syntax for queries is reported below:
-\begin{verbatim}
+
+\begin{minted}[linenos=false,fontsize=\small]{haskell}
 query     ::= resource "?" predicate
 predicate ::= | "{" nontrivialpredicate "}"
-\end{verbatim}
+\end{minted}
 
 For interoperation with DDS, implementations that provide the support for queries should at least
 support as predicate the same subset of SQL92 supported by DDS on (X)CDR encoded data.  That said,
@@ -282,13 +295,13 @@ types.
 The members of a record may be sum types, where the discriminator is specified explicitly as a
 preceding member of the containing record.  It is serialised by serialising the case selected by the
 discriminator; if no case matches the discriminator, nothing is serialised.  E.g.:
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\scriptsize,frame=lines]{ada}
 record {
   a: header 5 enum { x = 1, y = 2, z = 3 },
   b: flag 5,
   c: case b of { true -> record { d: flag 6, e: nat } }
 }
-\end{verbatim}
+\end{minted}
 serialises to a one-byte header of which the least significant 5 bits are used for encoding the
 enumerated type, and where bit 5 is used to encode $b$.  If $b$ is false, that is all; if $b$ is
 true, however, bit 6 of this header byte is used to encode the value of $d$, and the header byte is
@@ -299,9 +312,9 @@ followed by the value of $e$ in variable-length encoding.
 \end{grammar}
 
 This is syntactic sugar for:
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\scriptsize,frame=lines]{ada}
 record { present: A, value: case A of { true -> B } }
-\end{verbatim}
+\end{minted}
 where A is the first \emph{type} and B the second.
 
 \subsection{Variable-length encoding}
@@ -319,25 +332,26 @@ Natural numbers are serialised using variable-length encoding, the number $n$ is
 
 Strings are simply sequences of bytes, i.e.:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small]{html}
 string = [byte]
-\end{verbatim}
+\end{minted}
 
 \subsection{Header}
 
 An XRCE message is composed of a single byte header and a body:
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small]{text}
  7 6 5 4 3 2 1 0
 +-+-+-+-+-+-+-+-+
 |X|X|X|MessageId|
 +---------------+
 ~      body     ~
 +---------------+
-\end{verbatim}
+\end{minted}
+
 Any flag field that is not defined shall always be set to zero in outgoing messages, and shall be
 ignored in received messages.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Message = record {
   kind: header 5 MessageId,
   body: case kind of {
@@ -371,31 +385,32 @@ MessageId = enum {
   StreamDataId      = 7,
   BatchedDataId     = 8,
   WriteDataId       = 9,
-  -- QueryId        = 10,
+  QueryId           = 10,
   PullId            = 11,
   PingId            = 12,
   PongId            = 13,
   SynchId           = 14,
   AckNackId         = 15,
   KeepAliveId       = 16,
-  -- ConduitCloseId = 17,
+  ConduitCloseId    = 17,
   FragId            = 18,
   ConduitId         = 19
-  -- MigrateId      = 20,
-  -- StreamDeltaId  = 21,
-  -- BatchedDeltaId = 22,
-  -- WriteDeltaId   = 23
+  MigrateId         = 20,
+  StreamDeltaId     = 21,
+  BatchedDeltaId    = 22,
+  WriteDeltaId      = 23
 }
-\end{verbatim}
+\end{minted}
 
 The header flags have single-letter names, but to let these letters be mnemonic, each flag has
 several names depending on context:
 % MSG
-\begin{verbatim}
+
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 S, M, P, L = flag 5
 C, R, H, N = flag 6
-Z, A, U, G = flag 7
-\end{verbatim}
+Z, A, U, G = flag 7  
+\end{minted}  
 
 Their (primary) use is as outlined in the below table, for easy reference.  For the definitions, see
 the message definitions that use them.  The Z, L and H flags are odd ones and used only for Conduit
@@ -419,13 +434,13 @@ message.
 A property is a pair of a numerical id and a octet sequence as value.  Properties are always
 optional, their presence indicated by the P flag:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Property   = record {
   id: nat,
   value: [byte]
 }
-Properties = if P then [Property]
-\end{verbatim}
+Properties = if P then [Property]  
+\end{minted}
 
 Even property ids are reserved for standardised properties, odd ones are reserved for
 vendor-specific properties.  The standardised properties and their values are as follows, where the
@@ -447,10 +462,9 @@ specified value shall be a prefix of the ``value'' sequence of octets:
 
 Locators are ... udp/A.B.C.D:PORT ...
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Locator = string
-\end{verbatim}
-
+\end{minted}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -465,12 +479,13 @@ as some kind of Participant Discovery Protocol.
 A node may send a Scout message to probe responses from specific kind of nodes it is interested
 in.  The Scout message has the following structure:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Scout = record {
   mask: nat,
   properties: Properties
-}
-\end{verbatim}
+}  
+\end{minted}
+
 Its attributes have the following meaning:
 \begin{description}
 \item[mask] The bitmask identifying the kind of XRCE nodes being scouted, and is unbounded.
@@ -494,13 +509,14 @@ The default address for scouting on a UDP/IPv4-based transport is udp/239.255.0.
 Upon receiving a Scout message, a node matching the scout mask shall promptly respond with a Hello
 message:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Hello = record {
   mask: nat,
   locators: [Locator],
   properties: Properties
-}
-\end{verbatim}
+}  
+\end{minted}
+
 Its attributes have the following meaning:
 \begin{description}
 \item[mask] The bitmask describing the XRCE node that is sending the Hello; see the Scout message
@@ -560,15 +576,16 @@ requested sequence number size.  The negotiated sequence number size is denoted 
 
 The Open message has the following structure:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Open = record {
   version: byte,
   pid: [byte],
   lease: nat,
   locators: [Locator],
   properties: Properties
-}
-\end{verbatim}
+}  
+\end{minted}
+
 Its attributes have the following meaning:
 \begin{description}
 \item[version] The protocol version.
@@ -589,14 +606,15 @@ Its attributes have the following meaning:
 
 The Accept message has the following structure:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Accept = record {
   openPid: [byte],
   acceptPid: [byte],
   lease: nat,
   properties: Properties
-}
-\end{verbatim}
+}  
+\end{minted}
+
 Its attributes have the following meaning:
 \begin{description}
 \item[openPid] The id of the participant that sent the open message.
@@ -623,12 +641,12 @@ A session is implicitly closed after the expiration of the lease period.
 
 The Close message has the following structure:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Close = record {
   pid: [byte],
   reason: byte
-}
-\end{verbatim}
+}  
+\end{minted}
 Its attributes have the following meaning:
 \begin{description}
 \item[pid] The pid of the peer closing the session (or rejecting the opening of a session).
@@ -668,11 +686,11 @@ to be maintained.
 \subsubsection{KeepAlive Message}
 A session lease can be renewed explicitly by sending a KeepAlive message defined as follows:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 KeepAlive = record {
   pid: [byte]
-}
-\end{verbatim}
+}  
+\end{minted}
 Its attributes have the following meaning:
 \begin{description}
 \item[pid] The pid of the peer wants to renew the lease.
@@ -722,14 +740,15 @@ or is out of bounds for the implementation, the declaration shall be rejected.
 
 The message used to declare entities has the following format:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Declare = record {
   sync: S,
   committed: C,
   sn: nat,
   declarations: [Declaration]
-}
-\end{verbatim}
+}  
+\end{minted}
+
 Its attributes have the following meaning:
 \begin{description}
 \item[sync] iff set, asks for receiving an ack immediately. 
@@ -750,7 +769,7 @@ number of flags.  Again, like in messages, undefined flags shall be set to 0 in 
 declarations, and shall be ignored in received declarations.
 
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Declaration = record {
   kind: header 5 DeclarationId,
   declaration: case kind of {
@@ -780,19 +799,20 @@ DeclarationId = enum {
   ForgetPublisherDeclId  = 9,
   ForgetSubscriberDeclId = 10,
   ForgetSelectionDeclId  = 11
-}
-\end{verbatim}
+}  
+\end{minted}
 
 \paragraph{Resource Declaration.} The resource declaration corresponds to the ResourceDeclId clause
 in the Declaration type defined above.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 ResourceDecl = record {
   rid: nat,
   resource: string,
   properties: Properties
-}
-\end{verbatim}
+}  
+\end{minted}
+
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[rid] the numerical identifier of the resource.
@@ -808,12 +828,13 @@ declaration is idempotent.
 \paragraph{Publisher Declaration.} The publisher declaration corresponds to the PublisherDeclId
 clause in the Declaration type defined above.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 PublisherDecl = record {
   rid: nat,
   properties: Properties
-}
-\end{verbatim}
+}  
+\end{minted}
+
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[id] the numerical identifier of the resource or of the selection.  properties: optional
@@ -824,8 +845,8 @@ The attributes of this declaration have the following meaning:
 \paragraph{Subscriber Declaration.} The subscriber declaration corresponds to the SubscriberDeclId
 clause in the Declaration type defined above.
 % MSG
-\begin{verbatim}
-SubscriptionModeId = enum {
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
+  SubscriptionModeId = enum {
   PushModeId         = 1,
   PullModeId         = 2,
   PeriodicPushModeId = 3,
@@ -842,7 +863,8 @@ SubscriberDecl = record {
   },
   properties: Properties
 }
-\end{verbatim}
+\end{minted}
+
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[id] the numerical identifier of the resource or of the selection.
@@ -866,14 +888,15 @@ The attributes of this declaration have the following meaning:
 \paragraph{Selection Declaration.} The Selection declaration corresponds to the SelectionDeclId
 clause in the Declaration type defined above.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 SelectionDecl = record {
   global: G,
   sid: nat,
   query: string,
   properties: Properties
-}
-\end{verbatim}
+}  
+\end{minted}
+
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[sid] the numerical identifier of the selection.  This identifier can be locally generated and
@@ -888,13 +911,14 @@ The attributes of this declaration have the following meaning:
 selection, this is typically done with a selection has associated multiple local id and the broker
 want to be able to multicast data belonging to the selection to the interested parties.
 % MSG
-\begin{verbatim}
-BindingDecl = record {
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
+  BindingDecl = record {
   global: G,
   oldId: nat,
   newId: nat
 }
-\end{verbatim}
+\end{minted}
+
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[oldId] the old id of the selection.
@@ -907,11 +931,12 @@ should process all the received declaration as an atomic unit.  In other terms, 
 declarations are not evaluated until a commit is received and then they either all succeed, or none
 of them succeed.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 CommitDecl = record {
   commitId: byte
-}
-\end{verbatim}
+}  
+\end{minted}
+
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[id] the identifier associated with this transaction.
@@ -921,13 +946,13 @@ Whenever a commit declaration is included in a sequence of declarations, it shal
 \paragraph{Result Declaration.} The Result declaration is used to communicate the result of
 applying a lot of declarations.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 ResultDecl = record {
   commitId: byte,
   status: byte,
   id: case status of { 1 ... 255 -> nat }
 }
-\end{verbatim}
+\end{minted}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[commitId] the identifier of the commit for which this a result.
@@ -941,11 +966,11 @@ The attributes of this declaration have the following meaning:
 as far as the sending node is concerned, the specified resource with the specified id may be removed
 from the system.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 ForgetResourceDecl = record {
   rid: nat
 }
-\end{verbatim}
+\end{minted}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[rid] the numerical identifier of the resource.
@@ -954,11 +979,11 @@ The attributes of this declaration have the following meaning:
 \paragraph{ForgetPublisher Declaration.} The forget publisher declaration informs the receiver that
 the sender will no longer be publishing for the specified resource or selection id.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 ForgetPublisherDecl = record {
   id: nat
 }
-\end{verbatim}
+\end{minted}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[id] the numerical identifier of the resource or selection.
@@ -967,11 +992,11 @@ The attributes of this declaration have the following meaning:
 \paragraph{ForgetSubscriber Declaration.} The forget subscriber declaration informs the receiver
 that the sender is no longer subscribed to the specified resource or selection.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 ForgetSubscriberDecl = record {
   id: nat
 }
-\end{verbatim}
+\end{minted}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[id] the numerical identifier of the resource or selection.
@@ -980,11 +1005,11 @@ The attributes of this declaration have the following meaning:
 \paragraph{ForgetSelection Declaration.} The forget selection declaration informs the receiver that
 the sender will no longer be using the specified selection.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 ForgetSelectionDecl = record {
   sid: nat
 }
-\end{verbatim}
+\end{minted}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[sid] the numerical identifier of the selection.
@@ -1020,7 +1045,7 @@ pair of channels with their own sequence numbers that can be used to either unic
 data.  The conduit associated with a message is identified by a message marker.  This message marker
 has the following structure:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Conduit = record {
   compact: Z,
   id: case compact of {
@@ -1028,7 +1053,7 @@ Conduit = record {
     true  -> record { id1: H, id0: L }
   }
 }
-\end{verbatim}
+\end{minted}
 The id attribute represents the conduit identifier.
 
 If ``compact'' is true, that the compact format is used and in this case (as specified by the
@@ -1128,14 +1153,14 @@ reliable channel.  Synch message are sent when needed to inform the other end of
 sequence number of the latest message sent.  This allows the other end to detect message loss
 without necessarily waiting for another regular message.  The structure of the synch message is:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Synch = record {
   reliable: R,
   sync: S,
   sn: nat,
   count: if U then nat
 }
-\end{verbatim}
+\end{minted}
 Where the message attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable
@@ -1158,12 +1183,12 @@ with sequence number sn, the oldest message for which retransmit is requested.
 
 The structure of the message is the following:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 AckNack = record {
   sn: nat,
   mask: if M then nat
 }
-\end{verbatim}
+\end{minted}
 Where the attributes have the following meaning:
 \begin{description}
 \item[sn] the first sequence number not received; all preceding messages are acknowledged.
@@ -1193,7 +1218,7 @@ for dealing with one-off writes of a resource.  These kind of writes are very cu
 
 The WriteData message has the following structure:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 WriteData = record {
   reliable: R,
   sync    : S,
@@ -1201,7 +1226,7 @@ WriteData = record {
   resource: string,
   payload : [byte]
 }
-\end{verbatim}
+\end{minted}
 Where the attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable
@@ -1220,7 +1245,7 @@ be whatever the application deems to be the most appropriate.
 XRCE provides a very wire efficient to produce data belonging to a stream, namely the StreamData
 message.  The structure of this message is as follows:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 StreamData = record {
   reliable: R,
   sync    : S,
@@ -1229,7 +1254,7 @@ StreamData = record {
   prid    : if A then nat,
   payload : [byte]
 }
-\end{verbatim}
+\end{minted}
 Where the attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable channel.
@@ -1248,7 +1273,7 @@ minimum --- to encode the payload length.
 XRCE supports message batching for the same resource/selection.  The BatchedData message further
 improves the wire efficiency of the protocol.  The structure of this message is as follows:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 BatchedData = record {
   reliable: R,
   sync    : S,
@@ -1260,7 +1285,7 @@ BatchedData = record {
     true  -> [record { prid: nat, payload: [byte] }]
   }
 }
-\end{verbatim}
+\end{minted}
 Where the attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable channel.
@@ -1280,7 +1305,7 @@ due to memory or network constraints.  As such XRCE needs a message to pull data
 \subsubsection{Pull Message}
 Pull is a reliable message with the following structure:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Pull = record {
   sync: S,
   sn: nat,
@@ -1288,7 +1313,7 @@ Pull = record {
   pullId: nat,
   maxSamples: if N then nat
 }
-\end{verbatim}
+\end{minted}
 Its attributes have the following meaning:
 \begin{description}
 \item[sync] if set, the message shall be acknowledged promptly.
@@ -1310,12 +1335,12 @@ one MTU, and whenever data is fragmented into $n > 1$ fragments, the first $n - 
 have the same size and the last fragment shall be no larger than the preceding fragments.  The
 structure of the Frag message is defined below:
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Frag = record {
   snBase: nat,
   n: if N then nat
 }
-\end{verbatim}
+\end{minted}
 Where the attributes have the following meaning:
 \begin{description}
 \item[snBase] the sequence number of the first message in this series of fragment.
@@ -1329,14 +1354,14 @@ Latency estimation is essential in order to do proper reliability window managem
 XRCE protocol provides a couple of messages to estimate the roundtrip-time between to nodes.  These
 messages are called Ping and Pong respectively and their structure is shown below.
 % MSG
-\begin{verbatim}
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Ping = record {
   hash: nat
 }
 Pong = record {
   hash: nat
 }
-\end{verbatim}
+\end{minted}
 On receipt of a Ping, a Pong with the same hash shall be sent in response.  An implementation shall
 at least support hashes $< 2^{16}$.
 
