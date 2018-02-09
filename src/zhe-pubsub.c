@@ -329,7 +329,7 @@ int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysi
 
 static int zhe_handle_msdata_deliver_anon(zhe_rid_t prid, zhe_paysize_t paysz, const void *pay)
 {
-    const struct rid2subtable *e = bsearch(&prid, rid2sub, max_subidx.idx, sizeof(rid2sub[0]), rid2sub_rid_cmp);
+    const struct rid2subtable *e = bsearch(&prid, rid2sub, (max_subidx.idx > 0 || subs[0].rid) ? max_subidx.idx + 1 : 0, sizeof(rid2sub[0]), rid2sub_rid_cmp);
     if (e == NULL) {
         return 1;
     }
@@ -811,7 +811,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
         subidx = max_subidx; /* FIXME: all this "no delete possible" is no good */
         subidx.idx++;
     }
-    const struct rid2subtable *e = bsearch(&rid, rid2sub, max_subidx.idx, sizeof(rid2sub[0]), rid2sub_rid_cmp);
+    const struct rid2subtable *e = bsearch(&rid, rid2sub, (max_subidx.idx > 0 || subs[0].rid) ? max_subidx.idx + 1 : 0, sizeof(rid2sub[0]), rid2sub_rid_cmp);
     zhe_subidx_t nextidx = (e == NULL) ? max_subidx : e->subidx;
     zhe_assert(subidx.idx < ZHE_MAX_SUBSCRIPTIONS);
     subs[subidx.idx].rid = rid;
@@ -825,7 +825,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
     rid2sub[max_subidx.idx].rid = rid;
     rid2sub[max_subidx.idx].subidx = subidx;
     max_subidx = subidx;
-    qsort(rid2sub, max_subidx.idx, sizeof(rid2sub[0]), rid2sub_cmp);
+    qsort(rid2sub, (max_subidx.idx > 0 || subs[0].rid) ? max_subidx.idx + 1 : 0, sizeof(rid2sub[0]), rid2sub_cmp);
 #if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
     {
         zhe_paysize_t subsz;
