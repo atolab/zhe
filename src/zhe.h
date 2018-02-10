@@ -52,6 +52,8 @@ void zhe_flush(void);
 bool zhe_declare_resource(zhe_rid_t rid, const char *uri);
 zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable);
 zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, zhe_subhandler_t handler, void *arg);
+/* FIXME: should add zhe_declcommit(void) or something like that, rather than always auto-committing like it does now */
+enum zhe_declstatus zhe_get_declstatus(zhe_rid_t *rid);
 
 int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_t tnow);
 int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_t tnow);

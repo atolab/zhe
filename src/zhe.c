@@ -225,6 +225,7 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     zhe_rsub_clear(peeridx);
     /* If data destined for this peer, drop it it */
     zhe_reset_peer_unsched_hist_decls(peeridx);
+    zhe_reset_peer_declstatus(peeridx);
 #if ZHE_MAX_URISPACE > 0
     zhe_uristore_reset_peer(peeridx);
 #endif
@@ -858,13 +859,7 @@ static zhe_unpack_result_t handle_dresult(peeridx_t peeridx, const uint8_t * con
     }
     ZT(PUBSUB, "handle_dresult %u intp %s | commitid %u status %u rid %ju", (unsigned)peeridx, decl_intp_mode_str(*interpret), commitid, status, (uintmax_t)rid);
     if (*interpret == DIM_INTERPRET && status != 0) {
-        /* Don't know what to do when the broker refuses my declarations - although I guess it
-         would make some sense to close the connection and try again.  But even if that is
-         the right thing to do, don't do that just yet, because it shouldn't fail.
-
-         Also note that we're not looking at the commit id at all, I am not sure yet what
-         problems that may cause ... */
-        zhe_assert(0);
+        zhe_note_declstatus(peeridx, status, rid);
     }
     return ZUR_OK;
 }

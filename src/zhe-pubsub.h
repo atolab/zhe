@@ -42,6 +42,8 @@ void zhe_rsub_clear(peeridx_t peeridx);
 void zhe_rsub_precommit_curpkt_done(peeridx_t peeridx);
 
 void zhe_send_declares(zhe_time_t tnow);
+void zhe_note_declstatus(peeridx_t peeridx, uint8_t status, zhe_rid_t rid);
+void zhe_reset_peer_declstatus(peeridx_t peeridx);
 
 void zhe_accept_peer_sched_hist_decls(peeridx_t peeridx);
 void zhe_reset_peer_unsched_hist_decls(peeridx_t peeridx);

@@ -460,7 +460,14 @@ struct pending_decls {
     declitem_idx_t cursor[MULTICAST_CURSORIDX + 1][N_DECLITEM_KINDS];
 };
 
+struct decl_results {
+    zhe_rid_t rid;     /* a resource id reported back by an error response */
+    uint8_t status;
+    DECL_BITSET(waiting, MAX_PEERS_1); /* peers we still require a response from */
+};
+
 static struct pending_decls pending_decls;
+static struct decl_results decl_results;
 
 void zhe_accept_peer_sched_hist_decls(peeridx_t peeridx)
 {
@@ -648,26 +655,70 @@ void zhe_send_declares(zhe_time_t tnow)
         zhe_assert(pending_decls.pos == 0);
     } else {
         const bool fresh = (pending_decls.peers[pending_decls.pos] == MULTICAST_CURSORIDX);
-        if ((commit_oc = zhe_send_declares1(tnow, pending_decls.peers[pending_decls.pos])) == NULL) {
+        if (fresh && (zhe_bitset_count(decl_results.waiting, MAX_PEERS_1) > 0 || decl_results.status != (uint8_t)ZHE_DECL_OK)) {
+            /* can't send declarations in a transaction until a previous error result has been collected */
+#if 0 /* Maybe allow historical ones? But it can possibly cause the historical ones to race ahead, and I don't want */
             if (++pending_decls.pos == pending_decls.cnt) {
                 pending_decls.pos = 0;
             }
-        } else if (fresh && !send_declare_commit(commit_oc, gcommitid, tnow)) {
-            if (++pending_decls.pos == pending_decls.cnt) {
-                pending_decls.pos = 0;
-            }
+#endif
         } else {
-            if (fresh) {
-                gcommitid++;
-            }
-            pending_decls.peers[pending_decls.pos] = pending_decls.peers[--pending_decls.cnt];
-            if (pending_decls.pos == pending_decls.cnt) {
-                pending_decls.pos = 0;
+            if ((commit_oc = zhe_send_declares1(tnow, pending_decls.peers[pending_decls.pos])) == NULL) {
+                if (++pending_decls.pos == pending_decls.cnt) {
+                    pending_decls.pos = 0;
+                }
+            } else if (fresh && !send_declare_commit(commit_oc, gcommitid, tnow)) {
+                if (++pending_decls.pos == pending_decls.cnt) {
+                    pending_decls.pos = 0;
+                }
+            } else {
+                if (fresh) {
+                    for (peeridx_t peeridx = 0; peeridx <= MAX_PEERS_1; peeridx++) {
+                        if (zhe_established_peer(peeridx)) {
+                            zhe_bitset_set(decl_results.waiting, peeridx);
+                        }
+                    }
+                    gcommitid++;
+                }
+                pending_decls.peers[pending_decls.pos] = pending_decls.peers[--pending_decls.cnt];
+                if (pending_decls.pos == pending_decls.cnt) {
+                    pending_decls.pos = 0;
+                }
             }
         }
     }
 }
 
+void zhe_reset_peer_declstatus(peeridx_t peeridx)
+{
+    zhe_bitset_clear(decl_results.waiting, peeridx);
+}
+
+void zhe_note_declstatus(peeridx_t peeridx, uint8_t status, zhe_rid_t rid)
+{
+    if (zhe_bitset_test(decl_results.waiting, peeridx)) {
+        zhe_bitset_clear(decl_results.waiting, peeridx);
+        if (status != (uint8_t)ZHE_DECL_OK && (decl_results.status == (uint8_t)ZHE_DECL_OK || decl_results.status == (uint8_t)ZHE_DECL_AGAIN)) {
+            decl_results.status = status;
+            decl_results.rid = rid;
+            ZT(PUBSUB, "**** FIXME: handle AGAIN case ****\n");
+        }
+    }
+}
+
+enum zhe_declstatus zhe_get_declstatus(zhe_rid_t *rid)
+{
+    if (zhe_bitset_count(decl_results.waiting, MAX_PEERS_1) > 0) {
+        /* it returns pending until all results have been received, even though an error result could potentially be returned sooner */
+        return ZHE_DECL_PENDING;
+    } else {
+        const uint8_t s = decl_results.status;
+        if (rid) { *rid = decl_results.rid; }
+        decl_results.status = 0;
+        decl_results.rid = 0;
+        return (enum zhe_declstatus)s;
+    }
+}
 /////////////////////////////////////////////////////////////////////////////
 
 #if ZHE_MAX_URISPACE > 0
