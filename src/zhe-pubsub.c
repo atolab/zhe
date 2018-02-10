@@ -12,6 +12,8 @@
 #include "zhe-bitset.h"
 #include "zhe-uristore.h"
 #include "zhe-uri.h"
+#include "zhe-simpleset.h"
+#include "zhe-arylist.h"
 
 struct subtable {
     /* ID of the resource subscribed to (could also be a SID, actually) */
@@ -28,31 +30,24 @@ struct subtable {
     zhe_subhandler_t handler;
 };
 static struct subtable subs[ZHE_MAX_SUBSCRIPTIONS];
-struct rid2subtable {
+typedef struct rid2subtable {
     zhe_rid_t rid;
     zhe_subidx_t subidx;
-};
-static struct rid2subtable rid2sub[ZHE_MAX_SUBSCRIPTIONS];
+} rid2subtable_t;
 /* FIXME: should support deleting pubs, subs, &c., and then a we need a linked list instead of a simple maximum; also use max_subidx for number of entries in use also fails at that point*/
 static zhe_subidx_t max_subidx;
 
-static int rid2sub_rid_cmp(const void *va, const void *vb)
-{
-    const zhe_rid_t *a = va;
-    const struct rid2subtable *b = vb;
-    return (*a == b->rid) ? 0 : (*a < b->rid) ? -1 : 1;
-}
+#define RID2SUB_RID_CMP(key, elem) ((key) == (elem) ? 0 : ((key) < (elem) ? -1 : 1))
+#define RID2SUB_RID(elem) ((elem).rid)
+MAKE_PACKAGE_SPEC(SIMPLESET, (static, zhe_rid2sub, zhe_rid_t, struct rid2subtable, zhe_subidx_t, ZHE_MAX_SUBSCRIPTIONS), type)
+MAKE_PACKAGE_BODY(SIMPLESET, (static, zhe_rid2sub, zhe_rid_t, struct rid2subtable, zhe_subidx_t, .idx, RID2SUB_RID_CMP, RID2SUB_RID, ZHE_MAX_SUBSCRIPTIONS), init, search, insert)
 
-static int rid2sub_cmp(const void *va, const void *vb)
-{
-    const struct rid2subtable *a = va;
-    const struct rid2subtable *b = vb;
-    return (a->rid == b->rid) ? 0 : (a->rid < b->rid) ? -1 : 1;
-}
+static zhe_rid2sub_t rid2sub;
+
 #if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
-/* FIXME: these don't have to be direct-mapped. If there's an efficient RID to resource idx mapping, then can shrink these to [ZHE_MAX_RESOURCES][ZHE_MAX_SUBSCRIPTIONS] */
-static zhe_subidx_t residx2sub[ZHE_MAX_RESOURCES][ZHE_MAX_SUBSCRIPTIONS];
-static zhe_subidx_t residx2sub_count[ZHE_MAX_RESOURCES];
+MAKE_PACKAGE_SPEC(ARYLIST, (static, zhe_residx2sub, zhe_subidx_t, zhe_subidx_t, ZHE_MAX_SUBSCRIPTIONS), type, iter_type)
+MAKE_PACKAGE_BODY(ARYLIST, (static, zhe_residx2sub, zhe_subidx_t, zhe_subidx_t, .idx, ZHE_MAX_SUBSCRIPTIONS), init, insert, count, iter_init, iter_next)
+static zhe_residx2sub_t residx2sub[ZHE_MAX_RESOURCES];
 #endif
 
 struct pubtable {
@@ -95,6 +90,31 @@ static struct peer_rsubs peers_rsubs[MAX_PEERS];
 
 static struct precommit precommit[MAX_PEERS_1];
 static struct precommit precommit_curpkt;
+
+void zhe_pubsub_init(void)
+{
+    memset(subs, 0, sizeof(subs));
+    max_subidx.idx = 0;
+    zhe_rid2sub_init(&rid2sub);
+#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
+    for (zhe_residx_t i = 0; i < ZHE_MAX_RESOURCES; i++) {
+        zhe_residx2sub_init(&residx2sub[i]);
+    }
+#endif
+    memset(pubs, 0, sizeof(pubs));
+    max_pubidx.idx = 0;
+    memset(pubs_isrel, 0, sizeof(pubs_isrel));
+#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
+    memset(pubs_rsubcounts, 0, sizeof(pubs_rsubcounts));
+#else
+    memset(pubs_rsubs, 0, sizeof(pubs_rsubs));
+#endif
+#if MAX_PEERS > 0
+    memset(peers_rsubs, 0, sizeof(peers_rsubs));
+#endif
+    memset(&precommit_curpkt, 0, sizeof(precommit_curpkt));
+    memset(precommit, 0, sizeof(precommit));
+}
 
 void zhe_decl_note_error_curpkt(uint8_t bitmask, zhe_rid_t rid)
 {
@@ -162,6 +182,11 @@ static bool pub_sub_match(zhe_rid_t a, zhe_rid_t b)
 }
 #endif
 
+void zhe_rsub_precommit_curpkt_abort(peeridx_t peeridx)
+{
+    memset(&precommit_curpkt, 0, sizeof(precommit_curpkt));
+}
+
 void zhe_rsub_commit(peeridx_t peeridx)
 {
     ZT(PUBSUB, "rsub_commit peeridx %u", peeridx);
@@ -170,56 +195,40 @@ void zhe_rsub_commit(peeridx_t peeridx)
     for (size_t i = 0; i < sizeof(pubs_rsubs); i++) {
         pubs_rsubs[i] |= precommit[peeridx].rsubs[i];
     }
-#elif ZHE_MAX_URISPACE == 0
-    for (size_t i = 0; i < sizeof(peers_rsubs[peeridx].rsubs); i++) {
-        peers_rsubs[peeridx].rsubs[i] |= precommit[peeridx].rsubs[i];
-        for (size_t j = 0; j < CHAR_BIT * sizeof(precommit[peeridx].rsubs[i]); j++) {
-            const zhe_rid_t rid = (zhe_rid_t)(CHAR_BIT * i+j);
-            if (rid <= ZHE_MAX_RID && zhe_bitset_test(precommit[peeridx].rsubs, rid)) {
-                zhe_pubidx_t pubidx;
-                for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
+#else
+    bitset_iter_t it;
+    unsigned rid; /* FIXME: typing - but also: shouldn't be indexed on RID anyway */
+    zhe_bitset_iter_init(&it, precommit[peeridx].rsubs, ZHE_MAX_RID+1);
+    while (zhe_bitset_iter_next(&it, &rid)) {
+        if (zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
+            ZT(PUBSUB, "zhe_rsub_commit rid %ju - already known", (uintmax_t)rid);
+        } else {
+            ZT(PUBSUB, "zhe_rsub_commit rid %ju - adding", (uintmax_t)rid);
+            zhe_bitset_set(peers_rsubs[peeridx].rsubs, rid);
+            for (zhe_pubidx_t pubidx = (zhe_pubidx_t){ 0 }; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
+                /* FIXME: can/should cache URI for "rid" */
+#if ZHE_MAX_URISPACE == 0
                     if (pubs[pubidx.idx].rid == rid) {
-#if ENABLE_TRACING
                         if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
                             ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                         }
-#endif
                         zhe_bitset_set(pubs_rsubs, pubidx.idx);
                         break;
                     }
-                }
-            }
-        }
-    }
 #else
-    for (size_t i = 0; i < sizeof(peers_rsubs[peeridx].rsubs); i++) {
-        for (size_t j = 0; j < CHAR_BIT * sizeof(precommit[peeridx].rsubs[i]); j++) {
-            const zhe_rid_t rid = (zhe_rid_t)(CHAR_BIT * i+j);
-            if (rid <= ZHE_MAX_RID && zhe_bitset_test(precommit[peeridx].rsubs, rid) && !zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
-                zhe_pubidx_t pubidx;
-                for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
-                    /* FIXME: can/should cache URI for "rid" */
                     if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
-#if ENABLE_TRACING
                         if (pubs_rsubcounts[pubidx.idx] == 0) {
                             ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                         }
-#endif
                         pubs_rsubcounts[pubidx.idx]++;
                         ZT(DEBUG, "rsub_commit: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
                     }
+#endif
                 }
             }
         }
-        peers_rsubs[peeridx].rsubs[i] |= precommit[peeridx].rsubs[i];
-    }
 #endif
-    memset(&precommit[peeridx], 0, sizeof(precommit[peeridx]));
-}
-
-void zhe_rsub_precommit_curpkt_abort(peeridx_t peeridx)
-{
-    memset(&precommit_curpkt, 0, sizeof(precommit_curpkt));
+    zhe_rsub_precommit_curpkt_abort(peeridx);
 }
 
 void zhe_rsub_precommit_curpkt_done(peeridx_t peeridx)
@@ -258,29 +267,22 @@ void zhe_rsub_clear(peeridx_t peeridx)
         }
     }
 #else
-    for (size_t i = 0; i < sizeof(peers_rsubs[peeridx].rsubs); i++) {
-        if (peers_rsubs[peeridx].rsubs[i] == 0) {
-            continue;
-        }
-        for (size_t j = 0; j < CHAR_BIT * sizeof(peers_rsubs[peeridx].rsubs[i]); j++) {
-            const zhe_rid_t rid = (zhe_rid_t)(CHAR_BIT * i + j);
-            if (rid <= ZHE_MAX_RID && zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
+    bitset_iter_t it;
+    unsigned rid; /* FIXME: typing - but even more the use of a RID-index bitset! */
+    zhe_bitset_iter_init(&it, peers_rsubs[peeridx].rsubs, ZHE_MAX_RID+1);
+    while (zhe_bitset_iter_next(&it, &rid)) {
                 zhe_pubidx_t pubidx;
                 for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
                     /* FIXME: can/should cache URI for "rid" */
                     if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
                         pubs_rsubcounts[pubidx.idx]--;
-#if ENABLE_TRACING
                         if (pubs_rsubcounts[pubidx.idx] == 0) {
                             ZT(PUBSUB, "pub %u rid %ju: no more remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                         }
-#endif
                         ZT(DEBUG, "zhe_rsub_clear: pub %u rid %ju: rsubcounts now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]--);
                     }
                 }
             }
-        }
-    }
     memset(&peers_rsubs[peeridx], 0, sizeof(peers_rsubs[peeridx]));
 #endif
     memset(&precommit[peeridx], 0, sizeof(precommit[peeridx]));
@@ -329,12 +331,12 @@ int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysi
 
 static int zhe_handle_msdata_deliver_anon(zhe_rid_t prid, zhe_paysize_t paysz, const void *pay)
 {
-    const struct rid2subtable *e = bsearch(&prid, rid2sub, (max_subidx.idx > 0 || subs[0].rid) ? max_subidx.idx + 1 : 0, sizeof(rid2sub[0]), rid2sub_rid_cmp);
-    if (e == NULL) {
+    zhe_subidx_t subidx;
+    if (!zhe_rid2sub_search(&rid2sub, prid, &subidx)) {
         return 1;
     }
-    const struct subtable *s = &subs[e->subidx.idx];
-    if (s->next.idx == e->subidx.idx) {
+    const struct subtable *s = &subs[subidx.idx];
+    if (s->next.idx == subidx.idx) {
         if (s->xmitneed == 0 || zhe_xmitw_hasspace(s->oc, s->xmitneed)) {
             /* Do note that "xmitneed" had better include overhead! */
             s->handler(prid, pay, paysz, s->arg);
@@ -377,9 +379,12 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
         return zhe_handle_msdata_deliver_anon(prid, paysz, pay);
     } else {
         zhe_paysize_t xmitneed[N_OUT_CONDUITS];
+        zhe_residx2sub_iter_t it;
+        zhe_subidx_t subidx;
         memset(xmitneed, 0, sizeof(xmitneed));
-        for (zhe_subidx_t k = { 0 }; k.idx < residx2sub_count[prid_idx].idx; k.idx++) {
-            const struct subtable *s = &subs[residx2sub[prid_idx][k.idx].idx];
+        zhe_residx2sub_iter_init(&it, &residx2sub[prid_idx]);
+        while (zhe_residx2sub_iter_next(&it, &subidx)) {
+            const struct subtable *s = &subs[subidx.idx];
             if (s->xmitneed > 0) {
                 xmitneed[zhe_oc_get_cid(s->oc)] += s->xmitneed;
             }
@@ -389,8 +394,9 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
                 return 0;
             }
         }
-        for (zhe_subidx_t k = { 0 }; k.idx < residx2sub_count[prid_idx].idx; k.idx++) {
-            const struct subtable *s = &subs[residx2sub[prid_idx][k.idx].idx];
+        zhe_residx2sub_iter_init(&it, &residx2sub[prid_idx]);
+        while (zhe_residx2sub_iter_next(&it, &subidx)) {
+            const struct subtable *s = &subs[subidx.idx];
             /* FIXME: which resource id should we pass to the handler? 0 is not a valid one, so that's kinda reasonable */
             s->handler(prid, pay, paysz, s->arg);
         }
@@ -689,6 +695,7 @@ void zhe_update_subs_for_resource_decl(zhe_rid_t rid)
     zhe_paysize_t itsz;
     zhe_residx_t residx;
     const uint8_t *ituri;
+    ZT(PUBSUB, "zhe_update_subs_for_resource_decl rid %ju", (uintmax_t)rid);
     zhe_uristore_geturi_for_rid(rid, &itsz, &ituri);
     zhe_uristore_getidx_for_rid(rid, &residx);
     for (zhe_subidx_t subidx = (zhe_subidx_t){0}; subidx.idx <= max_subidx.idx; subidx.idx++) {
@@ -697,8 +704,30 @@ void zhe_update_subs_for_resource_decl(zhe_rid_t rid)
             zhe_paysize_t subsz;
             const uint8_t *suburi;
             if (zhe_uristore_geturi_for_rid(subrid, &subsz, &suburi) && zhe_urimatch(suburi, subsz, ituri, itsz)) {
-                zhe_assert(residx2sub_count[residx].idx < ZHE_MAX_SUBSCRIPTIONS);
-                residx2sub[residx][residx2sub_count[residx].idx++] = subidx;
+                zhe_residx2sub_insert(&residx2sub[residx], subidx);
+                ZT(PUBSUB, "zhe_update_subs_for_resource_decl rid %ju: add sub %u (now #%u)", (uintmax_t)rid, subidx.idx, (unsigned)zhe_residx2sub_count(&residx2sub[residx]).idx);
+            }
+        }
+    }
+}
+
+static void zhe_update_subs_for_sub_decl(zhe_rid_t rid, zhe_subidx_t subidx)
+{
+    zhe_paysize_t subsz;
+    const uint8_t *suburi;
+    ZT(PUBSUB, "zhe_update_subs_for_sub_decl rid %ju subidx %u", (uintmax_t)rid, (unsigned)subidx.idx);
+    if (zhe_uristore_geturi_for_rid(rid, &subsz, &suburi)) {
+        uristore_iter_t it;
+        zhe_rid_t itrid;
+        zhe_paysize_t itsz;
+        const uint8_t *ituri;
+        zhe_uristore_iter_init(&it);
+        while (zhe_uristore_iter_next(&it, &itrid, &itsz, &ituri)) {
+            if (zhe_urimatch(suburi, subsz, ituri, itsz)) {
+                zhe_residx_t residx;
+                zhe_uristore_getidx_for_rid(itrid, &residx);
+                zhe_residx2sub_insert(&residx2sub[residx], subidx);
+                ZT(PUBSUB, "zhe_update_subs_for_sub_decl rid %ju subidx %u - add to rid %ju (now #%u)", (uintmax_t)rid, (unsigned)subidx.idx, (uintmax_t)itrid, (unsigned)zhe_residx2sub_count(&residx2sub[residx]).idx);
             }
         }
     }
@@ -784,11 +813,9 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
                 if (rid <= ZHE_MAX_RID && zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
                     /* FIXME: can/should cache URI for publisher */
                     if (pub_sub_match(rid, subrid)) {
-#if ENABLE_TRACING
                         if (pubs_rsubcounts[pubidx.idx] == 0) {
                             ZT(PUBSUB, "pub %u rid %ju: has remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                         }
-#endif
                         pubs_rsubcounts[pubidx.idx]++;
                         ZT(DEBUG, "zhe_publish: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
                     }
@@ -811,8 +838,10 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
         subidx = max_subidx; /* FIXME: all this "no delete possible" is no good */
         subidx.idx++;
     }
-    const struct rid2subtable *e = bsearch(&rid, rid2sub, (max_subidx.idx > 0 || subs[0].rid) ? max_subidx.idx + 1 : 0, sizeof(rid2sub[0]), rid2sub_rid_cmp);
-    zhe_subidx_t nextidx = (e == NULL) ? max_subidx : e->subidx;
+    zhe_subidx_t nextidx;
+    if (!zhe_rid2sub_search(&rid2sub, rid, &nextidx)) {
+        nextidx = max_subidx;
+    }
     zhe_assert(subidx.idx < ZHE_MAX_SUBSCRIPTIONS);
     subs[subidx.idx].rid = rid;
     subs[subidx.idx].next = nextidx;
@@ -822,30 +851,10 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
     subs[subidx.idx].handler = handler;
     subs[subidx.idx].arg = arg;
     /* FIXME: this fails badly when we can delete subscriptions */
-    rid2sub[max_subidx.idx].rid = rid;
-    rid2sub[max_subidx.idx].subidx = subidx;
     max_subidx = subidx;
-    qsort(rid2sub, (max_subidx.idx > 0 || subs[0].rid) ? max_subidx.idx + 1 : 0, sizeof(rid2sub[0]), rid2sub_cmp);
+    zhe_rid2sub_insert(&rid2sub, (rid2subtable_t){ .rid = rid, .subidx = subidx });
 #if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
-    {
-        zhe_paysize_t subsz;
-        const uint8_t *suburi;
-        if (zhe_uristore_geturi_for_rid(rid, &subsz, &suburi)) {
-            uristore_iter_t it;
-            zhe_rid_t itrid;
-            zhe_paysize_t itsz;
-            const uint8_t *ituri;
-            zhe_uristore_iter_init(&it);
-            while (zhe_uristore_iter_next(&it, &itrid, &itsz, &ituri)) {
-                if (zhe_urimatch(suburi, subsz, ituri, itsz)) {
-                    zhe_residx_t residx;
-                    zhe_uristore_getidx_for_rid(itrid, &residx);
-                    zhe_assert(residx2sub_count[residx].idx < ZHE_MAX_SUBSCRIPTIONS);
-                    residx2sub[residx][residx2sub_count[residx].idx++] = subidx;
-                }
-            }
-        }
-    }
+    zhe_update_subs_for_sub_decl(rid, subidx);
 #endif
     sched_fresh_declare(DIK_SUBSCRIPTION, subidx.idx);
     ZT(PUBSUB, "subscribe: %u rid %ju", subidx.idx, (uintmax_t)rid);
@@ -884,7 +893,6 @@ int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_
 #if LATENCY_BUDGET == 0
         zhe_pack_msend();
 #endif
-        /* not flushing to allow packing */
         return 1;
     }
 }
@@ -908,7 +916,6 @@ int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_
 #if LATENCY_BUDGET == 0
             zhe_pack_msend();
 #endif
-            /* not flushing to allow packing */
             return 1;
         }
     }

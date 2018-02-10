@@ -32,6 +32,8 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
 int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysize_t paysz, const void *pay);
 #endif
 
+void zhe_pubsub_init(void);
+
 void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode);
 uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid);
 void zhe_rsub_commit(peeridx_t peeridx);

@@ -311,6 +311,7 @@ static void init_globals(zhe_time_t tnow)
 #if ZHE_MAX_URISPACE > 0
     zhe_uristore_init();
 #endif
+    zhe_pubsub_init();
 }
 
 int zhe_seq_lt(seq_t a, seq_t b)
