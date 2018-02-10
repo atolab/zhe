@@ -37,8 +37,6 @@ int main(int argc, char* argv[]) {
     zhe_paysize_t ownidsize;
     struct zhe_config cfg;
 
-    unsigned cid = 0;
-
     init_rnd();
 
 #if N_OUT_MCONDUITS == 0
@@ -76,7 +74,7 @@ int main(int argc, char* argv[]) {
     zhe_start(zhe_platform_time());
     zhe_subidx_t s;
     uint64_t  period = 1000000;
-    s = zhe_subscribe(1, 100, cid, data_handler, NULL);
+    s = zhe_subscribe(1, 0, 0, data_handler, NULL);
     zhe_flush();
     zhe_loop(platform, period);
 
