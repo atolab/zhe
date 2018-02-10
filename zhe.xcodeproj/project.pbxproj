@@ -106,7 +106,7 @@
 		037208F01F70E92600AE2144 /* roundtrip */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = roundtrip; sourceTree = BUILT_PRODUCTS_DIR; };
 		037208F21F70E96900AE2144 /* testlib.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = testlib.c; path = test/testlib.c; sourceTree = "<group>"; };
 		037208F51F70E99100AE2144 /* testlib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = testlib.h; path = test/testlib.h; sourceTree = "<group>"; };
-		0387A4B1202B842600599E82 /* zhe-scalarset.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-scalarset.h"; path = "src/zhe-scalarset.h"; sourceTree = SOURCE_ROOT; };
+		0387A4B1202B842600599E82 /* zhe-simpleset.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-simpleset.h"; path = "src/zhe-simpleset.h"; sourceTree = SOURCE_ROOT; };
 		0387A4B6202C852200599E82 /* liblibzhe.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibzhe.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		0394B85D1F72C92700ABE751 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		03EBCBF41FABF9E7006E316D /* TODO.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODO.md; sourceTree = "<group>"; };
@@ -192,7 +192,7 @@
 				034BDF8A1F5472F700F261D1 /* zhe-pubsub.c */,
 				034BDF8B1F5472F700F261D1 /* zhe-pubsub.h */,
 				034BDF941F5472F700F261D1 /* zhe-rid.h */,
-				0387A4B1202B842600599E82 /* zhe-scalarset.h */,
+				0387A4B1202B842600599E82 /* zhe-simpleset.h */,
 				034BDF951F5472F700F261D1 /* zhe-tracing.h */,
 				034BDF8E1F5472F700F261D1 /* zhe-unpack.c */,
 				034BDF8F1F5472F700F261D1 /* zhe-unpack.h */,
