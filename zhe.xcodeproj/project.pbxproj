@@ -9,13 +9,28 @@
 /* Begin PBXBuildFile section */
 		03041669202F39C8000EC6AF /* zhe-arylist.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041667202F39C8000EC6AF /* zhe-arylist.h */; };
 		0304166A202F39C8000EC6AF /* zhe-package.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041668202F39C8000EC6AF /* zhe-package.h */; };
-		034BDFA41F54730900F261D1 /* throughput.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDFA11F54730900F261D1 /* throughput.c */; };
+		030416DD202F505A000EC6AF /* platform-udp.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041684202F505A000EC6AF /* platform-udp.h */; };
+		030416DE202F505A000EC6AF /* zhe-assert.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041685202F505A000EC6AF /* zhe-assert.h */; };
+		030416DF202F505A000EC6AF /* zhe-util.c in Sources */ = {isa = PBXBuildFile; fileRef = 03041686202F505A000EC6AF /* zhe-util.c */; };
+		030416E0202F505A000EC6AF /* platform-udp.c in Sources */ = {isa = PBXBuildFile; fileRef = 03041687202F505A000EC6AF /* platform-udp.c */; };
+		030416E1202F505A000EC6AF /* zhe-util.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041688202F505A000EC6AF /* zhe-util.h */; };
+		0304171C202F505A000EC6AF /* sub.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416C8202F505A000EC6AF /* sub.c */; };
+		0304171D202F505A000EC6AF /* pub.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416C9202F505A000EC6AF /* pub.c */; };
+		0304171E202F505A000EC6AF /* roundtrip.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416CB202F505A000EC6AF /* roundtrip.c */; };
+		0304171F202F505A000EC6AF /* zhe-config-int.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416CE202F505A000EC6AF /* zhe-config-int.h */; };
+		03041720202F505A000EC6AF /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416CF202F505A000EC6AF /* zhe-config.h */; };
+		03041721202F505A000EC6AF /* zhe-config-int.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D1202F505A000EC6AF /* zhe-config-int.h */; };
+		03041722202F505A000EC6AF /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D2202F505A000EC6AF /* zhe-config.h */; };
+		03041723202F505A000EC6AF /* zhe-config-int.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D4202F505A000EC6AF /* zhe-config-int.h */; };
+		03041724202F505A000EC6AF /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D5202F505A000EC6AF /* zhe-config.h */; };
+		03041725202F505A000EC6AF /* zhe-config-int.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D7202F505A000EC6AF /* zhe-config-int.h */; };
+		03041726202F505A000EC6AF /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D8202F505A000EC6AF /* zhe-config.h */; };
+		03041727202F505A000EC6AF /* throughput.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416DC202F505A000EC6AF /* throughput.c */; };
+		03041728202F506C000EC6AF /* throughput.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416DC202F505A000EC6AF /* throughput.c */; };
+		03041729202F5070000EC6AF /* roundtrip.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416CB202F505A000EC6AF /* roundtrip.c */; };
+		0304173A202F5088000EC6AF /* icgcbtest.c in Sources */ = {isa = PBXBuildFile; fileRef = 03041738202F5088000EC6AF /* icgcbtest.c */; };
 		0362B515202085E700EF87EC /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
 		036D95461F93D6A8003C047B /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
-		036D95561F93D6C3003C047B /* icgcbtest.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D95421F93D692003C047B /* icgcbtest.c */; };
-		037208F11F70E93800AE2144 /* roundtrip.c in Sources */ = {isa = PBXBuildFile; fileRef = 037208E01F70E91B00AE2144 /* roundtrip.c */; };
-		037208F31F70E96900AE2144 /* testlib.c in Sources */ = {isa = PBXBuildFile; fileRef = 037208F21F70E96900AE2144 /* testlib.c */; };
-		037208F41F70E96900AE2144 /* testlib.c in Sources */ = {isa = PBXBuildFile; fileRef = 037208F21F70E96900AE2144 /* testlib.c */; };
 		0387A4BA202C853100599E82 /* zhe-binheap.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF821F5472F700F261D1 /* zhe-binheap.c */; };
 		0387A4BC202C853100599E82 /* zhe-bitset.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF841F5472F700F261D1 /* zhe-bitset.c */; };
 		0387A4C0202C853100599E82 /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
@@ -25,7 +40,6 @@
 		0387A4CD202C853100599E82 /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
 		0387A4CF202C853100599E82 /* zhe-uristore.c in Sources */ = {isa = PBXBuildFile; fileRef = 036F3B601F975F7700987F3B /* zhe-uristore.c */; };
 		0387A4D1202C853100599E82 /* zhe.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF961F5472F700F261D1 /* zhe.c */; };
-		0387A4D2202C854500599E82 /* platform-udp.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDFA51F54734000F261D1 /* platform-udp.c */; };
 		0387A4D4202C856100599E82 /* liblibzhe.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0387A4B6202C852200599E82 /* liblibzhe.a */; };
 		0387A4D5202C856F00599E82 /* liblibzhe.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0387A4B6202C852200599E82 /* liblibzhe.a */; };
 /* End PBXBuildFile section */
@@ -63,6 +77,24 @@
 /* Begin PBXFileReference section */
 		03041667202F39C8000EC6AF /* zhe-arylist.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-arylist.h"; path = "src/zhe-arylist.h"; sourceTree = SOURCE_ROOT; };
 		03041668202F39C8000EC6AF /* zhe-package.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-package.h"; path = "src/zhe-package.h"; sourceTree = SOURCE_ROOT; };
+		03041684202F505A000EC6AF /* platform-udp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "platform-udp.h"; sourceTree = "<group>"; };
+		03041685202F505A000EC6AF /* zhe-assert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-assert.h"; sourceTree = "<group>"; };
+		03041686202F505A000EC6AF /* zhe-util.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "zhe-util.c"; sourceTree = "<group>"; };
+		03041687202F505A000EC6AF /* platform-udp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "platform-udp.c"; sourceTree = "<group>"; };
+		03041688202F505A000EC6AF /* zhe-util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-util.h"; sourceTree = "<group>"; };
+		030416C8202F505A000EC6AF /* sub.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = sub.c; sourceTree = "<group>"; };
+		030416C9202F505A000EC6AF /* pub.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pub.c; sourceTree = "<group>"; };
+		030416CB202F505A000EC6AF /* roundtrip.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = roundtrip.c; sourceTree = "<group>"; };
+		030416CE202F505A000EC6AF /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
+		030416CF202F505A000EC6AF /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
+		030416D1202F505A000EC6AF /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
+		030416D2202F505A000EC6AF /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
+		030416D4202F505A000EC6AF /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
+		030416D5202F505A000EC6AF /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
+		030416D7202F505A000EC6AF /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
+		030416D8202F505A000EC6AF /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
+		030416DC202F505A000EC6AF /* throughput.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = throughput.c; sourceTree = "<group>"; };
+		03041738202F5088000EC6AF /* icgcbtest.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = icgcbtest.c; sourceTree = "<group>"; };
 		030587661EF92BEB0040F446 /* throughput */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = throughput; sourceTree = BUILT_PRODUCTS_DIR; };
 		034BDF811F5472F700F261D1 /* zhe-platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-platform.h"; path = "src/zhe-platform.h"; sourceTree = SOURCE_ROOT; };
 		034BDF821F5472F700F261D1 /* zhe-binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-binheap.c"; path = "src/zhe-binheap.c"; sourceTree = SOURCE_ROOT; };
@@ -82,30 +114,14 @@
 		034BDF951F5472F700F261D1 /* zhe-tracing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-tracing.h"; path = "src/zhe-tracing.h"; sourceTree = SOURCE_ROOT; };
 		034BDF961F5472F700F261D1 /* zhe.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = zhe.c; path = src/zhe.c; sourceTree = SOURCE_ROOT; };
 		034BDF971F5472F700F261D1 /* zhe.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = zhe.h; path = src/zhe.h; sourceTree = SOURCE_ROOT; };
-		034BDFA11F54730900F261D1 /* throughput.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = throughput.c; path = test/throughput.c; sourceTree = "<group>"; };
-		034BDFA21F54730900F261D1 /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-config-int.h"; path = "test/zhe-config-int.h"; sourceTree = "<group>"; };
-		034BDFA31F54730900F261D1 /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-config.h"; path = "test/zhe-config.h"; sourceTree = "<group>"; };
-		034BDFA51F54734000F261D1 /* platform-udp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "platform-udp.c"; path = "test/platform-udp.c"; sourceTree = "<group>"; };
-		034BDFA61F54734000F261D1 /* platform-udp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "platform-udp.h"; path = "test/platform-udp.h"; sourceTree = "<group>"; };
-		034BDFAE1F547D1A00F261D1 /* zhe-assert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-assert.h"; path = "test/zhe-assert.h"; sourceTree = "<group>"; };
-		0362B4FB201A1D7B00EF87EC /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
-		0362B4FC201A1D7B00EF87EC /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
-		0362B4FE201A1D7B00EF87EC /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
-		0362B4FF201A1D7B00EF87EC /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
-		0362B50C201A1D7B00EF87EC /* zhe-config-int.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config-int.h"; sourceTree = "<group>"; };
-		0362B50D201A1D7B00EF87EC /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
 		0362B511202085E700EF87EC /* zhe-uri.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-uri.h"; path = "src/zhe-uri.h"; sourceTree = SOURCE_ROOT; };
 		0362B512202085E700EF87EC /* zhe-uri.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "zhe-uri.c"; path = "src/zhe-uri.c"; sourceTree = SOURCE_ROOT; };
 		036D953F1F8CF05D003C047B /* zhe-icgcb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-icgcb.c"; path = "src/zhe-icgcb.c"; sourceTree = SOURCE_ROOT; };
 		036D95411F93CFD3003C047B /* zhe-icgcb.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-icgcb.h"; path = "src/zhe-icgcb.h"; sourceTree = SOURCE_ROOT; };
-		036D95421F93D692003C047B /* icgcbtest.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = icgcbtest.c; sourceTree = "<group>"; };
 		036D95551F93D6A8003C047B /* icgcbtest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = icgcbtest; sourceTree = BUILT_PRODUCTS_DIR; };
 		036F3B601F975F7700987F3B /* zhe-uristore.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-uristore.c"; path = "src/zhe-uristore.c"; sourceTree = SOURCE_ROOT; };
 		036F3B641F97720800987F3B /* zhe-uristore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-uristore.h"; path = "src/zhe-uristore.h"; sourceTree = SOURCE_ROOT; };
-		037208E01F70E91B00AE2144 /* roundtrip.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = roundtrip.c; path = test/roundtrip.c; sourceTree = "<group>"; };
 		037208F01F70E92600AE2144 /* roundtrip */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = roundtrip; sourceTree = BUILT_PRODUCTS_DIR; };
-		037208F21F70E96900AE2144 /* testlib.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = testlib.c; path = test/testlib.c; sourceTree = "<group>"; };
-		037208F51F70E99100AE2144 /* testlib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = testlib.h; path = test/testlib.h; sourceTree = "<group>"; };
 		0387A4B1202B842600599E82 /* zhe-simpleset.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-simpleset.h"; path = "src/zhe-simpleset.h"; sourceTree = SOURCE_ROOT; };
 		0387A4B6202C852200599E82 /* liblibzhe.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibzhe.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		0394B85D1F72C92700ABE751 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
@@ -146,15 +162,118 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		03041682202F505A000EC6AF /* example */ = {
+			isa = PBXGroup;
+			children = (
+				03041683202F505A000EC6AF /* platform */,
+				030416DB202F505A000EC6AF /* throughput */,
+				030416CA202F505A000EC6AF /* roundtrip */,
+				030416C7202F505A000EC6AF /* simple */,
+				030416CC202F505A000EC6AF /* configs */,
+			);
+			path = example;
+			sourceTree = "<group>";
+		};
+		03041683202F505A000EC6AF /* platform */ = {
+			isa = PBXGroup;
+			children = (
+				03041684202F505A000EC6AF /* platform-udp.h */,
+				03041685202F505A000EC6AF /* zhe-assert.h */,
+				03041686202F505A000EC6AF /* zhe-util.c */,
+				03041687202F505A000EC6AF /* platform-udp.c */,
+				03041688202F505A000EC6AF /* zhe-util.h */,
+			);
+			path = platform;
+			sourceTree = "<group>";
+		};
+		030416C7202F505A000EC6AF /* simple */ = {
+			isa = PBXGroup;
+			children = (
+				030416C8202F505A000EC6AF /* sub.c */,
+				030416C9202F505A000EC6AF /* pub.c */,
+			);
+			path = simple;
+			sourceTree = "<group>";
+		};
+		030416CA202F505A000EC6AF /* roundtrip */ = {
+			isa = PBXGroup;
+			children = (
+				030416CB202F505A000EC6AF /* roundtrip.c */,
+			);
+			path = roundtrip;
+			sourceTree = "<group>";
+		};
+		030416CC202F505A000EC6AF /* configs */ = {
+			isa = PBXGroup;
+			children = (
+				030416CD202F505A000EC6AF /* p2p-large */,
+				030416D0202F505A000EC6AF /* p2p-small */,
+				030416D3202F505A000EC6AF /* p2p */,
+				030416D6202F505A000EC6AF /* client-large */,
+			);
+			path = configs;
+			sourceTree = "<group>";
+		};
+		030416CD202F505A000EC6AF /* p2p-large */ = {
+			isa = PBXGroup;
+			children = (
+				030416CE202F505A000EC6AF /* zhe-config-int.h */,
+				030416CF202F505A000EC6AF /* zhe-config.h */,
+			);
+			path = "p2p-large";
+			sourceTree = "<group>";
+		};
+		030416D0202F505A000EC6AF /* p2p-small */ = {
+			isa = PBXGroup;
+			children = (
+				030416D1202F505A000EC6AF /* zhe-config-int.h */,
+				030416D2202F505A000EC6AF /* zhe-config.h */,
+			);
+			path = "p2p-small";
+			sourceTree = "<group>";
+		};
+		030416D3202F505A000EC6AF /* p2p */ = {
+			isa = PBXGroup;
+			children = (
+				030416D4202F505A000EC6AF /* zhe-config-int.h */,
+				030416D5202F505A000EC6AF /* zhe-config.h */,
+			);
+			path = p2p;
+			sourceTree = "<group>";
+		};
+		030416D6202F505A000EC6AF /* client-large */ = {
+			isa = PBXGroup;
+			children = (
+				030416D7202F505A000EC6AF /* zhe-config-int.h */,
+				030416D8202F505A000EC6AF /* zhe-config.h */,
+			);
+			path = "client-large";
+			sourceTree = "<group>";
+		};
+		030416DB202F505A000EC6AF /* throughput */ = {
+			isa = PBXGroup;
+			children = (
+				030416DC202F505A000EC6AF /* throughput.c */,
+			);
+			path = throughput;
+			sourceTree = "<group>";
+		};
+		0304172A202F5088000EC6AF /* test */ = {
+			isa = PBXGroup;
+			children = (
+				03041738202F5088000EC6AF /* icgcbtest.c */,
+			);
+			path = test;
+			sourceTree = "<group>";
+		};
 		0305875D1EF92BEB0040F446 = {
 			isa = PBXGroup;
 			children = (
 				03EBCBF41FABF9E7006E316D /* TODO.md */,
 				0394B85D1F72C92700ABE751 /* README.md */,
-				034BDFA01F5472FD00F261D1 /* test */,
 				030587681EF92BEB0040F446 /* src */,
-				0362B4F9201A1D7B00EF87EC /* test-configs */,
-				036D95431F93D699003C047B /* q */,
+				03041682202F505A000EC6AF /* example */,
+				0304172A202F5088000EC6AF /* test */,
 				030587671EF92BEB0040F446 /* Products */,
 				0387A4D3202C856100599E82 /* Frameworks */,
 			);
@@ -207,67 +326,6 @@
 			path = .;
 			sourceTree = "<group>";
 		};
-		034BDFA01F5472FD00F261D1 /* test */ = {
-			isa = PBXGroup;
-			children = (
-				037208F21F70E96900AE2144 /* testlib.c */,
-				037208E01F70E91B00AE2144 /* roundtrip.c */,
-				034BDFA11F54730900F261D1 /* throughput.c */,
-				034BDFA51F54734000F261D1 /* platform-udp.c */,
-				034BDFA61F54734000F261D1 /* platform-udp.h */,
-				034BDFAE1F547D1A00F261D1 /* zhe-assert.h */,
-				034BDFA21F54730900F261D1 /* zhe-config-int.h */,
-				034BDFA31F54730900F261D1 /* zhe-config.h */,
-				037208F51F70E99100AE2144 /* testlib.h */,
-			);
-			name = test;
-			sourceTree = "<group>";
-		};
-		0362B4F9201A1D7B00EF87EC /* test-configs */ = {
-			isa = PBXGroup;
-			children = (
-				0362B4FA201A1D7B00EF87EC /* p2p-large */,
-				0362B4FD201A1D7B00EF87EC /* p2p-small */,
-				0362B50B201A1D7B00EF87EC /* client-large */,
-			);
-			path = "test-configs";
-			sourceTree = "<group>";
-		};
-		0362B4FA201A1D7B00EF87EC /* p2p-large */ = {
-			isa = PBXGroup;
-			children = (
-				0362B4FB201A1D7B00EF87EC /* zhe-config-int.h */,
-				0362B4FC201A1D7B00EF87EC /* zhe-config.h */,
-			);
-			path = "p2p-large";
-			sourceTree = "<group>";
-		};
-		0362B4FD201A1D7B00EF87EC /* p2p-small */ = {
-			isa = PBXGroup;
-			children = (
-				0362B4FE201A1D7B00EF87EC /* zhe-config-int.h */,
-				0362B4FF201A1D7B00EF87EC /* zhe-config.h */,
-			);
-			path = "p2p-small";
-			sourceTree = "<group>";
-		};
-		0362B50B201A1D7B00EF87EC /* client-large */ = {
-			isa = PBXGroup;
-			children = (
-				0362B50C201A1D7B00EF87EC /* zhe-config-int.h */,
-				0362B50D201A1D7B00EF87EC /* zhe-config.h */,
-			);
-			path = "client-large";
-			sourceTree = "<group>";
-		};
-		036D95431F93D699003C047B /* q */ = {
-			isa = PBXGroup;
-			children = (
-				036D95421F93D692003C047B /* icgcbtest.c */,
-			);
-			path = q;
-			sourceTree = "<group>";
-		};
 		0387A4D3202C856100599E82 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -282,7 +340,18 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				03041722202F505A000EC6AF /* zhe-config.h in Headers */,
+				03041723202F505A000EC6AF /* zhe-config-int.h in Headers */,
+				03041721202F505A000EC6AF /* zhe-config-int.h in Headers */,
+				03041724202F505A000EC6AF /* zhe-config.h in Headers */,
+				03041725202F505A000EC6AF /* zhe-config-int.h in Headers */,
+				03041720202F505A000EC6AF /* zhe-config.h in Headers */,
+				0304171F202F505A000EC6AF /* zhe-config-int.h in Headers */,
+				03041726202F505A000EC6AF /* zhe-config.h in Headers */,
+				030416DE202F505A000EC6AF /* zhe-assert.h in Headers */,
 				03041669202F39C8000EC6AF /* zhe-arylist.h in Headers */,
+				030416DD202F505A000EC6AF /* platform-udp.h in Headers */,
+				030416E1202F505A000EC6AF /* zhe-util.h in Headers */,
 				0304166A202F39C8000EC6AF /* zhe-package.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -402,8 +471,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				034BDFA41F54730900F261D1 /* throughput.c in Sources */,
-				037208F31F70E96900AE2144 /* testlib.c in Sources */,
+				03041728202F506C000EC6AF /* throughput.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -411,9 +479,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0304173A202F5088000EC6AF /* icgcbtest.c in Sources */,
 				036D95461F93D6A8003C047B /* zhe-icgcb.c in Sources */,
 				0362B515202085E700EF87EC /* zhe-uri.c in Sources */,
-				036D95561F93D6C3003C047B /* icgcbtest.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -421,8 +489,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				037208F11F70E93800AE2144 /* roundtrip.c in Sources */,
-				037208F41F70E96900AE2144 /* testlib.c in Sources */,
+				03041729202F5070000EC6AF /* roundtrip.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -430,15 +497,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0387A4D2202C854500599E82 /* platform-udp.c in Sources */,
+				0304171C202F505A000EC6AF /* sub.c in Sources */,
 				0387A4BA202C853100599E82 /* zhe-binheap.c in Sources */,
 				0387A4BC202C853100599E82 /* zhe-bitset.c in Sources */,
 				0387A4C0202C853100599E82 /* zhe-icgcb.c in Sources */,
+				0304171D202F505A000EC6AF /* pub.c in Sources */,
+				030416DF202F505A000EC6AF /* zhe-util.c in Sources */,
+				0304171E202F505A000EC6AF /* roundtrip.c in Sources */,
 				0387A4C4202C853100599E82 /* zhe-pack.c in Sources */,
 				0387A4C7202C853100599E82 /* zhe-pubsub.c in Sources */,
 				0387A4CB202C853100599E82 /* zhe-unpack.c in Sources */,
 				0387A4CD202C853100599E82 /* zhe-uri.c in Sources */,
+				03041727202F505A000EC6AF /* throughput.c in Sources */,
 				0387A4CF202C853100599E82 /* zhe-uristore.c in Sources */,
+				030416E0202F505A000EC6AF /* platform-udp.c in Sources */,
 				0387A4D1202C853100599E82 /* zhe.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
