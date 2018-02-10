@@ -58,5 +58,6 @@ zhe.xcodeproj/xcuserdata/
 
 #
 gen/
-throughput
-roundtrip
+bin/
+lib/
+*.ino

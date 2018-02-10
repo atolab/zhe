@@ -8,11 +8,11 @@
 # and don't need to fiddle with the vpaths, otherwise ./ assume we're
 # outside the source dir and set the vpath to point to the sources
 SRCDIR := $(patsubst %/,%,$(dir $(firstword $(MAKEFILE_LIST))))
-SUBDIRS = src test
+SUBDIRS = src example/platform example/configs/p2p example/throughput example/roundtrip
 vpath %.c $(SUBDIRS:%=$(SRCDIR)/%)
 vpath %.h $(SUBDIRS:%=$(SRCDIR)/%)
 
-TARGETS = roundtrip throughput
+TARGETS = bin/roundtrip bin/throughput
 ZHE_PLATFORM := platform-udp.c
 ZHE := $(notdir $(wildcard $(SRCDIR)/src/*.c)) $(ZHE_PLATFORM)
 
@@ -20,8 +20,8 @@ OPT = #-O2
 CFLAGS = $(OPT) -g -Wall $(SUBDIRS:%=-I$(SRCDIR)/%)
 LDFLAGS = $(OPT)
 
-SRC_roundtrip = roundtrip.c testlib.c $(ZHE)
-SRC_throughput = throughput.c testlib.c $(ZHE)
+SRC_roundtrip = roundtrip.c zhe-util.c $(ZHE)
+SRC_throughput = throughput.c zhe-util.c $(ZHE)
 
 .PHONY: all clean zz test-configs
 .PRECIOUS: %.o %/.STAMP
@@ -32,16 +32,16 @@ SRC_throughput = throughput.c testlib.c $(ZHE)
 
 all: $(TARGETS)
 
-$(TARGETS): $$(patsubst %.c, gen/%.o, $$(SRC_$$@))
+$(TARGETS): $$(patsubst %.c, gen/%.o, $$(SRC_$$(notdir $$@)))
 
-test-configs: $(addprefix test-configs/build/throughput-, $(notdir $(wildcard test-configs/*)))
+test-configs: $(addprefix test/build.configs/throughput-, $(notdir $(wildcard example/configs/*)))
 
 %/.STAMP:
 	[ -d $* ] || mkdir -p $*
 	touch $@
 
-test-configs/build/throughput-%: test-configs/build/.STAMP $(SRC_throughput) 
-	$(CC) -Itest-configs/$* $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(wordlist 2, 999, $^) -o $@
+test/build.configs/throughput-%: test/build.configs/.STAMP $(SRC_throughput) 
+	$(CC) -Iexample/configs/$* $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(wordlist 2, 999, $^) -o $@
 
 %:
 	$(CC) $(LDFLAGS) $^ -o $@
@@ -58,5 +58,5 @@ zz:
 	@echo $(ZHE)
 
 ifneq ($(MAKECMDGOALS),clean)
-  -include $(patsubst %.c, gen/%.d, $(sort $(foreach x, $(TARGETS), $(SRC_$x))))
+  -include $(patsubst %.c, gen/%.d, $(sort $(foreach x, $(TARGETS), $(SRC_$(notdir $x)))))
 endif
