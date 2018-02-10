@@ -27,10 +27,13 @@
 #define WC_DSUB_SIZE        (2 + WC_RID_SIZE) /* sub: header, rid, mode (neither properties nor periodic modes) */
 
 void zhe_decl_note_error_curpkt(uint8_t bitmask, zhe_rid_t rid);
+void zhe_decl_note_error_somepeer(peeridx_t peeridx, uint8_t bitmask, zhe_rid_t rid);
 int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *pay);
 #if ZHE_MAX_URISPACE > 0
 int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysize_t paysz, const void *pay);
 #endif
+
+void zhe_pubsub_init(void);
 
 void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode);
 uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid);
@@ -40,8 +43,12 @@ void zhe_rsub_clear(peeridx_t peeridx);
 void zhe_rsub_precommit_curpkt_done(peeridx_t peeridx);
 
 void zhe_send_declares(zhe_time_t tnow);
+void zhe_note_declstatus(peeridx_t peeridx, uint8_t status, zhe_rid_t rid);
+void zhe_reset_peer_declstatus(peeridx_t peeridx);
 
 void zhe_accept_peer_sched_hist_decls(peeridx_t peeridx);
 void zhe_reset_peer_unsched_hist_decls(peeridx_t peeridx);
+bool zhe_rid_in_use_anonymously(zhe_rid_t rid);
+void zhe_update_subs_for_resource_decl(zhe_rid_t rid);
 
 #endif

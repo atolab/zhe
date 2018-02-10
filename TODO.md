@@ -2,8 +2,8 @@
 
 In no particular order
 
+* Currently resource declarations can fail with a "try again" response if multiple peers try to defined compatible definitions at the same time, but the "try again" part hasn't been implemented yet ...
 * Fix the FIXMEs and TODOs in the code :) e.g.:
-  * index/size/backref type of GC'd buffer used for URIs
   * horrible hack of putting a conduit pointer in a publisher when it should just be an index (note the old plan of using CID (-peeridx-1) to identify unicast conduit to peer peeridx ... the plan should still work)
   * subscriber with guard for transmit window space availability: need to clean it up ... give a set of publishers with sizes, and take it from there
 * Quite a few of the buffers could be "dynamically" set (instead of fixed with a bunch of macros at compile time) if I let the application code provide them; that would also allow, e.g., different transmit window sizes for each conduit, or even for each peer
@@ -13,7 +13,6 @@ In no particular order
 * URI validation
 * QoS from properties
 * Improve upper bounds on looking up/checking URIs, resetting resources declared by a peer
-* Currently resource declarations aren't transactional ...
 * Add a function to allow upper layers to close a session given a source address (needed in particular for the case of short input in length-prefixed streaming mode)
 * Improve unicast support
   * certainly to the point where you can specify unicast should be used, and it will then unicast to the unique subscriber (rejecting attempts by other peers to subscribe)
@@ -25,11 +24,6 @@ In no particular order
 * Deleting subscribers, publishers, resources
   * should change the current arrays to a linked list (well, actually, array elements giving the index of the next) to not waste time on unused slots (ideally compile-time selectable)
   * requires synchronization between pushing "fresh" declarations and historical ones (one option: block sending fresh declarations while historical ones are being sent — it is asynchronous already anyway)
-* implement the C flag on declarations and set it for historical ones (and then skip the explicit COMMIT for historical ones)
-* want a function to check whether all declarations have been accepted by all known peers
-  * acknowledged for those with a C-flag, I guess
-  * need to track commits
-  * never do multiple outstanding COMMITs for space reasons
 * suppress KEEPALIVEs when data has been sent to all peers "recently"
 * peer connect/disconnect/reconnect notifications
 

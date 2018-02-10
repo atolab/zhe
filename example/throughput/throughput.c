@@ -13,7 +13,7 @@
 
 #include "zhe-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 
-#include "testlib.h"
+#include "zhe-util.h"
 
 struct data {
     uint32_t key;
@@ -28,12 +28,37 @@ struct pong { uint32_t k; zhe_time_t t; };
 
 #define MAX_KEY 9u
 
+static uint32_t firstseq[MAX_KEY+1];
+static uint32_t lastseq[MAX_KEY+1];
+static uint32_t oooc;
+static uint32_t lastseq_init;
+
+static int all_was_well(uint32_t nsecs)
+{
+    zhe_time_t tnow = zhe_platform_time();
+    if (lastseq_init == 0) {
+        printf ("%4"PRIu32".%03"PRIu32" *** no data\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow));
+        return 0;
+    } else if (oooc != 0) {
+        printf ("%4"PRIu32".%03"PRIu32" *** out-of-order %"PRIu32"\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), oooc);
+        return 0;
+    } else {
+        int ret = 1;
+        for (uint32_t k = 0; k <= MAX_KEY; k++) {
+            if (lastseq_init & (1u << k)) {
+                if ((lastseq[k] - firstseq[k]) / 10 <= nsecs) {
+                    printf ("%4"PRIu32".%03"PRIu32" *** [%"PRIu32"] only %"PRIu32" in %"PRIu32"s\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), k, lastseq[k] - firstseq[k], nsecs);
+                    ret = 0;
+                }
+            }
+        }
+        return ret;
+    }
+}
+
 static void shandler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg)
 {
     static zhe_time_t tprint;
-    static uint32_t lastseq[MAX_KEY+1];
-    static uint32_t oooc;
-    static uint32_t lastseq_init;
     const struct data * const d = payload;
     assert(size == sizeof(*d));
     if (rid == 0) {
@@ -47,7 +72,7 @@ static void shandler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, voi
         }
         lastseq[d->key] = d->seq;
     } else {
-        lastseq[d->key] = d->seq;
+        firstseq[d->key] = lastseq[d->key] = d->seq;
         lastseq_init |= 1u << d->key;
     }
     if ((d->seq % checkintv) == 0) {
@@ -87,7 +112,10 @@ int main(int argc, char * const *argv)
     struct zhe_config cfg;
     uint16_t port = 7447;
     int drop_pct = 0;
+    int check_likely_success = 0;
     const char *scoutaddrstr = "239.255.0.1";
+    bool sub_to_wildcard = false;
+    zhe_time_t duration = (zhe_time_t)~0;
 #if N_OUT_MCONDUITS == 0
     char *mcgroups_join_str = "";
     char *mconduit_dstaddrs_str = "";
@@ -113,7 +141,7 @@ int main(int argc, char * const *argv)
 #endif
 
     scoutaddrstr = "239.255.0.1";
-    while((opt = getopt(argc, argv, "C:k:c:h:psquS:G:M:X:")) != EOF) {
+    while((opt = getopt(argc, argv, "D:C:k:c:h:psquS:G:M:X:xw")) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'k':
@@ -137,9 +165,12 @@ int main(int argc, char * const *argv)
             case 'u': reliable = 0; break;
             case 'C': checkintv = (unsigned)atoi(optarg); break;
             case 'S': scoutaddrstr = optarg; break;
+            case 'x': check_likely_success = 1; break;
             case 'X': drop_pct = atoi(optarg); break;
             case 'G': mcgroups_join_str = optarg; break;
             case 'M': mconduit_dstaddrs_str = optarg; break;
+            case 'D': duration = (zhe_time_t)atoi(optarg); break;
+            case 'w': sub_to_wildcard = true; break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
@@ -158,22 +189,23 @@ int main(int argc, char * const *argv)
         fprintf(stderr, "init failed\n");
         exit(1);
     }
-    zhe_start(zhe_platform_time());
+    zhe_time_t tstart = zhe_platform_time();
+    zhe_start(tstart);
 
     zhe_declare_resource(1, "/t/data");
     zhe_declare_resource(2, "/t/pong");
     if (mode == 1) {
         zhe_declare_resource(3, "/t/test");
     }
+    zhe_declare_resource(4, "**/data");
     switch (mode) {
         case 0: case -1: {
-            zhe_time_t tstart = zhe_platform_time();
             zhe_pubidx_t p;
             if (mode != 0) {
                 p = zhe_publish(2, cid, 1);
                 (void)zhe_subscribe(1, 100 /* don't actually need this much ... */, cid, shandler, &p);
             }
-            while ((mode != 0) || ZTIME_TO_SECu32(zhe_platform_time() - tstart) < 20) {
+            while (ZTIME_TO_SECu32(zhe_platform_time() - tstart) <= duration) {
                 zhe_time_t tnow;
                 if (zhe_platform_wait(platform, 10)) {
                     char inbuf[TRANSPORT_MTU];
@@ -194,13 +226,11 @@ int main(int argc, char * const *argv)
             struct data d = { .key = key, .seq = 0 };
             zhe_pubidx_t p = zhe_publish(1, cid, reliable);
             zhe_pubidx_t p2 = zhe_publish(2, cid, 1);
-            (void)zhe_subscribe(1, 0, 0, shandler, &p2);
+            (void)zhe_subscribe(sub_to_wildcard ? 4 : 1, 0, 0, shandler, &p2);
             (void)zhe_subscribe(2, 0, 0, rhandler, 0);
-            zhe_time_t tprint = zhe_platform_time();
-            while (1) {
+            zhe_time_t tprint = tstart;
+            for (zhe_time_t tnow = tstart; ZTIME_TO_SECu32(tnow - tstart) <= duration; tnow = zhe_platform_time()) {
                 const int blocksize = 50;
-                zhe_time_t tnow = zhe_platform_time();
-
                 zhe_housekeeping(tnow);
 
                 {
@@ -223,7 +253,8 @@ int main(int argc, char * const *argv)
                                 tprint = tnow;
 
                                 struct data d1 = { .key = key, .seq = UINT32_MAX };
-                                zhe_write_uri("/t/data", &d1, sizeof(d1), tnow);
+                                //zhe_write_uri("/t/data", &d1, sizeof(d1), tnow);
+                                zhe_write_uri("**?ta", &d1, sizeof(d1), tnow);
                             }
                         }
                         d.seq++;
@@ -241,5 +272,9 @@ int main(int argc, char * const *argv)
             fprintf(stderr, "mode = %d?", mode);
             exit(1);
     }
-    return 0;
+    if (!check_likely_success) {
+        return 0;
+    } else {
+        return !all_was_well(ZTIME_TO_SECu32(zhe_platform_time() - tstart));
+    }
 }

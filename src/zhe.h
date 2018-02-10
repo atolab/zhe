@@ -43,6 +43,17 @@ struct zhe_config {
     struct zhe_address *mconduit_dstaddrs;
 };
 
+/* numerical values also appear on the wire (with the exception of PENDING, which is disallowed on the wire but rather generated locally) */
+enum zhe_declstatus {
+    ZHE_DECL_OK       = 0,    /* all declarations sent & accepted */
+    ZHE_DECL_NOSPACE  = 1,    /* some peer rejected the set for a lack of memory (likely not temporary) */
+    ZHE_DECL_CONFLICT = 2,    /* some peer rejected the set because of conflicting definitions */
+    ZHE_DECL_TXNSIZE  = 3,    /* some peer rejected the set because it couldn't a transaction this large */
+    ZHE_DECL_AGAIN    = 4,    /* some peer rejected the set because of some (likely) temporary issue */
+    ZHE_DECL_OTHER    = 5,    /* some peer rejected the set for another reason */
+    ZHE_DECL_PENDING  = 255,  /* some declarations pending (locally declared, not yet accepted by all, but also no rejects) */
+};
+
 int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_t tnow);
 void zhe_start(zhe_time_t tnow);
 void zhe_housekeeping(zhe_time_t tnow);
@@ -52,6 +63,8 @@ void zhe_flush(void);
 bool zhe_declare_resource(zhe_rid_t rid, const char *uri);
 zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable);
 zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, zhe_subhandler_t handler, void *arg);
+/* FIXME: should add zhe_declcommit(void) or something like that, rather than always auto-committing like it does now */
+enum zhe_declstatus zhe_get_declstatus(zhe_rid_t *rid);
 
 int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_t tnow);
 int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_t tnow);

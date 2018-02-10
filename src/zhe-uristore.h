@@ -14,21 +14,38 @@ typedef uint32_t zhe_residx_t;
 #endif
 
 enum uristore_result {
-    USR_OK,       /* stored */
+    USR_OK,       /* new (or new for this peer) and stored */
+    USR_DUPLICATE,/* already known for this peer */
     USR_AGAIN,    /* not stored, but GC will eventually free up space (barring any intervening allocations) */
     USR_NOSPACE,  /* not stored, insufficient total free space */
     USR_MISMATCH, /* not stored, different URI known for this RID */
-    USR_OVERSIZE  /* URI is longer than supported */
+    USR_OVERSIZE, /* URI is longer than supported */
+    USR_INVALID   /* URI is not invalid */
 };
+
+typedef struct uristore_iter {
+    zhe_residx_t cursor;
+} uristore_iter_t;
 
 void zhe_uristore_init(void);
 void zhe_uristore_gc(void);
+zhe_residx_t zhe_uristore_nres(void);
 #define URISTORE_PEERIDX_SELF MAX_PEERS
-enum uristore_result zhe_uristore_store(peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in);
+/* zhe_uristore_store with tentative=true and an OK result *must* be followed by zhe_uristore_record_tentative */
+enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in, bool tentative);
 void zhe_uristore_drop(peeridx_t peeridx, zhe_rid_t rid);
 void zhe_uristore_reset_peer(peeridx_t peeridx);
-/* FIXME: need a proper type for the cursor */
-bool zhe_uristore_geturi(unsigned idx, zhe_rid_t *rid, zhe_paysize_t *sz, const uint8_t **uri);
-#endif
+bool zhe_uristore_geturi_for_idx(zhe_residx_t idx, zhe_rid_t *rid, zhe_paysize_t *sz, const uint8_t **uri, bool *islocal);
+bool zhe_uristore_geturi_for_rid(zhe_rid_t rid, zhe_paysize_t *sz, const uint8_t **uri);
+bool zhe_uristore_getidx_for_rid(zhe_rid_t rid, zhe_residx_t *idx);
+
+/* returns PEERIDX_INVALID if all is well, else index of losing peer (which may be peeridx itself) */
+peeridx_t zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx);
+void zhe_uristore_abort_tentative(peeridx_t peeridx);
+void zhe_uristore_commit_tentative(peeridx_t peeridx);
+
+void zhe_uristore_iter_init(uristore_iter_t *it);
+bool zhe_uristore_iter_next(uristore_iter_t *it, zhe_rid_t *rid, zhe_paysize_t *sz, const uint8_t **uri);
+#endif /* ZHE_MAX_URISPACE > 0 */
 
 #endif

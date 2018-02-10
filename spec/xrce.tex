@@ -950,14 +950,14 @@ applying a lot of declarations.
 ResultDecl = record {
   commitId: byte,
   status: byte,
-  id: case status of { 1 ... 255 -> nat }
+  id: case status of { 1 ... 254 -> nat }
 }
 \end{minted}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[commitId] the identifier of the commit for which this a result.
 \item[status] the result of the declaration, where zero represent a success while a non-zero value
-  represents an error.
+  represents an error (255 is excluded).
 \item[id] the optional id of a resource or selection included in the current transaction whose
   declaration failed.  The id field shall be omitted iff status = 0.
 \end{description}

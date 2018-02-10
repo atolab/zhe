@@ -1,6 +1,6 @@
 #include "zhe-bitset.h"
 
-unsigned zhe_popcnt8(uint8_t x)
+static unsigned zhe_popcnt8(uint8_t x)
 {
     unsigned n = 0;
     for (n = 0; x; n++) {
@@ -47,4 +47,20 @@ int zhe_bitset_findfirst(const uint8_t *s, unsigned size)
         }
     }
     return -1;
+}
+
+void zhe_bitset_iter_init(bitset_iter_t *it, const uint8_t *s, unsigned size)
+{
+    it->s = s;
+    it->size = size;
+    it->cursor = 0;
+}
+
+bool zhe_bitset_iter_next(bitset_iter_t *it, unsigned *idx)
+{
+    while (it->cursor < it->size && !zhe_bitset_test(it->s, it->cursor)) {
+        it->cursor++;
+    }
+    *idx = it->cursor;
+    return it->cursor++ < it->size;
 }

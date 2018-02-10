@@ -55,3 +55,9 @@ dkms.conf
 build/
 zhe.xcodeproj/project.xcworkspace/xcuserdata/
 zhe.xcodeproj/xcuserdata/
+
+#
+gen/
+bin/
+lib/
+*.ino

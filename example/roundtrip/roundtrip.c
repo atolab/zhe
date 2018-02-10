@@ -13,7 +13,7 @@
 
 #include "zhe-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 
-#include "testlib.h"
+#include "zhe-util.h"
 
 struct data {
     uint64_t ts;

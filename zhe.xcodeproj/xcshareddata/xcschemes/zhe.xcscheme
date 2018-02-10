@@ -80,7 +80,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-sq"
+            argument = "-pqw"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
