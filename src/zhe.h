@@ -49,9 +49,7 @@ void zhe_housekeeping(zhe_time_t tnow);
 int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow);
 void zhe_flush(void);
 
-bool zhe_rid_in_use_anonymously(zhe_rid_t rid);
 bool zhe_declare_resource(zhe_rid_t rid, const char *uri);
-void zhe_update_subs_for_resource_decl(zhe_rid_t rid);
 zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable);
 zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, zhe_subhandler_t handler, void *arg);
 

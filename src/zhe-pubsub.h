@@ -43,5 +43,7 @@ void zhe_send_declares(zhe_time_t tnow);
 
 void zhe_accept_peer_sched_hist_decls(peeridx_t peeridx);
 void zhe_reset_peer_unsched_hist_decls(peeridx_t peeridx);
+bool zhe_rid_in_use_anonymously(zhe_rid_t rid);
+void zhe_update_subs_for_resource_decl(zhe_rid_t rid);
 
 #endif
