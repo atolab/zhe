@@ -125,6 +125,15 @@ void zhe_decl_note_error_curpkt(uint8_t bitmask, zhe_rid_t rid)
     precommit_curpkt.result |= bitmask;
 }
 
+void zhe_decl_note_error_somepeer(peeridx_t peeridx, uint8_t bitmask, zhe_rid_t rid)
+{
+    ZT(PUBSUB, "decl_note_error_somepeer: peeridx %u mask %x rid %ju", peeridx, bitmask, (uintmax_t)rid);
+    if (precommit[peeridx].result == 0) {
+        precommit[peeridx].invalid_rid = rid;
+    }
+    precommit[peeridx].result |= bitmask;
+}
+
 void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
 {
 #if MAX_PEERS == 0
@@ -794,15 +803,15 @@ bool zhe_declare_resource(zhe_rid_t rid, const char *uri)
     } else {
         zhe_residx_t residx;
         const size_t urisz = strlen(uri);
-        const enum uristore_result res = zhe_uristore_store(&residx, URISTORE_PEERIDX_SELF, rid, (const uint8_t *)uri, urisz);
+        const enum uristore_result res = zhe_uristore_store(&residx, URISTORE_PEERIDX_SELF, rid, (const uint8_t *)uri, urisz, false);
         switch (res) {
             case USR_OK:
-#if MAX_PEERS > 0
+#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
                 zhe_update_subs_for_resource_decl(rid);
 #endif
-                /* FALLSTHROUGH */
-            case USR_DUPLICATE:
                 sched_fresh_declare(DIK_RESOURCE, residx);
+                return true;
+            case USR_DUPLICATE:
                 return true;
             case USR_AGAIN:
             case USR_INVALID:

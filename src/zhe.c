@@ -690,17 +690,20 @@ static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * c
             zhe_decl_note_error_curpkt(16, rid);
             return ZUR_OK;
         } else {
-            switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize)) {
+            peeridx_t loser;
+            switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize, true)) {
                 case USR_OK:
-                    /* all is well, continue happily */
-                    /* FIXME: shouldn't update subs here, but then, should also not commit the resources prematurely */
-#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
-                    zhe_update_subs_for_resource_decl(rid);
-#endif
-                    zhe_uristore_record_tentative(peeridx, idx);
+                    loser = zhe_uristore_record_tentative(peeridx, idx);
+                    if (loser == PEERIDX_INVALID) {
+                        /* no conflict */
+                    } else if (loser == peeridx) {
+                        zhe_decl_note_error_curpkt(32, rid); /* FIXME: need code for "try again" */
+                        *interpret = DIM_ABORT;
+                    } else {
+                        zhe_decl_note_error_somepeer(loser, 32, rid); /* FIXME: need code for "try again" */
+                    }
                     return ZUR_OK;
                 case USR_DUPLICATE:
-                    zhe_uristore_record_tentative(peeridx, idx);
                     return ZUR_OK;
                 case USR_AGAIN:
                     /* pretend we never received this declare message - trying again on retransmit */

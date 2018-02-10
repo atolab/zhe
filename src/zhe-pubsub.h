@@ -27,6 +27,7 @@
 #define WC_DSUB_SIZE        (2 + WC_RID_SIZE) /* sub: header, rid, mode (neither properties nor periodic modes) */
 
 void zhe_decl_note_error_curpkt(uint8_t bitmask, zhe_rid_t rid);
+void zhe_decl_note_error_somepeer(peeridx_t peeridx, uint8_t bitmask, zhe_rid_t rid);
 int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *pay);
 #if ZHE_MAX_URISPACE > 0
 int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysize_t paysz, const void *pay);

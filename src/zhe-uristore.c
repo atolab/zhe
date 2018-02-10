@@ -10,6 +10,10 @@
 #include "zhe-uristore.h"
 #include "zhe-uri.h"
 
+/* FIXME: get rid of these two -- or at least pubsub.h? */
+#include "zhe-int.h"
+#include "zhe-pubsub.h"
+
 #if ZHE_MAX_URISPACE > 0
 
 static union {
@@ -22,6 +26,8 @@ struct restable {
     uripos_t uripos;
     uint8_t reliable: 1;
     uint8_t transient: 1;
+    uint8_t committed: 1; /* equivalent to (tentative == INVALID || count(peers) > 1), i.e., whether it has been committed */
+    peeridx_t tentative; /* INVALID if not tentative, else index of "owning" peer */
     DECL_BITSET(peers, MAX_PEERS_1 + 1); /* self is MAX_PEERS_1, tracks which peers have declared this resource */
 };
 static zhe_residx_t nres; /* number of known URIs */
@@ -37,6 +43,7 @@ void zhe_uristore_init(void)
     zhe_icgcb_init(&uris.b, sizeof(uris));
     memset(&ress, 0, sizeof(ress));
     for (zhe_residx_t i = 0; i < ZHE_MAX_RESOURCES; i++) {
+        ress[i].tentative = PEERIDX_INVALID;
         rid2idx[i] = i;
     }
     nres = 0;
@@ -91,7 +98,7 @@ static int rid2idx_cmp(const void *va, const void *vb)
     return (ress[*a].rid == ress[*b].rid) ? 0 : (ress[*a].rid < ress[*b].rid) ? -1 : 1;
 }
 
-enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in)
+enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in, bool tentative)
 {
     zhe_assert(peeridx <= MAX_PEERS_1); /* MAX_PEERS_1 is self */
     if (!zhe_urivalid(uri, urilen_in)) {
@@ -106,9 +113,16 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
         ZT(PUBSUB, "uristore_store: check against %u %*.*s", (unsigned)idx, (int)sz, (int)sz, (char*)uris.store + ress[idx].uripos);
         if (sz == urilen && memcmp(uri, uris.store + ress[idx].uripos, urilen) == 0) {
             ZT(PUBSUB, "uristore_store: match");
-            zhe_bitset_set(ress[idx].peers, peeridx);
             *res_idx = idx;
-            return USR_DUPLICATE;
+            if (zhe_bitset_test(ress[idx].peers, peeridx)) {
+                return USR_DUPLICATE;
+            } else {
+                zhe_bitset_set(ress[idx].peers, peeridx);
+                if (!tentative) {
+                    ress[idx].committed = 1;
+                }
+                return USR_OK;
+            }
         } else {
             ZT(PUBSUB, "uristore_store: mismatch");
             return USR_MISMATCH;
@@ -131,6 +145,7 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
         }
         ress[free_idx].rid = rid;
         ress[free_idx].uripos = (uripos_t)((uint8_t *)ptr - uris.store);
+        ress[free_idx].committed = !tentative;
         ress[free_idx].transient = 0;
         ress[free_idx].reliable = 1;
         memset(ress[free_idx].peers, 0, sizeof(ress[free_idx].peers));
@@ -155,8 +170,16 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
 static void zhe_uristore_drop_idx(peeridx_t peeridx, zhe_residx_t rid2idx_idx)
 {
     const zhe_residx_t idx = rid2idx[rid2idx_idx];
+    unsigned count;
     zhe_bitset_clear(ress[idx].peers, peeridx);
-    if (zhe_bitset_count(ress[idx].peers, MAX_PEERS_1 + 1) == 0) {
+    count = zhe_bitset_count(ress[idx].peers, MAX_PEERS_1 + 1);
+    if (ress[idx].tentative == peeridx) {
+        ress[idx].tentative = PEERIDX_INVALID;
+    }
+    if (ress[idx].tentative != PEERIDX_INVALID && count == 1) {
+        ress[idx].committed = 0;
+    }
+    if (count == 0) {
         ZT(PUBSUB, "uristore_reset_peer: drop %ju", (uintmax_t)ress[idx].rid);
         zhe_icgcb_free(&uris.b, uris.store + ress[idx].uripos);
         ress[idx].rid = 0;
@@ -176,7 +199,7 @@ void zhe_uristore_drop(peeridx_t peeridx, zhe_rid_t rid)
 bool zhe_uristore_geturi_for_idx(zhe_residx_t idx, zhe_rid_t *rid, zhe_paysize_t *sz, const uint8_t **uri, bool *islocal)
 {
     const struct restable * const r = &ress[idx];
-    if (r->rid == 0) {
+    if (r->rid == 0 || !r->committed) {
         return false;
     } else {
         *rid = r->rid;
@@ -228,8 +251,6 @@ bool zhe_uristore_getidx_for_rid(zhe_rid_t rid, zhe_residx_t *idx)
 
 void zhe_uristore_reset_peer(peeridx_t peeridx)
 {
-    /* FIXME: find a better way */
-    zhe_uristore_abort_tentative(peeridx);
     zhe_residx_t i = 0;
     while (i < nres) {
         const zhe_residx_t idx = rid2idx[i];
@@ -256,20 +277,62 @@ zhe_residx_t zhe_uristore_nres(void)
     return nres;
 }
 
-enum icgcb_alloc_result zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx)
+peeridx_t zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx)
 {
-    /* FIXME: obviously something's missing here */
-    return IAR_OK;
+    if (peeridx == ress[idx].tentative) {
+        /* same peer again: that's no problem */
+        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: repeat", (unsigned)peeridx, (unsigned)idx);
+        return PEERIDX_INVALID;
+    } else if (ress[idx].tentative == PEERIDX_INVALID) {
+        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: currently not tentative", (unsigned)peeridx, (unsigned)idx);
+        ress[idx].tentative = peeridx;
+        return PEERIDX_INVALID;
+    } else {
+        /* currently tentative for some peer, one with the lowest peer id (not index) wins */
+        peeridx_t loser;
+        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: tentative for peeridx %u", (unsigned)peeridx, (unsigned)idx, (unsigned)ress[idx].tentative);
+        if (zhe_compare_peer_ids_for_peeridx(peeridx, ress[idx].tentative) < 0) {
+            /* old one doesn't count anymore ... note error for old one so that it will get a "try again" response */
+            ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: taking over", (unsigned)peeridx, (unsigned)idx);
+            loser = ress[idx].tentative;
+            ress[idx].tentative = peeridx;
+        } else {
+            ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: losing", (unsigned)peeridx, (unsigned)idx);
+            loser = peeridx;
+        }
+        zhe_bitset_clear(ress[idx].peers, loser);
+        return loser;
+    }
 }
 
 void zhe_uristore_abort_tentative(peeridx_t peeridx)
 {
-    /* FIXME: obviously something's missing here */
+    zhe_residx_t i = 0;
+    while (i < nres) {
+        const zhe_residx_t idx = rid2idx[i];
+        if (ress[idx].tentative == peeridx) {
+            zhe_uristore_drop_idx(peeridx, i);
+        } else {
+            i++;
+        }
+    }
 }
 
 void zhe_uristore_commit_tentative(peeridx_t peeridx)
 {
-    /* FIXME: obviously something's missing here */
+    for (zhe_residx_t i = 0; i < nres; i++) {
+        const zhe_residx_t idx = rid2idx[i];
+        if (ress[idx].tentative == peeridx) {
+            ress[idx].tentative = PEERIDX_INVALID;
+            if (!ress[idx].committed) {
+                ress[idx].committed = 1;
+#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
+                /* FIXME: trying so hard to keep uristore free of strange dependencies, this call shouldn't be here */
+                zhe_update_subs_for_resource_decl(ress[idx].rid);
+#endif
+            }
+        }
+    }
 }
 
 #endif /* ZHE_MAX_URISPACE > 0 */
