@@ -627,34 +627,55 @@ static int send_declare_commit(struct out_conduit *oc, uint8_t commitid, zhe_tim
     }
 }
 
-static struct out_conduit *zhe_send_declares1(zhe_time_t tnow, const cursoridx_t cursoridx)
+static bool zhe_send_declares1(zhe_time_t tnow, const cursoridx_t cursoridx, struct out_conduit **commit_oc)
 {
+    peeridx_t peeridx;
+    cid_t cid;
+    bool committed;
     zhe_assert(cursoridx == MULTICAST_CURSORIDX || cursoridx < MAX_PEERS_1);
+    if (cursoridx == MULTICAST_CURSORIDX) {
+        committed = false;
+        peeridx = 0;
 #if HAVE_UNICAST_CONDUIT
-    struct out_conduit * const oc = (cursoridx == MULTICAST_CURSORIDX) ? zhe_out_conduit_from_cid(0, 0) : zhe_out_conduit_from_cid(cursoridx, UNICAST_CID);
+        cid = UNICAST_CID;
 #else
-    struct out_conduit * const oc = (cursoridx == MULTICAST_CURSORIDX) ? zhe_out_conduit_from_cid(0, 0) : zhe_out_conduit_from_cid(cursoridx, 0);
+        cid = 0;
 #endif
-    const bool committed = (cursoridx != MULTICAST_CURSORIDX);
-    int done = 0;
-    enum declitem_kind kind;
-    kind = DECLITEM_KIND_FIRST;
-    do {
-        declitem_idx_t *idx = &pending_decls.cursor[cursoridx][kind];
-        if (*idx == DECLITEM_IDX_INVALID) {
-            done++;
-        } else {
-            //ZT(PUBSUB, "send_declares_1 cursoridx %u kind %u idx %u cid %u", (unsigned)cursoridx, (unsigned)kind, (unsigned)idx, (unsigned)zhe_oc_get_cid(oc));
-            switch (kind) {
+    } else {
+        committed = true;
+        peeridx = 0;
+        cid = 0;
+    }
+    struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, cid);
+    if (!zhe_out_conduit_is_connected(peeridx, cid)) {
+        enum declitem_kind kind;
+        kind = DECLITEM_KIND_FIRST;
+        do {
+            pending_decls.cursor[cursoridx][kind] = DECLITEM_IDX_INVALID;
+        } while (kind ++ != DECLITEM_KIND_LAST);
+        *commit_oc = NULL;
+        return true;
+    } else {
+        int done = 0;
+        enum declitem_kind kind;
+        kind = DECLITEM_KIND_FIRST;
+        do {
+            declitem_idx_t *idx = &pending_decls.cursor[cursoridx][kind];
+            if (*idx == DECLITEM_IDX_INVALID) {
+                done++;
+            } else {
+                switch (kind) {
 #if ZHE_MAX_URISPACE > 0
-                case DIK_RESOURCE:     send_declare_resource(oc, idx, committed, tnow); break;
+                    case DIK_RESOURCE:     send_declare_resource(oc, idx, committed, tnow); break;
 #endif
-                case DIK_PUBLICATION:  send_declare_pub(oc, idx, committed, tnow); break;
-                case DIK_SUBSCRIPTION: send_declare_sub(oc, idx, committed, tnow); break;
+                    case DIK_PUBLICATION:  send_declare_pub(oc, idx, committed, tnow); break;
+                    case DIK_SUBSCRIPTION: send_declare_sub(oc, idx, committed, tnow); break;
+                }
             }
-        }
-    } while (kind++ != DECLITEM_KIND_LAST);
-    return (done == N_DECLITEM_KINDS) ? oc : NULL;
+        } while (kind++ != DECLITEM_KIND_LAST);
+        *commit_oc = oc;
+        return (done == N_DECLITEM_KINDS);
+    }
 }
 
 void zhe_send_declares(zhe_time_t tnow)
@@ -672,11 +693,11 @@ void zhe_send_declares(zhe_time_t tnow)
             }
 #endif
         } else {
-            if ((commit_oc = zhe_send_declares1(tnow, pending_decls.peers[pending_decls.pos])) == NULL) {
+            if (!zhe_send_declares1(tnow, pending_decls.peers[pending_decls.pos], &commit_oc)) {
                 if (++pending_decls.pos == pending_decls.cnt) {
                     pending_decls.pos = 0;
                 }
-            } else if (fresh && !send_declare_commit(commit_oc, gcommitid, tnow)) {
+            } else if (fresh && commit_oc != NULL && !send_declare_commit(commit_oc, gcommitid, tnow)) {
                 if (++pending_decls.pos == pending_decls.cnt) {
                     pending_decls.pos = 0;
                 }
@@ -687,7 +708,9 @@ void zhe_send_declares(zhe_time_t tnow)
                             zhe_bitset_set(decl_results.waiting, peeridx);
                         }
                     }
-                    gcommitid++;
+                    if (commit_oc != NULL) {
+                        gcommitid++;
+                    }
                 }
                 pending_decls.peers[pending_decls.pos] = pending_decls.peers[--pending_decls.cnt];
                 if (pending_decls.pos == pending_decls.cnt) {
