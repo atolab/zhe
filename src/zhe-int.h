@@ -20,6 +20,7 @@ struct peerid {
 };
 
 bool zhe_established_peer(peeridx_t peeridx);
+int zhe_compare_peer_ids_for_peeridx(peeridx_t a, peeridx_t b);
 int zhe_xmitw_hasspace(const struct out_conduit *c, zhe_paysize_t sz);
 void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t cnt, zhe_time_t tnow);
 void zhe_pack1(uint8_t x);

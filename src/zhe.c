@@ -207,6 +207,16 @@ bool zhe_established_peer(peeridx_t peeridx)
     return peers[peeridx].state == PEERST_ESTABLISHED;
 }
 
+int zhe_compare_peer_ids_for_peeridx(peeridx_t a, peeridx_t b)
+{
+    /* if a.id is a prefix of b.id, a precedes b */
+    zhe_assert(peers[a].state != PEERST_UNKNOWN && peers[b].state != PEERST_UNKNOWN);
+    const zhe_paysize_t asz = peers[a].id.len;
+    const zhe_paysize_t bsz = peers[b].id.len;
+    const int c = memcmp(peers[a].id.id, peers[b].id.id, (asz <= bsz) ? asz : bsz);
+    return (c != 0) ? c : (asz == bsz) ? 0 : (asz < bsz) ? -1 : 1;
+}
+
 static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
 {
     struct peer * const p = &peers[peeridx];
