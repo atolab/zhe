@@ -208,25 +208,25 @@ void zhe_rsub_commit(peeridx_t peeridx)
             for (zhe_pubidx_t pubidx = (zhe_pubidx_t){ 0 }; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
                 /* FIXME: can/should cache URI for "rid" */
 #if ZHE_MAX_URISPACE == 0
-                    if (pubs[pubidx.idx].rid == rid) {
-                        if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
-                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
-                        }
-                        zhe_bitset_set(pubs_rsubs, pubidx.idx);
-                        break;
+                if (pubs[pubidx.idx].rid == rid) {
+                    if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
+                        ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                     }
-#else
-                    if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
-                        if (pubs_rsubcounts[pubidx.idx] == 0) {
-                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
-                        }
-                        pubs_rsubcounts[pubidx.idx]++;
-                        ZT(DEBUG, "rsub_commit: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
-                    }
-#endif
+                    zhe_bitset_set(pubs_rsubs, pubidx.idx);
+                    break;
                 }
+#else
+                if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
+                    if (pubs_rsubcounts[pubidx.idx] == 0) {
+                        ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                    }
+                    pubs_rsubcounts[pubidx.idx]++;
+                    ZT(DEBUG, "rsub_commit: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
+                }
+#endif
             }
         }
+    }
 #endif
     zhe_rsub_precommit_curpkt_abort(peeridx);
 }
@@ -271,18 +271,18 @@ void zhe_rsub_clear(peeridx_t peeridx)
     unsigned rid; /* FIXME: typing - but even more the use of a RID-index bitset! */
     zhe_bitset_iter_init(&it, peers_rsubs[peeridx].rsubs, ZHE_MAX_RID+1);
     while (zhe_bitset_iter_next(&it, &rid)) {
-                zhe_pubidx_t pubidx;
-                for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
-                    /* FIXME: can/should cache URI for "rid" */
-                    if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
-                        pubs_rsubcounts[pubidx.idx]--;
-                        if (pubs_rsubcounts[pubidx.idx] == 0) {
-                            ZT(PUBSUB, "pub %u rid %ju: no more remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
-                        }
-                        ZT(DEBUG, "zhe_rsub_clear: pub %u rid %ju: rsubcounts now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]--);
-                    }
+        zhe_pubidx_t pubidx;
+        for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
+            /* FIXME: can/should cache URI for "rid" */
+            if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
+                pubs_rsubcounts[pubidx.idx]--;
+                if (pubs_rsubcounts[pubidx.idx] == 0) {
+                    ZT(PUBSUB, "pub %u rid %ju: no more remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                 }
+                ZT(DEBUG, "zhe_rsub_clear: pub %u rid %ju: rsubcounts now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]--);
             }
+        }
+    }
     memset(&peers_rsubs[peeridx], 0, sizeof(peers_rsubs[peeridx]));
 #endif
     memset(&precommit[peeridx], 0, sizeof(precommit[peeridx]));
