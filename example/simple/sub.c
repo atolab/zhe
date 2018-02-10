@@ -37,8 +37,6 @@ int main(int argc, char* argv[]) {
     zhe_paysize_t ownidsize;
     struct zhe_config cfg;
 
-    int opt;
-    int mode = 0;
     unsigned cid = 0;
 
     init_rnd();

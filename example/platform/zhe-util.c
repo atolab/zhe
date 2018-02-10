@@ -26,7 +26,7 @@ void zhe_loop(struct zhe_platform *platform, uint64_t period)
 
 void zhe_once(struct zhe_platform *platform, uint64_t delay)
 {
-    zhe_time_t tnow = zhe_platform_time(), tend = tnow + (delay / ZHE_TIMEBASE);
+    zhe_time_t tnow = zhe_platform_time(), tend = tnow + (zhe_time_t)(delay / ZHE_TIMEBASE);
     while ((zhe_timediff_t)(tnow - tend) < 0) {
         zhe_housekeeping(tnow);
         if (zhe_platform_wait(platform, 10)) {
