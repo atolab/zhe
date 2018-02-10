@@ -1402,6 +1402,9 @@ static zhe_unpack_result_t handle_mdeclare(peeridx_t peeridx, const uint8_t * co
                 ZT(PUBSUB, "handle_mdeclare %u .. C flag set", peeridx);
                 if ((commitres = zhe_rsub_precommit(peeridx, &err_rid)) == 0) {
                     zhe_rsub_commit(peeridx);
+#if ZHE_MAX_URISPACE > 0
+                    zhe_uristore_commit_tentative(peeridx);
+#endif
                 }
                 if (commitres != 0) {
                     ZT(PUBSUB, "handle_mdeclare %u .. commit failed, close", peeridx);
