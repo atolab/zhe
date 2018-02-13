@@ -43,7 +43,7 @@ test-configs: $(addprefix test/build.configs/throughput-, $(notdir $(wildcard ex
 test/build.configs/throughput-%: test/build.configs/.STAMP $(SRC_throughput) 
 	$(CC) -Iexample/configs/$* $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(wordlist 2, 999, $^) -o $@
 
-%:
+bin/%: | bin/.STAMP
 	$(CC) $(LDFLAGS) $^ -o $@
 
 gen/%.o: %.c gen/.STAMP
