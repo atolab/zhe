@@ -667,7 +667,7 @@ static const char *decl_intp_mode_str(enum declaration_interpretation_mode m)
 }
 #endif
 
-static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret, bool tentative)
 {
     zhe_unpack_result_t res;
     uint8_t hdr;
@@ -690,31 +690,35 @@ static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * c
             zhe_decl_note_error_curpkt(16, rid);
             return ZUR_OK;
         } else {
+            /* FIXME: when the C flag is set, there's no point in making it tentative (failure would force a disconnect anyway), while it does increases the risk of a failed transaction */
             peeridx_t loser;
-            switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize, true)) {
+            switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize, tentative, &loser)) {
                 case USR_OK:
-                    loser = zhe_uristore_record_tentative(peeridx, idx);
-                    if (loser == PEERIDX_INVALID) {
-                        /* no conflict */
+                    if (!tentative) {
+#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
+                        zhe_update_subs_for_resource_decl(rid);
+#endif
                     } else if (loser == peeridx) {
-                        zhe_decl_note_error_curpkt(32, rid); /* FIXME: need code for "try again" */
+                        zhe_decl_note_error_curpkt(ZHE_DECL_AGAIN, rid);
                         *interpret = DIM_ABORT;
-                    } else {
-                        zhe_decl_note_error_somepeer(loser, 32, rid); /* FIXME: need code for "try again" */
+                    } else if (loser != PEERIDX_INVALID) {
+                        zhe_decl_note_error_somepeer(loser, ZHE_DECL_AGAIN, rid);
                     }
                     return ZUR_OK;
                 case USR_DUPLICATE:
                     return ZUR_OK;
                 case USR_AGAIN:
-                    /* pretend we never received this declare message - trying again on retransmit */
+                    /* pretend we never received this declare message - trying again on retransmit (this one should clear quickly because it only involves local GC) */
                     *interpret = DIM_ABORT;
                     return ZUR_OK;
                 case USR_NOSPACE:
+                    zhe_decl_note_error_curpkt(ZHE_DECL_NOSPACE, rid);
+                    return ZUR_OK;
                 case USR_MISMATCH:
-                case USR_OVERSIZE:
+                    zhe_decl_note_error_curpkt(ZHE_DECL_CONFLICT, rid);
+                    return ZUR_OK;
                 case USR_INVALID:
-                    /* note an error so that a COMMIT will result in a RESULT with an error code */
-                    zhe_decl_note_error_curpkt(16, rid);
+                    zhe_decl_note_error_curpkt(ZHE_DECL_INVALID, rid);
                     return ZUR_OK;
             }
         }
@@ -738,7 +742,7 @@ static zhe_unpack_result_t handle_dpub(peeridx_t peeridx, const uint8_t * const 
     return ZUR_OK;
 }
 
-static zhe_unpack_result_t handle_dsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
+static zhe_unpack_result_t handle_dsub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret, bool tentative)
 {
     zhe_unpack_result_t res;
     zhe_rid_t rid;
@@ -763,7 +767,7 @@ static zhe_unpack_result_t handle_dsub(peeridx_t peeridx, const uint8_t * const 
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
-        zhe_rsub_register(peeridx, rid, mode);
+        zhe_rsub_register(peeridx, rid, mode, tentative);
     }
     return ZUR_OK;
 }
@@ -784,7 +788,7 @@ static zhe_unpack_result_t handle_dselection(peeridx_t peeridx, const uint8_t * 
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
-        zhe_decl_note_error_curpkt(4, sid);
+        zhe_decl_note_error_curpkt(ZHE_DECL_UNSUPPORTED, sid);
     }
     return ZUR_OK;
 }
@@ -799,7 +803,7 @@ static zhe_unpack_result_t handle_dbindid(peeridx_t peeridx, const uint8_t * con
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
-        zhe_decl_note_error_curpkt(8, sid);
+        zhe_decl_note_error_curpkt(ZHE_DECL_UNSUPPORTED, sid);
     }
     return ZUR_OK;
 }
@@ -1355,9 +1359,9 @@ static zhe_unpack_result_t handle_mdeclare(peeridx_t peeridx, const uint8_t * co
     ZT(PUBSUB, "handle_mdeclare %p seq %u peeridx %u ndecls %u intp %s", data, seq, peeridx, ndecls, decl_intp_mode_str(intp));
     while (ndecls > 0 && *data < end && res == ZUR_OK) {
         switch (**data & DKIND) {
-            case DRESOURCE:   res = handle_dresource(peeridx, end, data, &intp); break;
+            case DRESOURCE:   res = handle_dresource(peeridx, end, data, &intp, !(hdr & MCFLAG)); break;
             case DPUB:        res = handle_dpub(peeridx, end, data, &intp); break;
-            case DSUB:        res = handle_dsub(peeridx, end, data, &intp); break;
+            case DSUB:        res = handle_dsub(peeridx, end, data, &intp, !(hdr & MCFLAG)); break;
             case DSELECTION:  res = handle_dselection(peeridx, end, data, &intp); break;
             case DBINDID:     res = handle_dbindid(peeridx, end, data, &intp); break;
             case DCOMMIT:     res = handle_dcommit(peeridx, end, data, &intp, tnow); break;
@@ -1400,14 +1404,8 @@ static zhe_unpack_result_t handle_mdeclare(peeridx_t peeridx, const uint8_t * co
                 uint8_t commitres;
                 zhe_rid_t err_rid;
                 ZT(PUBSUB, "handle_mdeclare %u .. C flag set", peeridx);
-                if ((commitres = zhe_rsub_precommit(peeridx, &err_rid)) == 0) {
-                    zhe_rsub_commit(peeridx);
-#if ZHE_MAX_URISPACE > 0
-                    zhe_uristore_commit_tentative(peeridx);
-#endif
-                }
-                if (commitres != 0) {
-                    ZT(PUBSUB, "handle_mdeclare %u .. commit failed, close", peeridx);
+                if ((commitres = zhe_rsub_precommit_status_for_Cflag(peeridx, &err_rid)) != 0) {
+                    ZT(PUBSUB, "handle_mdeclare %u .. failures noted, close", peeridx);
                     zhe_pack_mclose(&peers[peeridx].oc.addr, CLR_INCOMPAT_DECL, &ownid, tnow);
                     zhe_pack_msend();
                     reset_peer(peeridx, tnow);

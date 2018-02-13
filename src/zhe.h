@@ -45,14 +45,17 @@ struct zhe_config {
 
 /* numerical values also appear on the wire (with the exception of PENDING, which is disallowed on the wire but rather generated locally) */
 enum zhe_declstatus {
-    ZHE_DECL_OK       = 0,    /* all declarations sent & accepted */
-    ZHE_DECL_NOSPACE  = 1,    /* some peer rejected the set for a lack of memory (likely not temporary) */
-    ZHE_DECL_CONFLICT = 2,    /* some peer rejected the set because of conflicting definitions */
-    ZHE_DECL_TXNSIZE  = 3,    /* some peer rejected the set because it couldn't a transaction this large */
-    ZHE_DECL_AGAIN    = 4,    /* some peer rejected the set because of some (likely) temporary issue */
-    ZHE_DECL_OTHER    = 5,    /* some peer rejected the set for another reason */
-    ZHE_DECL_PENDING  = 255,  /* some declarations pending (locally declared, not yet accepted by all, but also no rejects) */
+    ZHE_DECL_OK          = 0,    /* all declarations sent & accepted */
+    ZHE_DECL_NOSPACE     = 1,    /* some peer rejected the set for a lack of memory (likely not temporary) */
+    ZHE_DECL_CONFLICT    = 2,    /* some peer rejected the set because of conflicting definitions */
+    ZHE_DECL_TXNSIZE     = 3,    /* some peer rejected the set because it couldn't a transaction this large */
+    ZHE_DECL_AGAIN       = 4,    /* some peer rejected the set because of some (likely) temporary issue */
+    ZHE_DECL_INVALID     = 5,    /* some peer rejected the set because it contains an declaration that is invalid by its rules */
+    ZHE_DECL_UNSUPPORTED = 6,    /* some peer rejected the set because it contains an unsupported declaration */
+    ZHE_DECL_OTHER       = 7,    /* some peer rejected the set for another reason */
+    ZHE_DECL_PENDING     = 255,  /* some declarations pending (locally declared, not yet accepted by all, but also no rejects) */
 };
+#define DRESULT_IS_VALID_DECLSTATUS(x) ((unsigned)(x) <= ZHE_DECL_OTHER)
 
 int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_t tnow);
 void zhe_start(zhe_time_t tnow);

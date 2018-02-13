@@ -28,7 +28,7 @@ struct restable {
     uint8_t transient: 1;
     uint8_t committed: 1; /* equivalent to (tentative == INVALID || count(peers) > 1), i.e., whether it has been committed */
     peeridx_t tentative; /* INVALID if not tentative, else index of "owning" peer */
-    DECL_BITSET(peers, MAX_PEERS_1 + 1); /* self is MAX_PEERS_1, tracks which peers have declared this resource */
+    DECL_BITSET(peers, MAX_PEERS_1 + 1); /* self is MAX_PEERS_1, tracks which peers have declared this resource, peers[tentative] is the only tentative one in the set, all others are committed */
 };
 static zhe_residx_t nres; /* number of known URIs */
 static struct restable ress[ZHE_MAX_RESOURCES]; /* contains nres entries where rid != 0 */
@@ -98,9 +98,101 @@ static int rid2idx_cmp(const void *va, const void *vb)
     return (ress[*a].rid == ress[*b].rid) ? 0 : (ress[*a].rid < ress[*b].rid) ? -1 : 1;
 }
 
-enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in, bool tentative)
+static peeridx_t zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx)
+{
+    if (peeridx == ress[idx].tentative) {
+        /* same peer again: that's no problem */
+        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: repeat", (unsigned)peeridx, (unsigned)idx);
+        return PEERIDX_INVALID;
+    } else if (ress[idx].tentative == PEERIDX_INVALID) {
+        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: currently not tentative", (unsigned)peeridx, (unsigned)idx);
+        ress[idx].tentative = peeridx;
+        return PEERIDX_INVALID;
+    } else {
+        /* currently tentative for some peer, one with the lowest peer id (not index) wins */
+        peeridx_t loser;
+        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: tentative for peeridx %u", (unsigned)peeridx, (unsigned)idx, (unsigned)ress[idx].tentative);
+        if (zhe_compare_peer_ids_for_peeridx(peeridx, ress[idx].tentative) < 0) {
+            /* old one doesn't count anymore ... note error for old one so that it will get a "try again" response */
+            ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: taking over", (unsigned)peeridx, (unsigned)idx);
+            loser = ress[idx].tentative;
+            ress[idx].tentative = peeridx;
+        } else {
+            ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: losing", (unsigned)peeridx, (unsigned)idx);
+            loser = peeridx;
+        }
+        zhe_bitset_clear(ress[idx].peers, loser);
+        return loser;
+    }
+}
+
+static enum uristore_result zhe_uristore_store_new(zhe_residx_t free_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, uripos_t urilen, bool tentative)
+{
+    void *ptr;
+    switch (zhe_icgcb_alloc(&ptr, &uris.b, urilen, free_idx)) {
+        case IAR_OK:
+            break;
+        case IAR_AGAIN:
+            ZT(PUBSUB, "uristore_store: again");
+            return USR_AGAIN;
+        case IAR_NOSPACE:
+            ZT(PUBSUB, "uristore_store: no space");
+            return USR_NOSPACE;
+    }
+    ress[free_idx].rid = rid;
+    ress[free_idx].uripos = (uripos_t)((uint8_t *)ptr - uris.store);
+    ress[free_idx].committed = !tentative;
+    ress[free_idx].tentative = tentative ? peeridx : PEERIDX_INVALID;
+    ress[free_idx].transient = 0;
+    ress[free_idx].reliable = 1;
+    memset(ress[free_idx].peers, 0, sizeof(ress[free_idx].peers));
+    zhe_bitset_set(ress[free_idx].peers, peeridx);
+    memcpy(ptr, uri, urilen);
+    const uint8_t *hash = memchr(uri, '#', urilen);
+    if (hash) {
+        if (hash[1] == '{') {
+            set_props_list(&ress[free_idx], hash+2, urilen - (size_t)(hash+2 - uri));
+        } else {
+            set_props_one(&ress[free_idx], hash+1, urilen - (size_t)(hash+1 - uri));
+        }
+    }
+    nres++;
+    qsort(rid2idx, nres, sizeof(rid2idx[0]), rid2idx_cmp);
+    ZT(PUBSUB, "uristore_store: ok, index %u", (unsigned)free_idx);
+    return USR_OK;
+}
+
+static enum uristore_result zhe_uristore_store_dup(zhe_residx_t idx, peeridx_t peeridx, bool tentative, peeridx_t *loser)
+{
+    const bool was_committed = ress[idx].committed;
+    const bool was_known_for_peer = zhe_bitset_test(ress[idx].peers, peeridx);
+    zhe_bitset_set(ress[idx].peers, peeridx);
+    if (tentative && was_known_for_peer) {
+        /* a tentative declaration for a resource already declared by this peer doesn't change the status and can be ignored */
+        return USR_DUPLICATE;
+    } else if (tentative) {
+        /* a new tentative declaration needs to be recorded, which may result in some peer (perhaps this one) losing its lock */
+        *loser = zhe_uristore_record_tentative(peeridx, idx);
+        return USR_OK;
+    } else {
+        /* a non-tentative declaration always clears a possible tentative one from the same peer, but is otherwise a no-op if it was already a committed definition */
+        if (ress[idx].tentative == peeridx) {
+            ress[idx].tentative = PEERIDX_INVALID;
+        }
+        if (was_committed) {
+            return USR_DUPLICATE;
+        } else {
+            ress[idx].committed = 1;
+            return USR_OK;
+        }
+    }
+}
+
+enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in, bool tentative, peeridx_t *loser)
 {
     zhe_assert(peeridx <= MAX_PEERS_1); /* MAX_PEERS_1 is self */
+    /* only have to set loser if tentative & result is OK, but initialising it always is actually simpler */
+    *loser = PEERIDX_INVALID;
     if (!zhe_urivalid(uri, urilen_in)) {
         return USR_INVALID;
     }
@@ -114,15 +206,7 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
         if (sz == urilen && memcmp(uri, uris.store + ress[idx].uripos, urilen) == 0) {
             ZT(PUBSUB, "uristore_store: match");
             *res_idx = idx;
-            if (zhe_bitset_test(ress[idx].peers, peeridx)) {
-                return USR_DUPLICATE;
-            } else {
-                zhe_bitset_set(ress[idx].peers, peeridx);
-                if (!tentative) {
-                    ress[idx].committed = 1;
-                }
-                return USR_OK;
-            }
+            return zhe_uristore_store_dup(idx, peeridx, tentative, loser);
         } else {
             ZT(PUBSUB, "uristore_store: mismatch");
             return USR_MISMATCH;
@@ -132,39 +216,9 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
         return USR_NOSPACE;
     } else {
         const zhe_residx_t free_idx = rid2idx[nres];
-        void *ptr;
-        switch (zhe_icgcb_alloc(&ptr, &uris.b, urilen, free_idx)) {
-            case IAR_OK:
-                break;
-            case IAR_AGAIN:
-                ZT(PUBSUB, "uristore_store: again");
-                return USR_AGAIN;
-            case IAR_NOSPACE:
-                ZT(PUBSUB, "uristore_store: no space");
-                return USR_NOSPACE;
-        }
-        ress[free_idx].rid = rid;
-        ress[free_idx].uripos = (uripos_t)((uint8_t *)ptr - uris.store);
-        ress[free_idx].committed = !tentative;
-        ress[free_idx].transient = 0;
-        ress[free_idx].reliable = 1;
-        memset(ress[free_idx].peers, 0, sizeof(ress[free_idx].peers));
-        zhe_bitset_set(ress[free_idx].peers, peeridx);
-        memcpy(ptr, uri, urilen_in);
-        const uint8_t *hash = memchr(uri, '#', urilen_in);
-        if (hash) {
-            if (hash[1] == '{') {
-                set_props_list(&ress[free_idx], hash+2, urilen_in - (size_t)(hash+2 - uri));
-            } else {
-                set_props_one(&ress[free_idx], hash+1, urilen_in - (size_t)(hash+1 - uri));
-            }
-        }
-        nres++;
-        qsort(rid2idx, nres, sizeof(rid2idx[0]), rid2idx_cmp);
         *res_idx = free_idx;
-        ZT(PUBSUB, "uristore_store: ok, index %u", (unsigned)free_idx);
+        return zhe_uristore_store_new(free_idx, peeridx, rid, uri, urilen, tentative);
     }
-    return USR_OK;
 }
 
 static void zhe_uristore_drop_idx(peeridx_t peeridx, zhe_residx_t rid2idx_idx)
@@ -275,34 +329,6 @@ void zhe_uristore_gc(void)
 zhe_residx_t zhe_uristore_nres(void)
 {
     return nres;
-}
-
-peeridx_t zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx)
-{
-    if (peeridx == ress[idx].tentative) {
-        /* same peer again: that's no problem */
-        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: repeat", (unsigned)peeridx, (unsigned)idx);
-        return PEERIDX_INVALID;
-    } else if (ress[idx].tentative == PEERIDX_INVALID) {
-        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: currently not tentative", (unsigned)peeridx, (unsigned)idx);
-        ress[idx].tentative = peeridx;
-        return PEERIDX_INVALID;
-    } else {
-        /* currently tentative for some peer, one with the lowest peer id (not index) wins */
-        peeridx_t loser;
-        ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: tentative for peeridx %u", (unsigned)peeridx, (unsigned)idx, (unsigned)ress[idx].tentative);
-        if (zhe_compare_peer_ids_for_peeridx(peeridx, ress[idx].tentative) < 0) {
-            /* old one doesn't count anymore ... note error for old one so that it will get a "try again" response */
-            ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: taking over", (unsigned)peeridx, (unsigned)idx);
-            loser = ress[idx].tentative;
-            ress[idx].tentative = peeridx;
-        } else {
-            ZT(PUBSUB, "zhe_uristore_record_tentative: peeridx %u residx %u: losing", (unsigned)peeridx, (unsigned)idx);
-            loser = peeridx;
-        }
-        zhe_bitset_clear(ress[idx].peers, loser);
-        return loser;
-    }
 }
 
 void zhe_uristore_abort_tentative(peeridx_t peeridx)

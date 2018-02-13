@@ -41,7 +41,6 @@ static zhe_subidx_t max_subidx;
 #define RID2SUB_RID(elem) ((elem).rid)
 MAKE_PACKAGE_SPEC(SIMPLESET, (static, zhe_rid2sub, zhe_rid_t, struct rid2subtable, zhe_subidx_t, ZHE_MAX_SUBSCRIPTIONS), type)
 MAKE_PACKAGE_BODY(SIMPLESET, (static, zhe_rid2sub, zhe_rid_t, struct rid2subtable, zhe_subidx_t, .idx, RID2SUB_RID_CMP, RID2SUB_RID, ZHE_MAX_SUBSCRIPTIONS), init, search, insert)
-
 static zhe_rid2sub_t rid2sub;
 
 #if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
@@ -71,11 +70,34 @@ static zhe_rsubcount_t pubs_rsubcounts[ZHE_MAX_PUBLICATIONS];
 static DECL_BITSET(pubs_rsubs, ZHE_MAX_PUBLICATIONS);
 #endif
 
+#if MAX_PEERS > 0
+typedef struct {
+#if ZHE_MAX_SUBSCRIPTIONS_PER_PEER <= UINT8_MAX
+    uint8_t rididx;
+#elif ZHE_MAX_SUBSCRIPTIONS_PER_PEER <= UINT16_MAX
+    uint16_t rididx;
+#elif ZHE_MAX_SUBSCRIPTIONS_PER_PEER <= UINT32_MAX
+    uint32_t rididx;
+#elif ZHE_MAX_SUBSCRIPTIONS_PER_PEER <= UINT64_MAX
+    uint64_t rididx;
+#endif
+} zhe_rsubidx_t;
+#define RID_CMP(key, elem) ((key) == (elem) ? 0 : ((key) < (elem) ? -1 : 1))
+#define RID_RID(elem) ((elem))
+MAKE_PACKAGE_SPEC(SIMPLESET, (static, zhe_ridtable, zhe_rid_t, zhe_rid_t, zhe_rsubidx_t, ZHE_MAX_SUBSCRIPTIONS_PER_PEER), type, iter_type)
+MAKE_PACKAGE_BODY(SIMPLESET, (static, zhe_ridtable, zhe_rid_t, zhe_rid_t, zhe_rsubidx_t, .rididx, RID_CMP, RID_RID, ZHE_MAX_SUBSCRIPTIONS_PER_PEER), search, count, insert, iter_init, iter_next)
+#if ZHE_MAX_URISPACE == 0
+MAKE_PACKAGE_BODY(SIMPLESET, (static, zhe_ridtable, zhe_rid_t, zhe_rid_t, zhe_rsubidx_t, .rididx, RID_CMP, RID_RID, ZHE_MAX_SUBSCRIPTIONS_PER_PEER), contains)
+#endif
+#endif
+
+/* FIXME: at some point #rsubs in precommit + #rsubs in peers_rsubs get added and limited, but as overlap between the two sets is allowed, it can reject a valid declaration */
+
 struct precommit {
 #if MAX_PEERS == 0
     DECL_BITSET(rsubs, ZHE_MAX_PUBLICATIONS);
 #else
-    DECL_BITSET(rsubs, ZHE_MAX_RID+1);
+    zhe_ridtable_t rsubs; /* FIXME: this should be limited by accepting a limited transaction size */
 #endif
     uint8_t result;
     zhe_rid_t invalid_rid;
@@ -83,13 +105,31 @@ struct precommit {
 
 #if MAX_PEERS > 0
 struct peer_rsubs {
-    DECL_BITSET(rsubs, ZHE_MAX_RID+1);
+    zhe_ridtable_t rsubs;
 };
 static struct peer_rsubs peers_rsubs[MAX_PEERS];
 #endif
 
 static struct precommit precommit[MAX_PEERS_1];
 static struct precommit precommit_curpkt;
+
+#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
+static bool pub_sub_match(zhe_rid_t a, zhe_rid_t b)
+{
+    /* Matching is symmetric */
+    if (a == b) {
+        return true;
+    } else {
+        zhe_paysize_t asz, bsz;
+        const uint8_t *auri, *buri;
+        if (!zhe_uristore_geturi_for_rid(a, &asz, &auri) || !zhe_uristore_geturi_for_rid(b, &bsz, &buri)) {
+            return false;
+        } else {
+            return zhe_urimatch(auri, asz, buri, bsz);
+        }
+    }
+}
+#endif
 
 void zhe_pubsub_init(void)
 {
@@ -116,25 +156,86 @@ void zhe_pubsub_init(void)
     memset(precommit, 0, sizeof(precommit));
 }
 
-void zhe_decl_note_error_curpkt(uint8_t bitmask, zhe_rid_t rid)
+void zhe_decl_note_error_curpkt(enum zhe_declstatus status, zhe_rid_t rid)
 {
-    ZT(PUBSUB, "decl_note_error: mask %x rid %ju", bitmask, (uintmax_t)rid);
-    if (precommit_curpkt.result == 0) {
+    zhe_assert(status != ZHE_DECL_OK && (unsigned)status < UINT8_MAX);
+    ZT(PUBSUB, "decl_note_error: status %u rid %ju", (unsigned)status, (uintmax_t)rid);
+    if (precommit_curpkt.result == (uint8_t)ZHE_DECL_OK || precommit_curpkt.result == (uint8_t)ZHE_DECL_AGAIN) {
         precommit_curpkt.invalid_rid = rid;
+        precommit_curpkt.result = (uint8_t)status;
     }
-    precommit_curpkt.result |= bitmask;
 }
 
-void zhe_decl_note_error_somepeer(peeridx_t peeridx, uint8_t bitmask, zhe_rid_t rid)
+void zhe_decl_note_error_somepeer(peeridx_t peeridx, enum zhe_declstatus status, zhe_rid_t rid)
 {
-    ZT(PUBSUB, "decl_note_error_somepeer: peeridx %u mask %x rid %ju", peeridx, bitmask, (uintmax_t)rid);
-    if (precommit[peeridx].result == 0) {
+    zhe_assert(status != ZHE_DECL_OK && (unsigned)status < UINT8_MAX);
+    ZT(PUBSUB, "decl_note_error_somepeer: peeridx %u status %u rid %ju", (unsigned)peeridx, (unsigned)status, (uintmax_t)rid);
+    if (precommit[peeridx].result == (uint8_t)ZHE_DECL_OK || precommit[peeridx].result == (uint8_t)ZHE_DECL_AGAIN) {
         precommit[peeridx].invalid_rid = rid;
+        precommit[peeridx].result = (uint8_t)status;
     }
-    precommit[peeridx].result |= bitmask;
 }
 
-void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
+static void rsub_register_committed(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
+{
+    ZT(PUBSUB, "zhe_rsub_register_committed peeridx %u rid %ju", peeridx, (uintmax_t)rid);
+#if MAX_PEERS == 0
+    zhe_pubidx_t pubidx;
+    zhe_assert(rid != 0);
+    for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
+        if (pubs[pubidx.idx].rid == rid) {
+            break;
+        }
+    }
+    if (submode != SUBMODE_PUSH) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_UNSUPPORTED, rid);
+    } else if (pubidx.idx >= ZHE_MAX_PUBLICATIONS) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_INVALID, rid);
+    } else {
+        zhe_bitset_set(pubs_rsubs, pubidx.idx);
+    }
+#else
+    if (submode != SUBMODE_PUSH) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_UNSUPPORTED, rid);
+    } else if (rid >= ZHE_MAX_RID) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_INVALID, rid);
+    } else {
+        switch (zhe_ridtable_insert(&peers_rsubs[peeridx].rsubs, rid)) {
+            case SSIR_EXISTS:
+                ZT(PUBSUB, "zhe_rsub_register_committed rid %ju - already known", (uintmax_t)rid);
+                break;
+            case SSIR_NOSPACE:
+                zhe_decl_note_error_curpkt(ZHE_DECL_NOSPACE, rid);
+                break;
+            case SSIR_SUCCESS:
+                ZT(PUBSUB, "zhe_rsub_register_committed rid %ju - adding", (uintmax_t)rid);
+                for (zhe_pubidx_t pubidx = (zhe_pubidx_t){ 0 }; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
+                    /* FIXME: can/should cache URI for "rid" */
+#if ZHE_MAX_URISPACE == 0
+                    if (pubs[pubidx.idx].rid == rid) {
+                        if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
+                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                        }
+                        zhe_bitset_set(pubs_rsubs, pubidx.idx);
+                        break;
+                    }
+#else
+                    if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
+                        if (pubs_rsubcounts[pubidx.idx] == 0) {
+                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                        }
+                        pubs_rsubcounts[pubidx.idx]++;
+                        ZT(DEBUG, "zhe_rsub_register_committed: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
+                    }
+#endif
+                }
+                break;
+        }
+    }
+#endif
+}
+
+static void rsub_register_tentative(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
 {
 #if MAX_PEERS == 0
     zhe_pubidx_t pubidx;
@@ -144,52 +245,75 @@ void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
             break;
         }
     }
-    if (submode == SUBMODE_PUSH && pubidx.idx < ZHE_MAX_PUBLICATIONS) {
-        zhe_bitset_set(precommit_curpkt.rsubs, pubidx.idx);
+    if (submode != SUBMODE_PUSH) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_UNSUPPORTED, rid);
+    } else if (pubidx.idx >= ZHE_MAX_PUBLICATIONS) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_INVALID, rid);
     } else {
-        zhe_decl_note_error_curpkt(((submode != SUBMODE_PUSH) ? 1 : 0) | ((pubidx.idx >= ZHE_MAX_PUBLICATIONS) ? 2 : 0), rid);
+        zhe_bitset_set(precommit_curpkt.rsubs, pubidx.idx);
     }
 #else
-    if (submode == SUBMODE_PUSH && rid <= ZHE_MAX_RID) {
-        zhe_bitset_set(precommit_curpkt.rsubs, rid);
+    if (submode != SUBMODE_PUSH) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_UNSUPPORTED, rid);
+    } else if (rid >= ZHE_MAX_RID) {
+        zhe_decl_note_error_curpkt(ZHE_DECL_INVALID, rid);
     } else {
-        zhe_decl_note_error_curpkt(((submode != SUBMODE_PUSH) ? 1 : 0) | ((rid > ZHE_MAX_RID) ? 2 : 0), rid);
+        switch (zhe_ridtable_insert(&precommit_curpkt.rsubs, rid)) {
+            case SSIR_EXISTS:
+            case SSIR_SUCCESS:
+                break;
+            case SSIR_NOSPACE:
+                zhe_decl_note_error_curpkt(ZHE_DECL_NOSPACE, rid);
+                break;
+        }
     }
 #endif
+}
+
+void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode, bool tentative)
+{
+    if (tentative) {
+        rsub_register_tentative(peeridx, rid, submode);
+    } else {
+        rsub_register_committed(peeridx, rid, submode);
+    }
+}
+
+uint8_t zhe_rsub_precommit_status_for_Cflag(peeridx_t peeridx, zhe_rid_t *err_rid)
+{
+    zhe_assert (precommit_curpkt.result == 0);
+    if (precommit[peeridx].result != 0) {
+        uint8_t result = precommit[peeridx].result;
+        ZT(PUBSUB, "rsub_precommit_status peeridx %u result %u", peeridx, result);
+        *err_rid = precommit[peeridx].invalid_rid;
+        return result;
+    } else {
+        ZT(PUBSUB, "rsub_precommit_status peeridx %u ok", peeridx);
+        return 0;
+    }
 }
 
 uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid)
 {
     zhe_assert (precommit_curpkt.result == 0);
-    if (precommit[peeridx].result == 0) {
-        ZT(PUBSUB, "rsub_precommit peeridx %u ok", peeridx);
-        return 0;
-    } else {
+    if (precommit[peeridx].result != 0) {
         uint8_t result = precommit[peeridx].result;
         ZT(PUBSUB, "rsub_precommit peeridx %u result %u", peeridx, result);
         *err_rid = precommit[peeridx].invalid_rid;
         memset(&precommit[peeridx], 0, sizeof(precommit[peeridx]));
         return result;
-    }
-}
-
-#if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
-static bool pub_sub_match(zhe_rid_t a, zhe_rid_t b)
-{
-    /* Matching is symmetric */
-    if (a == b) {
-        return true;
-    } else {
-        zhe_paysize_t asz, bsz;
-        const uint8_t *auri, *buri;
-        if (!zhe_uristore_geturi_for_rid(a, &asz, &auri) || !zhe_uristore_geturi_for_rid(b, &bsz, &buri)) {
-            return false;
-        } else {
-            return zhe_urimatch(auri, asz, buri, bsz);
-        }
-    }
-}
+#if MAX_PEERS > 0
+    } else if (zhe_ridtable_count(&precommit[peeridx].rsubs).rididx > ZHE_MAX_SUBSCRIPTIONS_PER_PEER - zhe_ridtable_count(&peers_rsubs[peeridx].rsubs).rididx) {
+        ZT(PUBSUB, "rsub_precommit peeridx %u failure because precommit set not guaranteed to fit", peeridx);
+        *err_rid = precommit[peeridx].rsubs.elems[0]; /* FIXME: shouldn't peek inside; and should perhaps choose the RID with more care */
+        memset(&precommit[peeridx], 0, sizeof(precommit[peeridx]));
+        return (uint8_t)ZHE_DECL_NOSPACE;
 #endif
+    } else {
+        ZT(PUBSUB, "rsub_precommit peeridx %u ok", peeridx);
+        return 0;
+    }
+}
 
 void zhe_rsub_precommit_curpkt_abort(peeridx_t peeridx)
 {
@@ -205,35 +329,40 @@ void zhe_rsub_commit(peeridx_t peeridx)
         pubs_rsubs[i] |= precommit[peeridx].rsubs[i];
     }
 #else
-    bitset_iter_t it;
-    unsigned rid; /* FIXME: typing - but also: shouldn't be indexed on RID anyway */
-    zhe_bitset_iter_init(&it, precommit[peeridx].rsubs, ZHE_MAX_RID+1);
-    while (zhe_bitset_iter_next(&it, &rid)) {
-        if (zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
-            ZT(PUBSUB, "zhe_rsub_commit rid %ju - already known", (uintmax_t)rid);
-        } else {
-            ZT(PUBSUB, "zhe_rsub_commit rid %ju - adding", (uintmax_t)rid);
-            zhe_bitset_set(peers_rsubs[peeridx].rsubs, rid);
-            for (zhe_pubidx_t pubidx = (zhe_pubidx_t){ 0 }; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
-                /* FIXME: can/should cache URI for "rid" */
+    zhe_ridtable_iter_t it;
+    zhe_rid_t rid;
+    zhe_ridtable_iter_init(&it, &precommit[peeridx].rsubs);
+    while (zhe_ridtable_iter_next(&it, &rid)) {
+        switch (zhe_ridtable_insert(&peers_rsubs[peeridx].rsubs, rid)) {
+            case SSIR_EXISTS:
+                ZT(PUBSUB, "zhe_rsub_commit rid %ju - already known", (uintmax_t)rid);
+                break;
+            case SSIR_NOSPACE:
+                /* precommit to avoid this case by checking whether peers_rsubs has sufficient space for all entries in precommit */
+                zhe_assert(0);
+                break;
+            case SSIR_SUCCESS:
+                ZT(PUBSUB, "zhe_rsub_commit rid %ju - adding", (uintmax_t)rid);
+                for (zhe_pubidx_t pubidx = (zhe_pubidx_t){ 0 }; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
+                    /* FIXME: can/should cache URI for "rid" */
 #if ZHE_MAX_URISPACE == 0
-                if (pubs[pubidx.idx].rid == rid) {
-                    if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
-                        ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                    if (pubs[pubidx.idx].rid == rid) {
+                        if (!zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
+                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                        }
+                        zhe_bitset_set(pubs_rsubs, pubidx.idx);
+                        break;
                     }
-                    zhe_bitset_set(pubs_rsubs, pubidx.idx);
-                    break;
-                }
 #else
-                if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
-                    if (pubs_rsubcounts[pubidx.idx] == 0) {
-                        ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                    if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
+                        if (pubs_rsubcounts[pubidx.idx] == 0) {
+                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                        }
+                        pubs_rsubcounts[pubidx.idx]++;
+                        ZT(DEBUG, "rsub_commit: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
                     }
-                    pubs_rsubcounts[pubidx.idx]++;
-                    ZT(DEBUG, "rsub_commit: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
-                }
 #endif
-            }
+                }
         }
     }
 #endif
@@ -242,13 +371,30 @@ void zhe_rsub_commit(peeridx_t peeridx)
 
 void zhe_rsub_precommit_curpkt_done(peeridx_t peeridx)
 {
+#if MAX_PEERS == 0
     for (size_t i = 0; i < sizeof(precommit[peeridx].rsubs); i++) {
         precommit[peeridx].rsubs[i] |= precommit_curpkt.rsubs[i];
     }
-    if (precommit[peeridx].invalid_rid == 0) {
-        precommit[peeridx].invalid_rid = precommit_curpkt.invalid_rid;
+#else
+    /* FIXME: this can be done FAR MORE EFFICIENTLY without any trouble; then again, perhaps one shouldn't even treat the curpkt as a special thing in this manner */
+    zhe_ridtable_iter_t it;
+    zhe_rid_t rid;
+    zhe_ridtable_iter_init(&it, &precommit[peeridx].rsubs);
+    while (zhe_ridtable_iter_next(&it, &rid)) {
+        switch (zhe_ridtable_insert(&precommit[peeridx].rsubs, rid)) {
+            case SSIR_EXISTS:
+            case SSIR_SUCCESS:
+                break;
+            case SSIR_NOSPACE:
+                /* setting error on current packet will propagate it a few lines down to a precommit error */
+                zhe_decl_note_error_curpkt(ZHE_DECL_NOSPACE, rid);
+                break;
+        }
     }
-    precommit[peeridx].result |= precommit_curpkt.result;
+#endif
+    if (precommit_curpkt.result != (uint8_t)ZHE_DECL_OK) {
+        zhe_decl_note_error_somepeer(peeridx, precommit_curpkt.result, precommit_curpkt.invalid_rid);
+    }
     zhe_rsub_precommit_curpkt_abort(peeridx);
 }
 
@@ -265,7 +411,7 @@ void zhe_rsub_clear(peeridx_t peeridx)
         if (rid != 0 && zhe_bitset_test(pubs_rsubs, pubidx.idx)) {
             peeridx_t i;
             for (i = 0; i < MAX_PEERS_1; i++) {
-                if (zhe_bitset_test(peers_rsubs[i].rsubs, rid)) {
+                if (zhe_ridtable_contains(&peers_rsubs[i].rsubs, rid)) {
                     break;
                 }
             }
@@ -276,10 +422,10 @@ void zhe_rsub_clear(peeridx_t peeridx)
         }
     }
 #else
-    bitset_iter_t it;
-    unsigned rid; /* FIXME: typing - but even more the use of a RID-index bitset! */
-    zhe_bitset_iter_init(&it, peers_rsubs[peeridx].rsubs, ZHE_MAX_RID+1);
-    while (zhe_bitset_iter_next(&it, &rid)) {
+    zhe_ridtable_iter_t it;
+    zhe_rid_t rid;
+    zhe_ridtable_iter_init(&it, &precommit[peeridx].rsubs);
+    while (zhe_ridtable_iter_next(&it, &rid)) {
         zhe_pubidx_t pubidx;
         for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
             /* FIXME: can/should cache URI for "rid" */
@@ -731,7 +877,7 @@ void zhe_note_declstatus(peeridx_t peeridx, uint8_t status, zhe_rid_t rid)
     if (zhe_bitset_test(decl_results.waiting, peeridx)) {
         zhe_bitset_clear(decl_results.waiting, peeridx);
         if (status != (uint8_t)ZHE_DECL_OK && (decl_results.status == (uint8_t)ZHE_DECL_OK || decl_results.status == (uint8_t)ZHE_DECL_AGAIN)) {
-            decl_results.status = status;
+            decl_results.status = DRESULT_IS_VALID_DECLSTATUS(status) ? status : (uint8_t)ZHE_DECL_OTHER;
             decl_results.rid = rid;
             ZT(PUBSUB, "**** FIXME: handle AGAIN case ****\n");
         }
@@ -746,7 +892,7 @@ enum zhe_declstatus zhe_get_declstatus(zhe_rid_t *rid)
     } else {
         const uint8_t s = decl_results.status;
         if (rid) { *rid = decl_results.rid; }
-        decl_results.status = 0;
+        decl_results.status = (uint8_t)ZHE_DECL_OK;
         decl_results.rid = 0;
         return (enum zhe_declstatus)s;
     }
@@ -787,7 +933,7 @@ void zhe_update_subs_for_resource_decl(zhe_rid_t rid)
             zhe_paysize_t subsz;
             const uint8_t *suburi;
             if (zhe_uristore_geturi_for_rid(subrid, &subsz, &suburi) && zhe_urimatch(suburi, subsz, ituri, itsz)) {
-                zhe_residx2sub_insert(&residx2sub[residx], subidx);
+                (void)zhe_residx2sub_insert(&residx2sub[residx], subidx);
                 ZT(PUBSUB, "zhe_update_subs_for_resource_decl rid %ju: add sub %u (now #%u)", (uintmax_t)rid, subidx.idx, (unsigned)zhe_residx2sub_count(&residx2sub[residx]).idx);
             }
         }
@@ -809,7 +955,7 @@ static void zhe_update_subs_for_sub_decl(zhe_rid_t rid, zhe_subidx_t subidx)
             if (zhe_urimatch(suburi, subsz, ituri, itsz)) {
                 zhe_residx_t residx;
                 zhe_uristore_getidx_for_rid(itrid, &residx);
-                zhe_residx2sub_insert(&residx2sub[residx], subidx);
+                (void)zhe_residx2sub_insert(&residx2sub[residx], subidx);
                 ZT(PUBSUB, "zhe_update_subs_for_sub_decl rid %ju subidx %u - add to rid %ju (now #%u)", (uintmax_t)rid, (unsigned)subidx.idx, (uintmax_t)itrid, (unsigned)zhe_residx2sub_count(&residx2sub[residx]).idx);
             }
         }
@@ -825,8 +971,9 @@ bool zhe_declare_resource(zhe_rid_t rid, const char *uri)
         return false;
     } else {
         zhe_residx_t residx;
+        peeridx_t loser;
         const size_t urisz = strlen(uri);
-        const enum uristore_result res = zhe_uristore_store(&residx, URISTORE_PEERIDX_SELF, rid, (const uint8_t *)uri, urisz, false);
+        const enum uristore_result res = zhe_uristore_store(&residx, URISTORE_PEERIDX_SELF, rid, (const uint8_t *)uri, urisz, false, &loser);
         switch (res) {
             case USR_OK:
 #if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
@@ -840,7 +987,6 @@ bool zhe_declare_resource(zhe_rid_t rid, const char *uri)
             case USR_INVALID:
             case USR_NOSPACE:
             case USR_MISMATCH:
-            case USR_OVERSIZE:
                 return false;
         }
     }
@@ -876,7 +1022,7 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
     sched_fresh_declare(DIK_PUBLICATION, pubidx.idx);
 #elif ZHE_MAX_URISPACE == 0
     for (peeridx_t peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
-        if (zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
+        if (zhe_ridtable_contains(&peers_rsubs[peeridx].rsubs, rid)) {
             ZT(PUBSUB, "publish: %u rid %ju has remote subs", pubidx.idx, (uintmax_t)rid);
             zhe_bitset_set(pubs_rsubs, pubidx.idx);
             break;
@@ -887,22 +1033,17 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
         if (!zhe_established_peer(peeridx)) {
             continue;
         }
-        for (size_t i = 0; i < sizeof(peers_rsubs[peeridx].rsubs); i++) {
-            if (peers_rsubs[peeridx].rsubs[i] == 0) {
-                continue;
-            }
-            for (size_t j = 0; j < CHAR_BIT * sizeof(peers_rsubs[peeridx].rsubs[i]); j++) {
-                const zhe_rid_t subrid = (zhe_rid_t)(CHAR_BIT * i + j);
-                if (rid <= ZHE_MAX_RID && zhe_bitset_test(peers_rsubs[peeridx].rsubs, rid)) {
-                    /* FIXME: can/should cache URI for publisher */
-                    if (pub_sub_match(rid, subrid)) {
-                        if (pubs_rsubcounts[pubidx.idx] == 0) {
-                            ZT(PUBSUB, "pub %u rid %ju: has remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
-                        }
-                        pubs_rsubcounts[pubidx.idx]++;
-                        ZT(DEBUG, "zhe_publish: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
-                    }
+        zhe_ridtable_iter_t it;
+        zhe_rid_t subrid;
+        zhe_ridtable_iter_init(&it, &peers_rsubs[peeridx].rsubs);
+        while (zhe_ridtable_iter_next(&it, &subrid)) {
+            /* FIXME: can/should cache URI for publisher */
+            if (pub_sub_match(rid, subrid)) {
+                if (pubs_rsubcounts[pubidx.idx] == 0) {
+                    ZT(PUBSUB, "pub %u rid %ju: has remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                 }
+                pubs_rsubcounts[pubidx.idx]++;
+                ZT(DEBUG, "zhe_publish: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
             }
         }
     }
@@ -935,7 +1076,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
     subs[subidx.idx].arg = arg;
     /* FIXME: this fails badly when we can delete subscriptions */
     max_subidx = subidx;
-    zhe_rid2sub_insert(&rid2sub, (rid2subtable_t){ .rid = rid, .subidx = subidx });
+    (void)zhe_rid2sub_insert(&rid2sub, (rid2subtable_t){ .rid = rid, .subidx = subidx });
 #if ZHE_MAX_URISPACE > 0 && MAX_PEERS > 0
     zhe_update_subs_for_sub_decl(rid, subidx);
 #endif

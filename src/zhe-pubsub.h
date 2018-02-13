@@ -26,8 +26,8 @@
 #define WC_DPUB_SIZE        (1 + WC_RID_SIZE) /* pub: header, rid (not using properties) */
 #define WC_DSUB_SIZE        (2 + WC_RID_SIZE) /* sub: header, rid, mode (neither properties nor periodic modes) */
 
-void zhe_decl_note_error_curpkt(uint8_t bitmask, zhe_rid_t rid);
-void zhe_decl_note_error_somepeer(peeridx_t peeridx, uint8_t bitmask, zhe_rid_t rid);
+void zhe_decl_note_error_curpkt(enum zhe_declstatus status, zhe_rid_t rid);
+void zhe_decl_note_error_somepeer(peeridx_t peeridx, enum zhe_declstatus status, zhe_rid_t rid);
 int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *pay);
 #if ZHE_MAX_URISPACE > 0
 int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysize_t paysz, const void *pay);
@@ -35,7 +35,8 @@ int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysi
 
 void zhe_pubsub_init(void);
 
-void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode);
+void zhe_rsub_register(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode, bool tentative);
+uint8_t zhe_rsub_precommit_status_for_Cflag(peeridx_t peeridx, zhe_rid_t *err_rid);
 uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid);
 void zhe_rsub_commit(peeridx_t peeridx);
 void zhe_rsub_precommit_curpkt_abort(peeridx_t peeridx);
