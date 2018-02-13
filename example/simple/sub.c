@@ -27,7 +27,7 @@ void init_rnd() {
 }
 
 void data_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *vpub) {
-    printf(">> Processing data for resource %d\n", rid);
+    printf(">> Processing data for resource %ju\n", (uintmax_t)rid);
     uint64_t count = *(uint64_t*)payload;
     printf(">> Received count: %lld\n", count);
 }
