@@ -3,6 +3,12 @@ project(zhe C)
 
 set(CMAKE_C_STANDARD 11)
 
+add_compile_options(
+  $<$<C_COMPILER_ID:MSVC>:/W3>
+  $<$<C_COMPILER_ID:Clang>:-Wall>
+  $<$<C_COMPILER_ID:AppleClang>:-Wall>
+  $<$<C_COMPILER_ID:GNU>:-Wall>)
+
 include_directories(
         "${PROJECT_SOURCE_DIR}/src"
         "${PROJECT_SOURCE_DIR}/example/platform"
