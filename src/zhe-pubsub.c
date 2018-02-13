@@ -782,15 +782,15 @@ static bool zhe_send_declares1(zhe_time_t tnow, const cursoridx_t cursoridx, str
     if (cursoridx == MULTICAST_CURSORIDX) {
         committed = false;
         peeridx = 0;
+        cid = 0;
+    } else {
+        committed = true;
+        peeridx = (peeridx_t)cursoridx;
 #if HAVE_UNICAST_CONDUIT
         cid = UNICAST_CID;
 #else
         cid = 0;
 #endif
-    } else {
-        committed = true;
-        peeridx = 0;
-        cid = 0;
     }
     struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, cid);
     if (!zhe_out_conduit_is_connected(peeridx, cid)) {
