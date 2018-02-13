@@ -83,6 +83,13 @@
 		030416D5202F505A000EC6AF /* zhe-config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "zhe-config.h"; sourceTree = "<group>"; };
 		030416DC202F505A000EC6AF /* throughput.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = throughput.c; sourceTree = "<group>"; };
 		03041738202F5088000EC6AF /* icgcbtest.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = icgcbtest.c; sourceTree = "<group>"; };
+		0304173C20338422000EC6AF /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		0304173E20338422000EC6AF /* examples.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = examples.md; sourceTree = "<group>"; };
+		0304173F20338422000EC6AF /* api.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = api.md; sourceTree = "<group>"; };
+		0304174020338422000EC6AF /* platform.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = platform.md; sourceTree = "<group>"; };
+		0304174120338422000EC6AF /* TODO.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODO.md; sourceTree = "<group>"; };
+		0304174220338422000EC6AF /* usecases.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = usecases.md; sourceTree = "<group>"; };
+		0304174320338422000EC6AF /* configuration.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = configuration.md; sourceTree = "<group>"; };
 		030587661EF92BEB0040F446 /* throughput */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = throughput; sourceTree = BUILT_PRODUCTS_DIR; };
 		034BDF811F5472F700F261D1 /* zhe-platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-platform.h"; path = "src/zhe-platform.h"; sourceTree = SOURCE_ROOT; };
 		034BDF821F5472F700F261D1 /* zhe-binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-binheap.c"; path = "src/zhe-binheap.c"; sourceTree = SOURCE_ROOT; };
@@ -112,8 +119,6 @@
 		037208F01F70E92600AE2144 /* roundtrip */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = roundtrip; sourceTree = BUILT_PRODUCTS_DIR; };
 		0387A4B1202B842600599E82 /* zhe-simpleset.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-simpleset.h"; path = "src/zhe-simpleset.h"; sourceTree = SOURCE_ROOT; };
 		0387A4B6202C852200599E82 /* liblibzhe.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibzhe.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		0394B85D1F72C92700ABE751 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		03EBCBF41FABF9E7006E316D /* TODO.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODO.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -224,11 +229,24 @@
 			path = test;
 			sourceTree = "<group>";
 		};
+		0304173D20338422000EC6AF /* docs */ = {
+			isa = PBXGroup;
+			children = (
+				0304173E20338422000EC6AF /* examples.md */,
+				0304173F20338422000EC6AF /* api.md */,
+				0304174020338422000EC6AF /* platform.md */,
+				0304174120338422000EC6AF /* TODO.md */,
+				0304174220338422000EC6AF /* usecases.md */,
+				0304174320338422000EC6AF /* configuration.md */,
+			);
+			path = docs;
+			sourceTree = "<group>";
+		};
 		0305875D1EF92BEB0040F446 = {
 			isa = PBXGroup;
 			children = (
-				03EBCBF41FABF9E7006E316D /* TODO.md */,
-				0394B85D1F72C92700ABE751 /* README.md */,
+				0304173C20338422000EC6AF /* README.md */,
+				0304173D20338422000EC6AF /* docs */,
 				030587681EF92BEB0040F446 /* src */,
 				03041682202F505A000EC6AF /* example */,
 				0304172A202F5088000EC6AF /* test */,
