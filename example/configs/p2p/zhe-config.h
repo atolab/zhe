@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-/* Highest allowed RID (because of temporary direct mapping; also ignoring selection IDs for the moment); also at the moment there are no resource declarations. */
+/* Highest allowed RID */
 #define ZHE_MAX_RID 553
 
 /* Maximum number of subscriptions, publications. Having multiple subscriptions per resource may well make sense becasue they have different associated callbacks/arguments, having more than a reliable and an unreliable publication for a single resource (currently) seems unnecessary as no state is (currently) maintained for a publication */
