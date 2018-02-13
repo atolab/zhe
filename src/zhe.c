@@ -220,7 +220,9 @@ int zhe_compare_peer_ids_for_peeridx(peeridx_t a, peeridx_t b)
 static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
 {
     struct peer * const p = &peers[peeridx];
-    ZT(PEERDISC, "reset_peer @ %u", peeridx);
+    if (p->state != PEERST_UNKNOWN) { /* test is just to supress the trace at start-up */
+        ZT(PEERDISC, "reset_peer @ %u", peeridx);
+    }
     zhe_reset_peer_rsubs(peeridx);
     /* If data destined for this peer, drop it it */
     zhe_reset_peer_unsched_hist_decls(peeridx);
