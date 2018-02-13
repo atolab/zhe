@@ -1771,15 +1771,11 @@ static zhe_unpack_result_t handle_mconduit(peeridx_t peeridx, const uint8_t * co
         *cid = 1 + ((hdr >> 5) & 0x3);
     } else if ((res = zhe_unpack_vle8(end, data, &cid_byte)) != ZUR_OK) {
         return res;
-    } else if (cid_byte > MAX_CID_T) {
+    } else if (cid_byte >= N_IN_CONDUITS) {
         reset_peer(peeridx, tnow);
         return ZUR_OVERFLOW;
     } else {
         *cid = (cid_t)cid_byte;
-    }
-    if (*cid >= N_IN_CONDUITS) {
-        reset_peer(peeridx, tnow);
-        return ZUR_OVERFLOW;
     }
     return ZUR_OK;
 }
