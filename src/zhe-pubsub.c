@@ -398,7 +398,7 @@ void zhe_rsub_precommit_curpkt_done(peeridx_t peeridx)
     zhe_rsub_precommit_curpkt_abort(peeridx);
 }
 
-void zhe_rsub_clear(peeridx_t peeridx)
+void zhe_reset_peer_rsubs(peeridx_t peeridx)
 {
 #if MAX_PEERS == 0
     memset(&pubs_rsubs, 0, sizeof(pubs_rsubs));

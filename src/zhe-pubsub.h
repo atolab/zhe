@@ -40,7 +40,7 @@ uint8_t zhe_rsub_precommit_status_for_Cflag(peeridx_t peeridx, zhe_rid_t *err_ri
 uint8_t zhe_rsub_precommit(peeridx_t peeridx, zhe_rid_t *err_rid);
 void zhe_rsub_commit(peeridx_t peeridx);
 void zhe_rsub_precommit_curpkt_abort(peeridx_t peeridx);
-void zhe_rsub_clear(peeridx_t peeridx);
+void zhe_reset_peer_rsubs(peeridx_t peeridx);
 void zhe_rsub_precommit_curpkt_done(peeridx_t peeridx);
 
 void zhe_send_declares(zhe_time_t tnow);

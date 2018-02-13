@@ -221,8 +221,7 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
 {
     struct peer * const p = &peers[peeridx];
     ZT(PEERDISC, "reset_peer @ %u", peeridx);
-    /* FIXME: stupid naming */
-    zhe_rsub_clear(peeridx);
+    zhe_reset_peer_rsubs(peeridx);
     /* If data destined for this peer, drop it it */
     zhe_reset_peer_unsched_hist_decls(peeridx);
     zhe_reset_peer_declstatus(peeridx);
