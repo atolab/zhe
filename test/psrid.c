@@ -34,8 +34,6 @@ struct peerinfo {
 
 static uint32_t ownkey;
 static struct peerinfo peerinfo[MAX_KEY+1];
-static const zhe_rid_t rid_ping = 1;
-static const zhe_rid_t rid_pong = 2;
 static zhe_pubidx_t pub_ping;
 static zhe_pubidx_t pub_pong;
 static zhe_subidx_t sub_ping;
@@ -133,6 +131,7 @@ int main(int argc, char * const *argv)
     int opt;
     struct zhe_config cfg;
     int drop_pct = 0;
+    bool wildcards = false;
     zhe_time_t duration = (zhe_time_t)~0;
 
 #ifdef __APPLE__
@@ -142,14 +141,17 @@ int main(int argc, char * const *argv)
 #endif
     ownidsize = getrandomid(ownid, sizeof(ownid));
 #if ENABLE_TRACING
-    zhe_trace_cats = ZTCAT_PEERDISC;// | ZTCAT_PUBSUB;
+    zhe_trace_cats = ZTCAT_PEERDISC;
 #endif
 
-    while((opt = getopt(argc, argv, "h:X:D:")) != EOF) {
+    while((opt = getopt(argc, argv, "dfh:X:D:w")) != EOF) {
         switch(opt) {
+            case 'd': zhe_trace_cats |= ((zhe_trace_cats & ZTCAT_PUBSUB) ? ZTCAT_DEBUG : ZTCAT_PUBSUB); break;
+            case 'f': flush_flag = true; break;
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'X': drop_pct = atoi(optarg); break;
             case 'D': duration = (zhe_time_t)atoi(optarg); break;
+            case 'w': wildcards = true; break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
@@ -162,7 +164,6 @@ int main(int argc, char * const *argv)
         fprintf(stderr, "key %"PRIu32" out of range\n", ownkey);
         exit(1);
     }
-
     memset(&cfg, 0, sizeof(cfg));
     cfg.id = ownid;
     cfg.idlen = ownidsize;
@@ -178,10 +179,28 @@ int main(int argc, char * const *argv)
         peerinfo[k].tping = tstart - 1000;
     }
     zhe_start(tstart);
-    pub_ping = zhe_publish(rid_ping, 0, true);
-    pub_pong = zhe_publish(rid_pong, 0, true);
-    sub_ping = zhe_subscribe(rid_ping, 12 + sizeof(struct pong), 0, ping_handler, NULL);
-    sub_pong = zhe_subscribe(rid_pong, 12 + sizeof(struct ping), 0, pong_handler, NULL);
+    zhe_rid_t rid_ping_sub;
+    zhe_rid_t rid_pong_sub;
+    zhe_rid_t rid_ping_pub;
+    zhe_rid_t rid_pong_pub;
+    if (wildcards) {
+        rid_ping_sub = 1;
+        rid_pong_sub = 2;
+        rid_ping_pub = 10 + ownkey * (MAX_KEY+1) + 1;
+        rid_pong_pub = 10 + ownkey * (MAX_KEY+1) + 2;
+        char name[32];
+        snprintf(name, sizeof(name), "/k%"PRIu32"/out/ping", ownkey); zhe_declare_resource(rid_ping_pub, name);
+        snprintf(name, sizeof(name), "/k%"PRIu32"/out/pong", ownkey); zhe_declare_resource(rid_pong_pub, name);
+        snprintf(name, sizeof(name), "/k**/ping");                    zhe_declare_resource(rid_ping_sub, name);
+        snprintf(name, sizeof(name), "/k**/pong");                    zhe_declare_resource(rid_pong_sub, name);
+    } else {
+        rid_ping_sub = rid_ping_pub = 1;
+        rid_pong_sub = rid_pong_pub = 2;
+    }
+    pub_ping = zhe_publish(rid_ping_pub, 0, true);
+    pub_pong = zhe_publish(rid_pong_pub, 0, true);
+    sub_ping = zhe_subscribe(rid_ping_sub, 12 + sizeof(struct pong), 0, ping_handler, NULL);
+    sub_pong = zhe_subscribe(rid_pong_sub, 12 + sizeof(struct ping), 0, pong_handler, NULL);
     for (zhe_time_t tnow = tstart; ZTIME_TO_SECu32(tnow - tstart) <= duration; tnow = zhe_platform_time()) {
         char inbuf[TRANSPORT_MTU];
         zhe_address_t insrc;
