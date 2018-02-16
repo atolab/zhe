@@ -44,14 +44,16 @@
 #  error "max scout count must be 0 in client mode"
 #endif
 
-#if MAX_PEERS < 255
+#if MAX_PEERS < UINT8_MAX
 typedef uint8_t peeridx_t;
+#elif MAX_PEERS < UINT16_MAX
+typedef uint16_t peeridx_t;
 #else
-#  error "MAX_PEERS is too large for 8-bit peer idx"
+#  error "MAX_PEERS is too large for 16-bit peer idx"
 #endif
 #define PEERIDX_INVALID ((peeridx_t)-1)
 
-#if TRANSPORT_MTU < 254
+#if TRANSPORT_MTU < (UINT8_MAX - 2)
 typedef uint8_t zhe_msgsize_t; /* type used for representing the size of an XRCE message */
 #else
 typedef uint16_t zhe_msgsize_t;

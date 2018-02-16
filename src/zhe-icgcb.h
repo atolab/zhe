@@ -3,7 +3,16 @@
 
 #include <stdint.h>
 
-typedef uint16_t uripos_t; /* FIXME: the usual */
+/* Need configuration to scale uripos_t */
+#include "zhe-config-deriv.h"
+
+#if ZHE_MAX_URISPACE > UINT16_MAX || MAX_PEERS_1 > UINT16_MAX
+typedef uint32_t uripos_t;
+#elif ZHE_MAX_URISPACE > UINT8_MAX || MAX_PEERS_1 > UINT8_MAX
+typedef uint16_t uripos_t;
+#else
+typedef uint8_t uripos_t;
+#endif
 
 struct icgcb_hdr {
     uripos_t size;      /* includes header, multiple of UNIT unless allocated; sentinel is exception and has size = 0 */
