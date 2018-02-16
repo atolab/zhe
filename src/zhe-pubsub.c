@@ -1064,7 +1064,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
     }
     zhe_subidx_t nextidx;
     if (!zhe_rid2sub_search(&rid2sub, rid, &nextidx)) {
-        nextidx = max_subidx;
+        nextidx = subidx;
     }
     zhe_assert(subidx.idx < ZHE_MAX_SUBSCRIPTIONS);
     subs[subidx.idx].rid = rid;
