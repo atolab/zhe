@@ -12,7 +12,7 @@ SUBDIRS = src example/platform example/configs/p2p example/throughput example/ro
 vpath %.c $(SUBDIRS:%=$(SRCDIR)/%)
 vpath %.h $(SUBDIRS:%=$(SRCDIR)/%)
 
-TARGETS = bin/roundtrip bin/throughput
+TARGETS = bin/roundtrip bin/throughput bin/psrid
 ZHE_PLATFORM := platform-udp.c
 ZHE := $(notdir $(wildcard $(SRCDIR)/src/*.c)) $(ZHE_PLATFORM)
 
@@ -22,6 +22,7 @@ LDFLAGS = $(OPT)
 
 SRC_roundtrip = roundtrip.c zhe-util.c $(ZHE)
 SRC_throughput = throughput.c zhe-util.c $(ZHE)
+SRC_psrid = psrid.c zhe-util.c $(ZHE)
 
 .PHONY: all clean zz test-configs
 .PRECIOUS: %.o %/.STAMP
@@ -47,6 +48,9 @@ bin/%: | bin/.STAMP
 	$(CC) $(LDFLAGS) $^ -o $@
 
 gen/%.o: %.c gen/.STAMP
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+gen/psrid.o: test/psrid.c gen/.STAMP
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 gen/%.d: %.c gen/.STAMP

@@ -23,6 +23,8 @@
 		03041729202F5070000EC6AF /* roundtrip.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416CB202F505A000EC6AF /* roundtrip.c */; };
 		0304173A202F5088000EC6AF /* icgcbtest.c in Sources */ = {isa = PBXBuildFile; fileRef = 03041738202F5088000EC6AF /* icgcbtest.c */; };
 		0304173B20337A2D000EC6AF /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D5202F505A000EC6AF /* zhe-config.h */; };
+		030417502036DDD1000EC6AF /* psrid.c in Sources */ = {isa = PBXBuildFile; fileRef = 0304174F2036DDD1000EC6AF /* psrid.c */; };
+		030417512036DDDE000EC6AF /* liblibzhe.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0387A4B6202C852200599E82 /* liblibzhe.a */; };
 		0362B515202085E700EF87EC /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
 		036D95461F93D6A8003C047B /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
 		0387A4BA202C853100599E82 /* zhe-binheap.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF821F5472F700F261D1 /* zhe-binheap.c */; };
@@ -39,6 +41,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		030417462036DDC2000EC6AF /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		030587641EF92BEB0040F446 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -90,6 +101,8 @@
 		0304174120338422000EC6AF /* TODO.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODO.md; sourceTree = "<group>"; };
 		0304174220338422000EC6AF /* usecases.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = usecases.md; sourceTree = "<group>"; };
 		0304174320338422000EC6AF /* configuration.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = configuration.md; sourceTree = "<group>"; };
+		030417482036DDC2000EC6AF /* psrid */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = psrid; sourceTree = BUILT_PRODUCTS_DIR; };
+		0304174F2036DDD1000EC6AF /* psrid.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = psrid.c; sourceTree = "<group>"; };
 		030587661EF92BEB0040F446 /* throughput */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = throughput; sourceTree = BUILT_PRODUCTS_DIR; };
 		034BDF811F5472F700F261D1 /* zhe-platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-platform.h"; path = "src/zhe-platform.h"; sourceTree = SOURCE_ROOT; };
 		034BDF821F5472F700F261D1 /* zhe-binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-binheap.c"; path = "src/zhe-binheap.c"; sourceTree = SOURCE_ROOT; };
@@ -122,6 +135,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		030417452036DDC2000EC6AF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				030417512036DDDE000EC6AF /* liblibzhe.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		030587631EF92BEB0040F446 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -170,10 +191,10 @@
 		03041683202F505A000EC6AF /* platform */ = {
 			isa = PBXGroup;
 			children = (
+				03041687202F505A000EC6AF /* platform-udp.c */,
 				03041684202F505A000EC6AF /* platform-udp.h */,
 				03041685202F505A000EC6AF /* zhe-assert.h */,
 				03041686202F505A000EC6AF /* zhe-util.c */,
-				03041687202F505A000EC6AF /* platform-udp.c */,
 				03041688202F505A000EC6AF /* zhe-util.h */,
 			);
 			path = platform;
@@ -224,6 +245,7 @@
 		0304172A202F5088000EC6AF /* test */ = {
 			isa = PBXGroup;
 			children = (
+				0304174F2036DDD1000EC6AF /* psrid.c */,
 				03041738202F5088000EC6AF /* icgcbtest.c */,
 			);
 			path = test;
@@ -263,6 +285,7 @@
 				037208F01F70E92600AE2144 /* roundtrip */,
 				036D95551F93D6A8003C047B /* icgcbtest */,
 				0387A4B6202C852200599E82 /* liblibzhe.a */,
+				030417482036DDC2000EC6AF /* psrid */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -329,6 +352,23 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		030417472036DDC2000EC6AF /* psrid */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0304174C2036DDC2000EC6AF /* Build configuration list for PBXNativeTarget "psrid" */;
+			buildPhases = (
+				030417442036DDC2000EC6AF /* Sources */,
+				030417452036DDC2000EC6AF /* Frameworks */,
+				030417462036DDC2000EC6AF /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = psrid;
+			productName = psrid;
+			productReference = 030417482036DDC2000EC6AF /* psrid */;
+			productType = "com.apple.product-type.tool";
+		};
 		030587651EF92BEB0040F446 /* throughput */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0305876D1EF92BEB0040F446 /* Build configuration list for PBXNativeTarget "throughput" */;
@@ -406,6 +446,10 @@
 				LastUpgradeCheck = 0900;
 				ORGANIZATIONNAME = "ADLINK ATO";
 				TargetAttributes = {
+					030417472036DDC2000EC6AF = {
+						CreatedOnToolsVersion = 9.2;
+						ProvisioningStyle = Automatic;
+					};
 					030587651EF92BEB0040F446 = {
 						CreatedOnToolsVersion = 8.3.3;
 						ProvisioningStyle = Automatic;
@@ -432,11 +476,20 @@
 				030587651EF92BEB0040F446 /* throughput */,
 				037208E11F70E92600AE2144 /* roundtrip */,
 				036D95441F93D6A8003C047B /* icgcbtest */,
+				030417472036DDC2000EC6AF /* psrid */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		030417442036DDC2000EC6AF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				030417502036DDD1000EC6AF /* psrid.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		030587621EF92BEB0040F446 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -488,6 +541,30 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		0304174D2036DDC2000EC6AF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		0304174E2036DDC2000EC6AF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 		0305876B1EF92BEB0040F446 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -696,6 +773,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0304174C2036DDC2000EC6AF /* Build configuration list for PBXNativeTarget "psrid" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0304174D2036DDC2000EC6AF /* Debug */,
+				0304174E2036DDC2000EC6AF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		030587611EF92BEB0040F446 /* Build configuration list for PBXProject "zhe" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
