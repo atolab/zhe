@@ -288,7 +288,7 @@ bool zhe_uristore_geturi_for_rid(zhe_rid_t rid, zhe_paysize_t *sz, const uint8_t
     } else {
         bool dummy;
         zhe_rid_t dummyrid;
-        return zhe_uristore_geturi_for_idx(rid2idx[*e], &dummyrid, sz, uri, &dummy);
+        return zhe_uristore_geturi_for_idx(*e, &dummyrid, sz, uri, &dummy);
     }
 }
 
@@ -298,7 +298,7 @@ bool zhe_uristore_getidx_for_rid(zhe_rid_t rid, zhe_residx_t *idx)
     if (e == NULL) {
         return false;
     } else {
-        *idx = rid2idx[*e];
+        *idx = *e;
         return true;
     }
 }

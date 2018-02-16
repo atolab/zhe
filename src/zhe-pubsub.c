@@ -222,10 +222,10 @@ static void rsub_register_committed(peeridx_t peeridx, zhe_rid_t rid, uint8_t su
 #else
                     if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
                         if (pubs_rsubcounts[pubidx.idx] == 0) {
-                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs (rid %ju)", (unsigned)pubidx.idx, (uintmax_t)pubs[pubidx.idx].rid, (uintmax_t)rid);
                         }
                         pubs_rsubcounts[pubidx.idx]++;
-                        ZT(DEBUG, "zhe_rsub_register_committed: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
+                        ZT(DEBUG, "zhe_rsub_register_committed: pub %u rid %ju: rsubcount now %u (rid %ju)", (unsigned)pubidx.idx, (uintmax_t)pubs[pubidx.idx].rid, (unsigned)pubs_rsubcounts[pubidx.idx], (uintmax_t)rid);
                     }
 #endif
                 }
@@ -356,10 +356,10 @@ void zhe_rsub_commit(peeridx_t peeridx)
 #else
                     if (pub_sub_match(pubs[pubidx.idx].rid, rid)) {
                         if (pubs_rsubcounts[pubidx.idx] == 0) {
-                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
+                            ZT(PUBSUB, "pub %u rid %ju: now have remote subs (rid %ju)", (unsigned)pubidx.idx, (uintmax_t)pubs[pubidx.idx].rid, (uintmax_t)rid);
                         }
                         pubs_rsubcounts[pubidx.idx]++;
-                        ZT(DEBUG, "rsub_commit: pub %u rid %ju: rsubcount now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
+                        ZT(DEBUG, "rsub_commit: pub %u rid %ju: rsubcount now %u (rid %ju)", (unsigned)pubidx.idx, (uintmax_t)pubs[pubidx.idx].rid, (unsigned)pubs_rsubcounts[pubidx.idx], (uintmax_t)rid);
                     }
 #endif
                 }
