@@ -424,7 +424,7 @@ void zhe_reset_peer_rsubs(peeridx_t peeridx)
 #else
     zhe_ridtable_iter_t it;
     zhe_rid_t rid;
-    zhe_ridtable_iter_init(&it, &precommit[peeridx].rsubs);
+    zhe_ridtable_iter_init(&it, &peers_rsubs[peeridx].rsubs);
     while (zhe_ridtable_iter_next(&it, &rid)) {
         zhe_pubidx_t pubidx;
         for (pubidx.idx = 0; pubidx.idx < ZHE_MAX_PUBLICATIONS; pubidx.idx++) {
@@ -434,7 +434,7 @@ void zhe_reset_peer_rsubs(peeridx_t peeridx)
                 if (pubs_rsubcounts[pubidx.idx] == 0) {
                     ZT(PUBSUB, "pub %u rid %ju: no more remote subs", (unsigned)pubidx.idx, (uintmax_t)rid);
                 }
-                ZT(DEBUG, "zhe_rsub_clear: pub %u rid %ju: rsubcounts now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]--);
+                ZT(DEBUG, "zhe_rsub_clear: pub %u rid %ju: rsubcounts now %u", (unsigned)pubidx.idx, (uintmax_t)rid, (unsigned)pubs_rsubcounts[pubidx.idx]);
             }
         }
     }
