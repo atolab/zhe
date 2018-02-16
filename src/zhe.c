@@ -286,6 +286,7 @@ static void init_globals(zhe_time_t tnow)
 {
 #if N_OUT_MCONDUITS > 0
     /* Need to reset out_mconduits[.].seqbase.ix[i] before reset_peer(i) may be called */
+    memset(out_mconduits, 0, sizeof(out_mconduits));
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
         struct out_mconduit * const mc = &out_mconduits[i];
 #if XMITW_SAMPLE_INDEX
@@ -1819,8 +1820,7 @@ int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_
     if (config->idlen == 0 || config->idlen > PEERID_SIZE) {
         return -1;
     }
-    if (config->n_mconduit_dstaddrs != N_OUT_MCONDUITS) {
-        /* these must match */
+    if (config->n_mconduit_dstaddrs > N_OUT_MCONDUITS) {
         return -1;
     }
     if (config->n_mcgroups_join > MAX_MULTICAST_GROUPS) {
@@ -1834,15 +1834,25 @@ int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_
     init_globals(tnow);
     zhe_platform = pf;
     scoutaddr = *config->scoutaddr;
+    /* For multicast receive locators and multicast destination addresses: allow setting fewer than we support (for out conduits, that simply means, no peer will ever match the unused ones, making them effectively unused and the result is simply a waste of memory and a bit of CPU time). Secondly, if either is set to 0 then treat it as a synonym for using the scouting address (this simplifies life a little bit for a minimal test program). When it is not zero, don't do this. */
 #if MAX_MULTICAST_GROUPS > 0
     n_multicast_locators = (uint16_t)config->n_mcgroups_join;
-    for (size_t i = 0; i < config->n_mcgroups_join; i++) {
-        multicast_locators[i] = config->mcgroups_join[i];
+    if (n_multicast_locators > 0) {
+        for (size_t i = 0; i < config->n_mcgroups_join; i++) {
+            multicast_locators[i] = config->mcgroups_join[i];
+        }
+    } else {
+        multicast_locators[0] = scoutaddr;
+        n_multicast_locators = 1;
     }
 #endif
 #if N_OUT_MCONDUITS > 0
-    for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
-        out_mconduits[i].oc.addr = config->mconduit_dstaddrs[i];
+    if (config->n_mconduit_dstaddrs > 0) {
+        for (cid_t i = 0; i < config->n_mconduit_dstaddrs; i++) {
+            out_mconduits[i].oc.addr = config->mconduit_dstaddrs[i];
+        }
+    } else {
+        out_mconduits[0].oc.addr = scoutaddr;
     }
 #endif
     return 0;

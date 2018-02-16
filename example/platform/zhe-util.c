@@ -121,8 +121,5 @@ void cfg_handle_addrs(struct zhe_config *cfg, struct zhe_platform *platform, con
             cfg->n_mconduit_dstaddrs++;
         }
     }
-    if (cfg->n_mconduit_dstaddrs != N_OUT_MCONDUITS) {
-        fprintf(stderr, "too few mconduit dstaddrs specified\n"); exit(2);
-    }
     free(str);
 }
