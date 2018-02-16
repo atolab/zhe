@@ -16,6 +16,7 @@
 #include "zhe-util.h"
 
 #define MAX_KEY 9u
+#define ALLOW_MISALIGNED 0
 
 struct ping { uint32_t dst, src, seq; };
 struct pong { uint32_t dst, src, seq; };
@@ -38,6 +39,7 @@ static zhe_pubidx_t pub_ping;
 static zhe_pubidx_t pub_pong;
 static zhe_subidx_t sub_ping;
 static zhe_subidx_t sub_pong;
+static uint32_t pong_out_of_seq;
 static bool flush_flag = false;
 
 static void print_state(zhe_time_t tnow)
@@ -71,8 +73,15 @@ static bool send_next_ping(unsigned to, zhe_time_t tnow)
 static void ping_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg)
 {
     const zhe_time_t tnow = zhe_platform_time();
+#if ALLOW_MISALIGNED
     const struct ping * const d = payload;
     assert(size == sizeof(*d));
+#else
+    struct ping lclping;
+    assert(size == sizeof(lclping));
+    memcpy(&lclping, payload, size);
+    const struct ping * const d = &lclping;
+#endif
     if (d->src > MAX_KEY) {
         printf("%4"PRIu32".%03"PRIu32" *** [%"PRIu32"] ping_handler: ping from %"PRIu32" out of range\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), ownkey, d->src);
         abort();
@@ -103,8 +112,15 @@ static void ping_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size,
 static void pong_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg)
 {
     const zhe_time_t tnow = zhe_platform_time();
+#if ALLOW_MISALIGNED
     const struct pong * const d = payload;
     assert(size == sizeof(*d));
+#else
+    struct pong lclpong;
+    assert(size == sizeof(lclpong));
+    memcpy(&lclpong, payload, size);
+    const struct pong * const d = &lclpong;
+#endif
     if (d->src > MAX_KEY) {
         printf("%4"PRIu32".%03"PRIu32" *** [%"PRIu32"] pong_handler: pong from %"PRIu32" out of range\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), ownkey, d->src);
         abort();
@@ -120,7 +136,7 @@ static void pong_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size,
         }
     } else {
         printf("%4"PRIu32".%03"PRIu32" *** [%"PRIu32"] pong_handler: pong from %"PRIu32" out of sequence\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), ownkey, d->src);
-        abort();
+        pong_out_of_seq++;
     }
 }
 

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define DECL_BITSET(name_, size_) uint8_t name_[(size_)+7/8]
+#define DECL_BITSET(name_, size_) uint8_t name_[((size_)+7)/8]
 
 void zhe_bitset_set(uint8_t *s, unsigned idx);
 void zhe_bitset_clear(uint8_t *s, unsigned idx);

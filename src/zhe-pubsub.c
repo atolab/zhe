@@ -849,7 +849,7 @@ void zhe_send_declares(zhe_time_t tnow)
                 }
             } else {
                 if (fresh) {
-                    for (peeridx_t peeridx = 0; peeridx <= MAX_PEERS_1; peeridx++) {
+                    for (peeridx_t peeridx = 0; peeridx < MAX_PEERS_1; peeridx++) {
                         if (zhe_established_peer(peeridx)) {
                             zhe_bitset_set(decl_results.waiting, peeridx);
                         }
@@ -909,7 +909,7 @@ bool zhe_rid_in_use_anonymously(zhe_rid_t rid)
             return !zhe_uristore_geturi_for_rid(rid, &dummysz, &dummyuri);
         }
     }
-    for (zhe_subidx_t subidx = (zhe_subidx_t){0}; subidx.idx < ZHE_MAX_PUBLICATIONS; subidx.idx++) {
+    for (zhe_subidx_t subidx = (zhe_subidx_t){0}; subidx.idx < ZHE_MAX_SUBSCRIPTIONS; subidx.idx++) {
         if (subs[subidx.idx].rid == rid) {
             return !zhe_uristore_geturi_for_rid(rid, &dummysz, &dummyuri);
         }
