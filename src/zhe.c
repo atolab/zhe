@@ -252,15 +252,15 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
         }
     }
 #endif
+    if (p->state == PEERST_ESTABLISHED) {
+        npeers--;
+    }
 #ifndef NDEBUG
     /* State of most fields shouldn't matter if peer state is UNKNOWN, sequence numbers
        and transmit windows in conduits do matter (so we don't need to clear them upon
        accepting the peer) */
     memset(p, 0xee, sizeof(*p));
 #endif
-    if (p->state == PEERST_ESTABLISHED) {
-        npeers--;
-    }
     p->state = PEERST_UNKNOWN;
 #if HAVE_UNICAST_CONDUIT
 #if XMITW_SAMPLE_INDEX
