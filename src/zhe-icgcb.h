@@ -6,12 +6,17 @@
 /* Need configuration to scale uripos_t */
 #include "zhe-config-deriv.h"
 
-#if ZHE_MAX_URISPACE > UINT16_MAX || MAX_PEERS_1 > UINT16_MAX
+#if ZHE_NEED_ICGCB
+
+#if ZHE_MAX_URISPACE >= UINT16_MAX || ZHE_MAX_RESOURCES >= UINT16_MAX
 typedef uint32_t uripos_t;
-#elif ZHE_MAX_URISPACE > UINT8_MAX || MAX_PEERS_1 > UINT8_MAX
+#define URIPOS_MAX UINT32_MAX
+#elif ZHE_MAX_URISPACE >= UINT8_MAX || ZHE_MAX_RESOURCES >= UINT8_MAX
 typedef uint16_t uripos_t;
+#define URIPOS_MAX UINT16_MAX
 #else
 typedef uint8_t uripos_t;
+#define URIPOS_MAX UINT8_MAX
 #endif
 
 struct icgcb_hdr {
@@ -45,4 +50,5 @@ enum icgcb_alloc_result zhe_icgcb_alloc(void ** const ptr, struct icgcb * const 
 void zhe_icgcb_gc(struct icgcb * const b, void (*move_cb)(uripos_t ref, void *newptr, void *arg), void *arg);
 uripos_t zhe_icgcb_getsize(struct icgcb const * const b, const void *ptr);
 
+#endif /* ZHE_NEED_ICGCB */
 #endif

@@ -6,6 +6,8 @@
 #include "zhe-assert.h"
 #include "zhe-icgcb.h"
 
+#if ZHE_NEED_ICGCB
+
 /* Memory layout is:
 
  ADMIN (SIZE REF ...)+ (0 URIPOS_INVALID)
@@ -49,6 +51,8 @@ struct static_assertions {
     char offset_icgcb_is_multiple_of_unit[(offsetof(struct icgcb, u) % UNIT) == 0 ? 1 : -1];
     /* if sizeof icgcb isn't a multiple of UNIT, alignment breaks */
     char sizeof_icgcb_is_multiple_of_unit[(sizeof(struct icgcb) % UNIT) == 0 ? 1 : -1];
+    /* URIPOS_INVALID must not ever be used as a valid value */
+    char uripos_t_is_large_enough[URIPOS_INVALID > ZHE_MAX_URISPACE && URIPOS_INVALID > ZHE_MAX_RESOURCES ? 1 : -1];
 };
 
 static uripos_t alignup(uripos_t size)
@@ -168,7 +172,12 @@ enum icgcb_alloc_result zhe_icgcb_alloc(void ** const ptr, struct icgcb * const 
 void zhe_icgcb_gc(struct icgcb * const b, void (*move_cb)(uripos_t ref, void *newptr, void *arg), void *arg)
 {
     uripos_t blocks = 0, bytes = 0;
-    while (b->firstfree != b->openspace && blocks++ < MAX_BLOCKS && bytes < MAX_BYTES) {
+#if URIPOS_MAX <= MAX_BYTES
+#define BYTES_WITHIN_LIMIT(bytes) true
+#else
+#define BYTES_WITHIN_LIMIT(bytes) ((bytes) < MAX_BYTES)
+#endif
+    while (b->firstfree != b->openspace && blocks++ < MAX_BLOCKS && BYTES_WITHIN_LIMIT(bytes)) {
         struct icgcb_hdr * const e = &b->u.e + b->firstfree;
         struct icgcb_hdr * const ne = e + e->size / UNIT;
         if (ne->ref != URIPOS_INVALID) {
@@ -190,3 +199,5 @@ void zhe_icgcb_gc(struct icgcb * const b, void (*move_cb)(uripos_t ref, void *ne
         check(b);
     }
 }
+
+#endif /* ZHE_NEED_ICGCB */

@@ -82,9 +82,8 @@ typedef int16_t cid_t;
 
 /* Size of sequence number in bits is "negotiated" -- that is, determined by the client, so we
  get to choose.  Sequence numbers are VLE on the wire (to allow decoding messages without
- knowing the sequence number size), but they are a multiple of 7 bits to avoid spending a
- byte of which only a few bits will be used.  Sequence numbers are internally represented as
- 16-bit unsigned numbers.  */
+ knowing the sequence number size), a multiple of 7 bits avoids spending a byte of which only
+ a few bits will be used. */
 #if SEQNUM_LEN == 7
 typedef uint8_t seq_t;    /* type internally used for representing sequence numbers */
 typedef int8_t sseq_t;    /* signed version of seq_t */
@@ -102,6 +101,8 @@ typedef int64_t sseq_t;
 #endif
 #define SEQNUM_SHIFT        (sizeof(seq_t))
 #define SEQNUM_UNIT         ((seq_t)(1 << SEQNUM_SHIFT))
+
+#define ZHE_NEED_ICGCB (ZHE_MAX_URISPACE > 0)
 
 #if ZHE_TIMEBASE != 1000000
 #warning "better get the time conversions correct first ..."
