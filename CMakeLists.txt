@@ -15,9 +15,10 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/example/configs/p2p"
 )
 
+file(GLOB Headers "src/*.h" "example/platform/*.h" "example/configs/p2p/*.h")
 file(GLOB Sources "src/*.c" "example/platform/*.c")
-add_library(zhe ${Sources})
 
+add_library(zhe ${Sources})
 add_library(dzhe SHARED ${Sources})
 
 add_executable(throughput example/throughput/throughput.c)
@@ -41,3 +42,5 @@ install (TARGETS roundtrip DESTINATION ${PROJECT_SOURCE_DIR}/bin)
 install (TARGETS spub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
 install (TARGETS ssub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
 install (TARGETS psrid DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+install (TARGETS dzhe DESTINATION lib)
+install(FILES ${Headers} DESTINATION include/zhe)
