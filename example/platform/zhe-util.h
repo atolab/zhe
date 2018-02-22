@@ -3,6 +3,8 @@
 
 #include "zhe.h"
 
+struct zhe_platform *  zhe(uint16_t port);
+void zhe_dispatch(struct zhe_platform *platform);
 void zhe_once(struct zhe_platform *platform, uint64_t delay);
 void zhe_loop(struct zhe_platform *platform, uint64_t period);
 zhe_paysize_t getrandomid(unsigned char *ownid, size_t ownidsize);

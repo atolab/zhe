@@ -17,6 +17,80 @@
 // @TODO This should be changed to use the right method of
 //       depending on transport config.
 
+
+extern void init_rnd_gen() {
+#ifdef __APPLE__
+    srandomdev();
+#else
+    srandom(time(NULL) + getpid());
+#endif
+
+}
+
+struct zhe_platform *  zhe(uint16_t port) {
+
+    const char *scoutaddrstr = "239.255.0.1";
+
+    unsigned char ownid[16];
+    zhe_paysize_t ownidsize;
+    struct zhe_config cfg;
+
+    init_rnd_gen();
+
+#if N_OUT_MCONDUITS == 0
+    char *mcgroups_join_str = "";
+    char *mconduit_dstaddrs_str = "";
+#elif N_OUT_MCONDUITS == 1
+    char *mcgroups_join_str = "239.255.0.2"; /* in addition to scout */
+    char *mconduit_dstaddrs_str = "239.255.0.2";
+#elif N_OUT_MCONDUITS == 2
+    char *mcgroups_join_str = "239.255.0.2,239.255.0.3"; /* in addition to scout */
+    char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
+#elif N_OUT_MCONDUITS == 3
+    char *mcgroups_join_str = "239.255.0.2,239.255.0.3,239.255.0.4"; /* in addition to scout */
+    char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
+#endif
+
+#if ENABLE_TRACING
+    zhe_trace_cats = ZTCAT_PEERDISC | ZTCAT_PUBSUB;
+#endif
+
+    ownidsize = getrandomid(ownid, sizeof(ownid));
+
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.id = ownid;
+    cfg.idlen = ownidsize;
+
+    struct zhe_platform * const platform = zhe_platform_new(port, 0);
+
+    cfg_handle_addrs(&cfg, platform, scoutaddrstr, mcgroups_join_str, mconduit_dstaddrs_str);
+
+
+    if (zhe_init(&cfg, platform, zhe_platform_time()) < 0) {
+        fprintf(stderr, "init failed\n");
+        exit(1);
+    }
+    printf("Starting zhe!\n");
+    printf("Pointer from C: %p\n", platform);
+    printf("Pointer from C: %p\n", (void*)platform);
+    zhe_start(zhe_platform_time());
+
+    return platform;
+}
+
+void zhe_dispatch(struct zhe_platform *platform) {
+    zhe_time_t tnow = zhe_platform_time();
+    zhe_housekeeping(tnow);
+    zhe_platform_wait(platform, -1);
+    char inbuf[TRANSPORT_MTU];
+    zhe_address_t insrc;
+    int recvret;
+    tnow = zhe_platform_time();
+    if ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
+        zhe_input(inbuf, (size_t) recvret, &insrc, tnow);
+    }
+}
+
 void zhe_loop(struct zhe_platform *platform, uint64_t period)
 {
     while (true) {

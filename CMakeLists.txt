@@ -18,6 +18,8 @@ include_directories(
 file(GLOB Sources "src/*.c" "example/platform/*.c")
 add_library(zhe ${Sources})
 
+add_library(dzhe SHARED ${Sources})
+
 add_executable(throughput example/throughput/throughput.c)
 target_link_libraries(throughput zhe)
 
