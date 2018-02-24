@@ -67,7 +67,7 @@ The return value is 1 if the data was successfully written, 0 if insufficient sp
 
 If **LATENCY\_BUDGET** > 0, the data will not be sent immediately, but rather will be held until the **zhe\_housekeeping** function deems it necessary to send it, or one of the succeeding messages does not meet the conditions for packing the data. It is possible to force the data out at any time by calling:
 
-* void **zhe\_flush**(void)
+* void **zhe\_flush**(zhe\_time\_t tnow)
 
 which immediately passes any buffered packet to the **zhe\_platform\_send** function for transmission.
 
