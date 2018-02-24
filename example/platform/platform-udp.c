@@ -264,6 +264,11 @@ int zhe_platform_join(const struct zhe_platform *pf, const struct zhe_address *a
     return 1;
 }
 
+bool zhe_platform_needs_keepalive(struct zhe_platform *pf)
+{
+    return false;
+}
+
 #if BLOCKING_SEND
 static void wait_send(int sock)
 {

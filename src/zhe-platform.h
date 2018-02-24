@@ -2,6 +2,7 @@
 #define ZHE_PLATFORM_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include "zhe-config-int.h"
 
 /* modes for transport should not include 0 */
@@ -28,6 +29,9 @@ size_t zhe_platform_addr2string(const struct zhe_platform *pf, char * restrict s
  other side hung up on us (i.e., when using TCP), or SENDRECV_ERROR for unspecified, and therefore
  fatal errors. Should be non-blocking. */
 int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t size, const struct zhe_address * restrict dst);
+
+/* Return true if the source address of outgoing packets has changed since last call, false if not. Returning true when nothing changed will cause unnecessary keepalives to be sent, returning false when in fact it did change causes trouble. Called periodically (SCOUT_INTERVAL) so it should be cheap. */
+bool zhe_platform_needs_keepalive(struct zhe_platform *pf);
 
 void zhe_platform_trace(struct zhe_platform *pf, const char *fmt, ...);
 
