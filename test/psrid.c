@@ -11,12 +11,12 @@
 #include "zhe-tracing.h"
 #include "zhe-assert.h"
 
-#include "zhe-config-deriv.h" /* for ZTIME_TO_SECu32, LATENCY_BUDGET */
+#include "zhe-config-deriv.h" /* for ZTIME_TO_SECu32 */
 
 #include "zhe-util.h"
 
 #define MAX_KEY 9u
-#define ALLOW_MISALIGNED 0
+#define ALLOW_MISALIGNED 0 /* if undefined or 0, memcpy received data to avoid misaligned access */
 
 struct ping { uint32_t dst, src, seq; };
 struct pong { uint32_t dst, src, seq; };
@@ -42,12 +42,16 @@ static zhe_subidx_t sub_pong;
 static uint32_t pong_out_of_seq;
 static bool flush_flag = false;
 
-static void print_state(zhe_time_t tnow)
+static bool print_check_state(zhe_time_t tnow, uint32_t expected_rate, uint32_t count)
 {
+    uint32_t ok = 0;
     printf("%"PRIu32".%03"PRIu32" *** [%"PRIu32"]", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), ownkey);
     for (uint32_t k = 0; k <= MAX_KEY; k++) {
         if (peerinfo[k].lastseq_init) {
             uint32_t d = peerinfo[k].seq - peerinfo[k].pseq;
+            if (d > expected_rate / 2) {
+                ok++;
+            }
             if (d >= 10000) {
                 printf(" %1"PRIu32".%1"PRIu32"k", (d/1000)%10, (d/100)%10);
             } else {
@@ -59,6 +63,7 @@ static void print_state(zhe_time_t tnow)
         peerinfo[k].pseq = peerinfo[k].seq;
     }
     printf("\n");
+    return ok == count;
 }
 
 static bool send_next_ping(unsigned to, zhe_time_t tnow)
@@ -148,6 +153,8 @@ int main(int argc, char * const *argv)
     struct zhe_config cfg;
     int drop_pct = 0;
     bool wildcards = false;
+    uint32_t count;
+    bool ok = false;
     zhe_time_t duration = (zhe_time_t)~0;
 
 #ifdef __APPLE__
@@ -171,15 +178,17 @@ int main(int argc, char * const *argv)
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
         }
     }
-    if (optind + 1 != argc) {
-        fprintf(stderr, "usage: psrid [options] id\n");
+    if (optind + 2 != argc) {
+        fprintf(stderr, "usage: psrid [options] id{0..%"PRIu32"} count\n", MAX_KEY);
         exit(1);
     }
     ownkey = atoi(argv[optind]);
-    if (ownkey > MAX_KEY) {
-        fprintf(stderr, "key %"PRIu32" out of range\n", ownkey);
+    count = atoi(argv[optind+1]);
+    if (ownkey >= count || count > MAX_KEY) {
+        fprintf(stderr, "id %"PRIu32" or count %"PRIu32" out of range\n", ownkey, count);
         exit(1);
     }
+    const uint32_t expected_rate = flush_flag || LATENCY_BUDGET == 0 ? 1000 : 1000 / LATENCY_BUDGET;
     memset(&cfg, 0, sizeof(cfg));
     cfg.id = ownid;
     cfg.idlen = ownidsize;
@@ -231,7 +240,7 @@ int main(int argc, char * const *argv)
             }
         }
         if (ZTIME_TO_SECu32(tnow - tprint) > 1) {
-            print_state(tnow);
+            ok = print_check_state(tnow, expected_rate, count) || ok;
             tprint = tnow;
         }
         zhe_housekeeping(tnow);
@@ -240,6 +249,6 @@ int main(int argc, char * const *argv)
         }
         zhe_platform_wait(platform, 10);
     }
-    print_state(zhe_platform_time());
-    return 0;
+    ok = print_check_state(zhe_platform_time(), expected_rate, count) || ok;
+    return ok ? 0 : 1;
 }
