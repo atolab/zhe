@@ -25,9 +25,10 @@
 		0304173B20337A2D000EC6AF /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D5202F505A000EC6AF /* zhe-config.h */; };
 		030417502036DDD1000EC6AF /* psrid.c in Sources */ = {isa = PBXBuildFile; fileRef = 0304174F2036DDD1000EC6AF /* psrid.c */; };
 		030417512036DDDE000EC6AF /* liblibzhe.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0387A4B6202C852200599E82 /* liblibzhe.a */; };
+		030FFBEE203D6A9A001CE88B /* pub.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416C9202F505A000EC6AF /* pub.c */; };
+		030FFBEF203D6AA6001CE88B /* liblibzhe.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0387A4B6202C852200599E82 /* liblibzhe.a */; };
 		0362B515202085E700EF87EC /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
 		036D95461F93D6A8003C047B /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
-		0387A4BA202C853100599E82 /* zhe-binheap.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF821F5472F700F261D1 /* zhe-binheap.c */; };
 		0387A4BC202C853100599E82 /* zhe-bitset.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF841F5472F700F261D1 /* zhe-bitset.c */; };
 		0387A4C0202C853100599E82 /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
 		0387A4C4202C853100599E82 /* zhe-pack.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF861F5472F700F261D1 /* zhe-pack.c */; };
@@ -51,6 +52,15 @@
 			runOnlyForDeploymentPostprocessing = 1;
 		};
 		030587641EF92BEB0040F446 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		030FFBE5203D6A90001CE88B /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
@@ -104,9 +114,9 @@
 		030417482036DDC2000EC6AF /* psrid */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = psrid; sourceTree = BUILT_PRODUCTS_DIR; };
 		0304174F2036DDD1000EC6AF /* psrid.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = psrid.c; sourceTree = "<group>"; };
 		030587661EF92BEB0040F446 /* throughput */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = throughput; sourceTree = BUILT_PRODUCTS_DIR; };
+		030FFBE2203C6F6A001CE88B /* zhe-binheap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-binheap.h"; path = "src/zhe-binheap.h"; sourceTree = SOURCE_ROOT; };
+		030FFBE7203D6A90001CE88B /* pub */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pub; sourceTree = BUILT_PRODUCTS_DIR; };
 		034BDF811F5472F700F261D1 /* zhe-platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-platform.h"; path = "src/zhe-platform.h"; sourceTree = SOURCE_ROOT; };
-		034BDF821F5472F700F261D1 /* zhe-binheap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-binheap.c"; path = "src/zhe-binheap.c"; sourceTree = SOURCE_ROOT; };
-		034BDF831F5472F700F261D1 /* zhe-binheap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-binheap.h"; path = "src/zhe-binheap.h"; sourceTree = SOURCE_ROOT; };
 		034BDF841F5472F700F261D1 /* zhe-bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-bitset.c"; path = "src/zhe-bitset.c"; sourceTree = SOURCE_ROOT; };
 		034BDF851F5472F700F261D1 /* zhe-bitset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-bitset.h"; path = "src/zhe-bitset.h"; sourceTree = SOURCE_ROOT; };
 		034BDF861F5472F700F261D1 /* zhe-pack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-pack.c"; path = "src/zhe-pack.c"; sourceTree = SOURCE_ROOT; };
@@ -148,6 +158,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				0387A4D4202C856100599E82 /* liblibzhe.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		030FFBE4203D6A90001CE88B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				030FFBEF203D6AA6001CE88B /* liblibzhe.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -286,6 +304,7 @@
 				036D95551F93D6A8003C047B /* icgcbtest */,
 				0387A4B6202C852200599E82 /* liblibzhe.a */,
 				030417482036DDC2000EC6AF /* psrid */,
+				030FFBE7203D6A90001CE88B /* pub */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -294,8 +313,7 @@
 			isa = PBXGroup;
 			children = (
 				03041667202F39C8000EC6AF /* zhe-arylist.h */,
-				034BDF821F5472F700F261D1 /* zhe-binheap.c */,
-				034BDF831F5472F700F261D1 /* zhe-binheap.h */,
+				030FFBE2203C6F6A001CE88B /* zhe-binheap.h */,
 				034BDF841F5472F700F261D1 /* zhe-bitset.c */,
 				034BDF851F5472F700F261D1 /* zhe-bitset.h */,
 				034BDF911F5472F700F261D1 /* zhe-config-deriv.h */,
@@ -386,6 +404,23 @@
 			productReference = 030587661EF92BEB0040F446 /* throughput */;
 			productType = "com.apple.product-type.tool";
 		};
+		030FFBE6203D6A90001CE88B /* pub */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 030FFBEB203D6A90001CE88B /* Build configuration list for PBXNativeTarget "pub" */;
+			buildPhases = (
+				030FFBE3203D6A90001CE88B /* Sources */,
+				030FFBE4203D6A90001CE88B /* Frameworks */,
+				030FFBE5203D6A90001CE88B /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = pub;
+			productName = pub;
+			productReference = 030FFBE7203D6A90001CE88B /* pub */;
+			productType = "com.apple.product-type.tool";
+		};
 		036D95441F93D6A8003C047B /* icgcbtest */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 036D95521F93D6A8003C047B /* Build configuration list for PBXNativeTarget "icgcbtest" */;
@@ -454,6 +489,10 @@
 						CreatedOnToolsVersion = 8.3.3;
 						ProvisioningStyle = Automatic;
 					};
+					030FFBE6203D6A90001CE88B = {
+						CreatedOnToolsVersion = 9.2;
+						ProvisioningStyle = Automatic;
+					};
 					0387A4B5202C852200599E82 = {
 						CreatedOnToolsVersion = 9.2;
 						ProvisioningStyle = Automatic;
@@ -477,6 +516,7 @@
 				037208E11F70E92600AE2144 /* roundtrip */,
 				036D95441F93D6A8003C047B /* icgcbtest */,
 				030417472036DDC2000EC6AF /* psrid */,
+				030FFBE6203D6A90001CE88B /* pub */,
 			);
 		};
 /* End PBXProject section */
@@ -495,6 +535,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				03041728202F506C000EC6AF /* throughput.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		030FFBE3203D6A90001CE88B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				030FFBEE203D6A9A001CE88B /* pub.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -521,7 +569,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				0304171C202F505A000EC6AF /* sub.c in Sources */,
-				0387A4BA202C853100599E82 /* zhe-binheap.c in Sources */,
 				0387A4BC202C853100599E82 /* zhe-bitset.c in Sources */,
 				0387A4C0202C853100599E82 /* zhe-icgcb.c in Sources */,
 				0304171D202F505A000EC6AF /* pub.c in Sources */,
@@ -692,6 +739,30 @@
 			};
 			name = Release;
 		};
+		030FFBEC203D6A90001CE88B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		030FFBED203D6A90001CE88B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 		036D95531F93D6A8003C047B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -796,6 +867,15 @@
 			buildConfigurations = (
 				0305876E1EF92BEB0040F446 /* Debug */,
 				0305876F1EF92BEB0040F446 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		030FFBEB203D6A90001CE88B /* Build configuration list for PBXNativeTarget "pub" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				030FFBEC203D6A90001CE88B /* Debug */,
+				030FFBED203D6A90001CE88B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
