@@ -78,9 +78,6 @@ struct peer {
 #endif
     struct in_conduit ic[N_IN_CONDUITS]; /* one slot for each out conduit from this peer */
     struct peerid id;             /* peer id */
-#if N_OUT_MCONDUITS > 0
-    DECL_BITSET(mc_member, N_OUT_MCONDUITS);
-#endif
 };
 
 #if N_OUT_MCONDUITS > 0
@@ -92,6 +89,7 @@ MAKE_PACKAGE_SPEC(BINHEAP, (static, zhe_minseqheap, seq_t, peeridx_t, peeridx_t,
 struct out_mconduit {
     struct out_conduit oc;        /* same transmit window management as unicast */
     zhe_minseqheap_t seqbase;     /* tracks ACKs from peers for computing oc.seqbase as min of them all */
+    DECL_BITSET(members, MAX_PEERS_1); /* set of peers attached to this mconduit */
 };
 
 static struct out_mconduit out_mconduits[N_OUT_MCONDUITS];
@@ -248,15 +246,18 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
        update the administration */
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
         struct out_mconduit * const mc = &out_mconduits[i];
-            zhe_assert(zhe_bitset_test(p->mc_member, (unsigned)i));
         if (zhe_minseqheap_delete(&mc->seqbase, peeridx)) {
+            zhe_assert(zhe_bitset_test(mc->members, (unsigned)peeridx));
+            zhe_bitset_clear(mc->members, (unsigned)peeridx);
             if (zhe_minseqheap_isempty(&mc->seqbase)) {
                 remove_acked_messages(&mc->oc, mc->oc.seq);
             } else {
                 remove_acked_messages(&mc->oc, zhe_minseqheap_min(&mc->seqbase));
             }
+        } else if (p->state != PEERST_ESTABLISHED) {
+            zhe_bitset_clear(mc->members, (unsigned)peeridx);
         } else {
-            zhe_assert(!zhe_bitset_test(p->mc_member, (unsigned)i) || p->state != PEERST_ESTABLISHED);
+            zhe_assert(!zhe_bitset_test(mc->members, (unsigned)peeridx));
         }
     }
 #endif
@@ -285,9 +286,6 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
         p->ic[i].synched = 0;
         p->ic[i].usynched = 0;
     }
-#if N_OUT_MCONDUITS > 0
-    memset(p->mc_member, 0, sizeof(p->mc_member));
-#endif
 }
 
 static void init_globals(zhe_time_t tnow)
@@ -981,7 +979,7 @@ static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
             char tmp[TRANSPORT_ADDRSTRLEN];
             const size_t tmpsz = zhe_platform_addr2string(zhe_platform, tmp, sizeof(tmp), &out_mconduits[cid].oc.addr);
             if (sz == tmpsz && memcmp(loc, tmp, sz) == 0) {
-                zhe_bitset_set(peers[peeridx].mc_member, (unsigned)cid);
+                zhe_bitset_set(out_mconduits[cid].members, (unsigned)peeridx);
                 ZT(PEERDISC, "loc %s cid %u", tmp, (unsigned)cid);
             }
         }
@@ -1110,8 +1108,8 @@ static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * 
     p->tlease = tnow + (zhe_time_t)p->lease_dur;
 #if N_OUT_MCONDUITS > 0
     for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
-        if (zhe_bitset_test(p->mc_member, (unsigned)cid)) {
-            struct out_mconduit * const mc = &out_mconduits[cid];
+        struct out_mconduit * const mc = &out_mconduits[cid];
+        if (zhe_bitset_test(mc->members, (unsigned)peeridx)) {
             zhe_minseqheap_insert(&mc->seqbase, peeridx, mc->oc.seq);
         }
     }
