@@ -16,7 +16,7 @@ void zhe_bitset_set(uint8_t *s, unsigned idx)
 
 void zhe_bitset_clear(uint8_t *s, unsigned idx)
 {
-    s[idx / 8] &= (uint8_t)~1 << (idx % 8);
+    s[idx / 8] &= (uint8_t)~(1 << (idx % 8));
 }
 
 int zhe_bitset_test(const uint8_t *s, unsigned idx)
