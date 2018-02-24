@@ -779,7 +779,7 @@ static int send_declare_commit(struct out_conduit *oc, uint8_t commitid, zhe_tim
         ZT(PUBSUB, "sending commit %u", commitid);
         zhe_pack_dcommit(commitid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
         return 1;
     } else {
         ZT(PUBSUB, "postponing commit %u", commitid);

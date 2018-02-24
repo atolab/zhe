@@ -61,7 +61,7 @@ int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_
 void zhe_start(zhe_time_t tnow);
 void zhe_housekeeping(zhe_time_t tnow);
 int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow);
-void zhe_flush(void);
+void zhe_flush(zhe_time_t tnow);
 
 bool zhe_declare_resource(zhe_rid_t rid, const char *uri);
 zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable);

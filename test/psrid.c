@@ -65,7 +65,7 @@ static bool send_next_ping(unsigned to, zhe_time_t tnow)
 {
     const struct ping ping = { .src = ownkey, .dst = to, .seq = ++peerinfo[to].seq };
     const int ok = zhe_write(pub_ping, &ping, sizeof(ping), tnow);
-    if (flush_flag) zhe_flush();
+    if (flush_flag) zhe_flush(tnow);
     if (ok) peerinfo[to].tping = tnow;
     return ok >= 0;
 }
@@ -106,7 +106,7 @@ static void ping_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size,
         printf("%4"PRIu32".%03"PRIu32" *** [%"PRIu32"] ping_handler: write pong failed\n", ZTIME_TO_SECu32(tnow), ZTIME_TO_MSECu32(tnow), ownkey);
         abort();
     }
-    if (flush_flag) zhe_flush();
+    if (flush_flag) zhe_flush(tnow);
 }
 
 static void pong_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *arg)

@@ -60,19 +60,21 @@ static uint64_t gethrtime(void)
 static void pong_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *vpub)
 {
     const zhe_pubidx_t *pub = vpub;
-    zhe_write(*pub, payload, size, zhe_platform_time());
-    zhe_flush(); /* just in case we use latency budget */
+    zhe_time_t tnow = zhe_platform_time();
+    zhe_write(*pub, payload, size, tnow);
+    zhe_flush(tnow); /* just in case we use latency budget */
 }
 
 static void ping_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *vpub)
 {
     uint64_t hrtnow = gethrtime();
+    zhe_time_t tnow = zhe_platform_time();
     const zhe_pubidx_t *pub = vpub;
     const struct data *pong = payload;
     latupd(hrtnow - pong->ts);
     struct data ping = { hrtnow };
-    zhe_write(*pub, &ping, sizeof(ping), zhe_platform_time());
-    zhe_flush(); /* just in case we use latency budget */
+    zhe_write(*pub, &ping, sizeof(ping), tnow);
+    zhe_flush(tnow); /* just in case we use latency budget */
 }
 
 static void loop(struct zhe_platform *platform)
@@ -182,8 +184,9 @@ int main(int argc, char * const *argv)
         loop(platform);
         /* first write can't really fail with a reasonably sized buffer */
         struct data d = { gethrtime() };
-        (void)zhe_write(p, &d, sizeof(d), zhe_platform_time());
-        zhe_flush();
+        const zhe_time_t tnow = zhe_platform_time();
+        (void)zhe_write(p, &d, sizeof(d), tnow);
+        zhe_flush(tnow);
     }
     printf("starting loop\n");
     while(1) {

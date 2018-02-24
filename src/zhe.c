@@ -59,6 +59,7 @@ struct out_conduit {
     zhe_time_t last_rexmit;       /* time of latest retransmit */
     seq_t    last_rexmit_seq;     /* latest sequence number retransmitted */
     uint8_t  draining_window: 1;  /* set to true if draining window (waiting for ACKs) after hitting limit */
+    uint8_t  sched_synch: 1;      /* whether a SYNCH must be scheduled (set on transition of empty to non-empty xmit window */
     uint8_t  *rbuf;               /* reliable samples (or declarations); prepended by size (of type zhe_msgsize_t) */
 #if XMITW_SAMPLE_INDEX
     seq_t    firstidx;
@@ -154,10 +155,11 @@ static xwpos_t peers_oc_rbufidx[MAX_PEERS_1][XMITW_SAMPLES_UNICAST];
 #endif
 #endif
 
-/* In peer mode, always send scouts periodically, with tnextscout giving the time for the next scout
+/* In peer mode, always send scouts periodically, with tlastscout giving the time of the last scout
    message to go out. In client mode, scouting is conditional upon the state of the broker, in that
-   case scouts only go out if peers[0].state = UNKNOWN. We also use it to send KEEPALIVEs, but those
-   should be suppressed if data went out recently enough. FIXME: solve that. */
+   case scouts only go out if peers[0].state = UNKNOWN, but we then overload tlastscout to determine
+   when to send a KEEPALIVE. And for that, we simply update tlastscout every time a packet goes out
+   when in client mode. */
 #if SCOUT_COUNT > 0
 #if SCOUT_COUNT <= 255
 static uint8_t scout_count = SCOUT_COUNT;
@@ -165,7 +167,7 @@ static uint8_t scout_count = SCOUT_COUNT;
 static uint16_t scout_count = SCOUT_COUNT;
 #endif
 #endif /* SCOUT_COUNT > 0 */
-static zhe_time_t tnextscout;
+static zhe_time_t tlastscout;
 
 static void remove_acked_messages(struct out_conduit * const c, seq_t seq);
 
@@ -313,7 +315,7 @@ static void init_globals(zhe_time_t tnow)
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
     outdeadline = tnow;
 #endif
-    tnextscout = tnow;
+    tlastscout = tnow;
 #if ZHE_MAX_URISPACE > 0
     zhe_uristore_init();
 #endif
@@ -429,20 +431,38 @@ static void check_xmitw(const struct out_conduit *c)
 #endif
 #endif
 
-void zhe_pack_msend(void)
+void zhe_pack_msend(zhe_time_t tnow)
 {
+#if MSYNCH_INTERVAL < 2 * ROUNDTRIP_TIME_ESTIMATE
+#error "zhe_pack_msend assumes MSYNCH_INTERVAL - 2 * ROUNDTRIP_TIME_ESTIMATE is a good indicator for setting the S flag"
+#endif
     if (outp > 0) {
         zhe_assert ((outspos == OUTSPOS_UNSET) == (outc == NULL));
         zhe_assert (outdst != NULL);
         if (outspos != OUTSPOS_UNSET) {
             /* FIXME: not-so-great proxy for transition past 3/4 of window size */
             xwpos_t cnt = zhe_xmitw_bytesavail(outc);
-            if (cnt < outc->xmitw_bytes / 4 && cnt + outspos >= outc->xmitw_bytes / 4) {
+            ZT(DEBUG, "msend spos set: cnt=%u (tnow=%u-tsynch=%u)=%u", (unsigned)cnt, (unsigned)tnow, (unsigned)outc->tsynch, (unsigned)(tnow - outc->tsynch));
+            if ((cnt < outc->xmitw_bytes / 4 && cnt + outspos >= outc->xmitw_bytes / 4) ||
+                ((zhe_timediff_t)(tnow - outc->tsynch) > MSYNCH_INTERVAL - 2 * ROUNDTRIP_TIME_ESTIMATE)) {
                 outbuf[outspos] |= MSFLAG;
+                outc->sched_synch = 1;
+            }
+            if (outc->sched_synch) {
+                outc->tsynch = tnow;
+                outc->sched_synch = 0;
             }
         }
-        if (zhe_platform_send(zhe_platform, outbuf, outp, outdst) < 0) {
+        const int sendres = zhe_platform_send(zhe_platform, outbuf, outp, outdst);
+        if (sendres < 0) {
             zhe_assert(0);
+        } else {
+#if MAX_PEERS == 0
+            if (sendres > 0) {
+                /* we didn't drop the packet for lack of space, so postpone next keepalive */
+                tlastscout = tnow;
+            }
+#endif
         }
         outp = 0;
         outspos = OUTSPOS_UNSET;
@@ -464,7 +484,7 @@ void zhe_pack_reserve(zhe_address_t *dst, struct out_conduit *oc, zhe_paysize_t 
     if (TRANSPORT_MTU - outp < cnt || (outdst != NULL && dst != outdst) || (outc && outc != oc)) {
         /* we should never even try to generate a message that is too large for a packet */
         zhe_assert(outp != 0);
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
     }
     if (oc) {
         outc = oc;
@@ -545,7 +565,7 @@ void zhe_oc_hit_full_window(struct out_conduit *c, zhe_time_t tnow)
     c->draining_window = 1;
     if (outp > 0) {
         zhe_pack_msynch(outdst, MSFLAG, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
     }
 }
 
@@ -618,7 +638,7 @@ void zhe_oc_pack_payload_done(struct out_conduit *c, int relflag, zhe_time_t tno
         c->pos = xmitw_pos_add(c, c->pos, sizeof(zhe_msgsize_t));
         if (c->seq == c->seqbase) {
             /* first unack'd sample, schedule SYNCH */
-            c->tsynch = tnow + MSYNCH_INTERVAL;
+            c->sched_synch = 1;
         }
         /* prep for next sample */
         c->seq += SEQNUM_UNIT;
@@ -850,7 +870,7 @@ static zhe_unpack_result_t handle_dcommit(peeridx_t peeridx, const uint8_t * con
             }
             zhe_pack_dresult(commitid, commitres, err_rid);
             zhe_oc_pack_mdeclare_done(oc, from, tnow);
-            zhe_pack_msend();
+            zhe_pack_msend(tnow);
         }
     }
     return ZUR_OK;
@@ -946,7 +966,7 @@ static zhe_unpack_result_t handle_mscout(peeridx_t peeridx, const uint8_t * cons
     if ((mask & lookfor) && state_ok) {
         ZT(PEERDISC, "got a scout! sending a hello");
         zhe_pack_mhello(&peers[peeridx].oc.addr, tnow);
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
     }
     return ZUR_OK;
 }
@@ -1012,7 +1032,7 @@ static zhe_unpack_result_t handle_mhello(peeridx_t peeridx, const uint8_t * cons
         }
         if (send_open) {
             zhe_pack_mopen(&peers[peeridx].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION, tnow);
-            zhe_pack_msend();
+            zhe_pack_msend(tnow);
         }
     }
     return ZUR_OK;
@@ -1199,7 +1219,7 @@ static zhe_unpack_result_t handle_mopen(peeridx_t * restrict peeridx, const uint
         accept_peer(*peeridx, idlen, id, ld, tnow);
     }
     zhe_pack_maccept(&p->oc.addr, &ownid, &p->id, LEASE_DURATION, tnow);
-    zhe_pack_msend();
+    zhe_pack_msend(tnow);
 
     return ZUR_OK;
 
@@ -1328,7 +1348,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, zhe_ti
            much to do with it other than administrative stuff */
         ZT(RELIABLE, "acknack_if_needed peeridx %u cid %u wantsack %d mask %u seq %u", peeridx, cid, wantsack, mask, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
         zhe_pack_macknack(&peers[peeridx].oc.addr, cid, peers[peeridx].ic[cid].seq, mask, tnow);
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
         peers[peeridx].ic[cid].tack = tnow;
     }
 }
@@ -1412,7 +1432,7 @@ static zhe_unpack_result_t handle_mdeclare(peeridx_t peeridx, const uint8_t * co
                 if ((commitres = zhe_rsub_precommit_status_for_Cflag(peeridx, &err_rid)) != 0) {
                     ZT(PUBSUB, "handle_mdeclare %u .. failures noted, close", peeridx);
                     zhe_pack_mclose(&peers[peeridx].oc.addr, CLR_INCOMPAT_DECL, &ownid, tnow);
-                    zhe_pack_msend();
+                    zhe_pack_msend(tnow);
                     reset_peer(peeridx, tnow);
                 }
             }
@@ -1651,7 +1671,7 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
            even sent yet, send a SYNCH and but otherwise ignore the ACKNACK */
         ZT(RELIABLE, "handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
         zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
         return ZUR_OK;
     }
 
@@ -1721,7 +1741,7 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
             /* Note: setting the S bit is not the same as a SYNCH, maybe it would be better to send
              a SYNCH instead? */
             outbuf[outspos_tmp] |= MSFLAG;
-            zhe_pack_msend();
+            zhe_pack_msend(tnow);
         }
     }
     return ZUR_OK;
@@ -1736,7 +1756,7 @@ static zhe_unpack_result_t handle_mping(peeridx_t peeridx, const uint8_t * const
         return res == ZUR_OVERFLOW ? ZUR_OK : res;
     }
     zhe_pack_mpong(&peers[peeridx].oc.addr, hash, tnow);
-    zhe_pack_msend();
+    zhe_pack_msend(tnow);
     return ZUR_OK;
 }
 
@@ -1863,41 +1883,7 @@ int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_
 
 void zhe_start(zhe_time_t tnow)
 {
-    tnextscout = tnow - SCOUT_INTERVAL;
-}
-
-static void maybe_send_scout(zhe_time_t tnow)
-{
-    if ((zhe_timediff_t)(tnow - tnextscout) >= 0) {
-        tnextscout = tnow + SCOUT_INTERVAL;
-#if MAX_PEERS == 0
-        if (peers[0].state == PEERST_UNKNOWN) {
-            zhe_pack_mscout(&scoutaddr, tnow);
-        } else {
-#if LEASE_DURATION > 0
-            zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
-#endif
-        }
-#else /* MAX_PEERS > 0 */
-#if SCOUT_COUNT == 0
-        zhe_pack_mscout(&scoutaddr, tnow);
-#else
-        if (scout_count > 0) {
-            --scout_count;
-            zhe_pack_mscout(&scoutaddr, tnow);
-        }
-#endif
-#if LEASE_DURATION > 0
-        if (npeers > 0) {
-            /* Scout messages are ignored by peers that have established a session with the source
-               of the scout message, and then there is also the issue of potentially changing source
-               addresses ... so we combine the scout with a keepalive if we know some peers */
-            zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
-        }
-#endif
-#endif
-        zhe_pack_msend();
-    }
+    tlastscout = tnow;
 }
 
 #if TRANSPORT_MODE == TRANSPORT_PACKET
@@ -1984,19 +1970,58 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
 }
 #endif
 
+#if MAX_PEERS == 0
+static void send_scout(zhe_time_t tnow)
+{
+    if (peers[0].state == PEERST_UNKNOWN) {
+        zhe_pack_mscout(&scoutaddr, tnow);
+    } else {
+#if LEASE_DURATION > 0
+        zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
+#endif /* LEASE_DURATION > 0 */
+    }
+    zhe_pack_msend(tnow);
+}
+#elif SCOUT_COUNT == 0 /* && MAX_PEERS > 0 */
+static void send_scout(zhe_time_t tnow)
+{
+    zhe_pack_mscout(&scoutaddr, tnow);
+    if (zhe_platform_needs_keepalive(zhe_platform)) {
+        /* Scout messages will take care of keeping alive the peer, but there is also the issue of potentially changing source
+         addresses ... so we should send a keepalive every now and then if we know some peers */
+        zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
+    }
+    zhe_pack_msend(tnow);
+}
+#else /* SCOUT_COUNT > 0 && MAX_PEERS > 0 */
+static void send_scout(zhe_time_t tnow)
+{
+    if (scout_count > 0) {
+        --scout_count;
+        zhe_pack_mscout(&scoutaddr, tnow);
+    }
+#if LEASE_DURATION > 0
+    if (npeers > 0 && (scout_count == 0 || zhe_platform_needs_keepalive(zhe_platform))) {
+        zhe_pack_mkeepalive(&scoutaddr, &ownid, tnow);
+    }
+#endif /* LEASE_DURATION */
+    zhe_pack_msend(tnow);
+}
+#endif /* MAX_PEERS */
+
 static void maybe_send_msync_oc(struct out_conduit * const oc, zhe_time_t tnow)
 {
-    if (oc->seq != oc->seqbase && (zhe_timediff_t)(tnow - oc->tsynch) >= 0) {
-        oc->tsynch = tnow + MSYNCH_INTERVAL;
+    if (oc->seq != oc->seqbase && (zhe_timediff_t)(tnow - oc->tsynch) >= MSYNCH_INTERVAL) {
+        oc->tsynch = tnow;
         zhe_pack_msynch(&oc->addr, MSFLAG, oc->cid, oc->seqbase, oc_get_nsamples(oc), tnow);
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
     }
 }
 
-void zhe_flush(void)
+void zhe_flush(zhe_time_t tnow)
 {
     if (outp > 0) {
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
     }
 }
 
@@ -2011,7 +2036,7 @@ void zhe_housekeeping(zhe_time_t tnow)
                 if ((zhe_timediff_t)(tnow - peers[i].tlease) > peers[i].lease_dur && peers[i].lease_dur != 0) {
                     ZT(PEERDISC, "lease expired on peer @ %u", i);
                     zhe_pack_mclose(&peers[i].oc.addr, 0, &ownid, tnow);
-                    zhe_pack_msend();
+                    zhe_pack_msend(tnow);
                     reset_peer(i, tnow);
                 }
 #if HAVE_UNICAST_CONDUIT
@@ -2030,7 +2055,7 @@ void zhe_housekeeping(zhe_time_t tnow)
                         peers[i].state++;
                         peers[i].tlease = tnow;
                         zhe_pack_mopen(&peers[i].oc.addr, SEQNUM_LEN, &ownid, LEASE_DURATION, tnow);
-                        zhe_pack_msend();
+                        zhe_pack_msend(tnow);
                     }
                 }
                 break;
@@ -2045,7 +2070,10 @@ void zhe_housekeeping(zhe_time_t tnow)
 #endif
 
     zhe_send_declares(tnow);
-    maybe_send_scout(tnow);
+    if ((zhe_timediff_t)(tnow - tlastscout) >= SCOUT_INTERVAL) {
+        tlastscout = tnow;
+        send_scout(tnow);
+    }
 #if ZHE_MAX_URISPACE > 0
     zhe_uristore_gc();
 #endif
@@ -2053,7 +2081,7 @@ void zhe_housekeeping(zhe_time_t tnow)
     /* Flush any pending output if the latency budget has been exceeded */
 #if LATENCY_BUDGET != 0 && LATENCY_BUDGET != LATENCY_BUDGET_INF
     if (outp > 0 && (zhe_timediff_t)(tnow - outdeadline) >= 0) {
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
     }
 #endif
 }

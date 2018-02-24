@@ -29,9 +29,8 @@ int main(int argc, char* argv[]) {
     while (true) {
         printf(">> Writing count %llu\n", count);
         zhe_write(p, data, strlen(data), zhe_platform_time());
-        zhe_flush();
+        zhe_flush(zhe_platform_time());
         count += 1;
         zhe_once(platform, delay);
-
     }
 }

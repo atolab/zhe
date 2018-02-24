@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
     struct zhe_platform * const platform = zhe(port);
     zhe_subidx_t s;
     s = zhe_subscribe(1, 0, 0, data_handler, NULL);
-    zhe_flush();
+    zhe_flush(zhe_platform_time());
     while (true) {
         zhe_dispatch(platform);
     }
