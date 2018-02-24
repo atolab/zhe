@@ -12,8 +12,8 @@
 #include "zhe-pack.h"
 #include "zhe-unpack.h"
 #include "zhe-bitset.h"
-#include "zhe-binheap.h"
 #include "zhe-pubsub.h"
+#include "zhe-binheap.h"
 
 #if ZHE_MAX_URISPACE > 0
 #include "zhe-uristore.h"
@@ -86,9 +86,11 @@ struct peer {
 #  if MAX_PEERS == 0
 #    error "N_OUT_CONDUITS > 1 requires MAX_PEERS > 0"
 #  endif
+MAKE_PACKAGE_SPEC(BINHEAP, (static, zhe_minseqheap, seq_t, peeridx_t, peeridx_t, MAX_PEERS), type, init, isempty, insert, raisekey, delete, min)
+
 struct out_mconduit {
     struct out_conduit oc;        /* same transmit window management as unicast */
-    struct minseqheap seqbase;    /* tracks ACKs from peers for computing oc.seqbase as min of them all */
+    zhe_minseqheap_t seqbase;     /* tracks ACKs from peers for computing oc.seqbase as min of them all */
 };
 
 static struct out_mconduit out_mconduits[N_OUT_MCONDUITS];
@@ -167,6 +169,10 @@ static zhe_time_t tnextscout;
 
 static void remove_acked_messages(struct out_conduit * const c, seq_t seq);
 
+#if N_OUT_MCONDUITS > 0
+MAKE_PACKAGE_BODY(BINHEAP, (static, zhe_minseqheap, seq_t, peeridx_t, PEERIDX_INVALID, peeridx_t, zhe_seq_lt, MAX_PEERS), init, heapify, check, insert, delete, raisekey, min, isempty)
+#endif
+
 static void oc_reset_transmit_window(struct out_conduit * const oc)
 {
     oc->seqbase = oc->seq;
@@ -240,12 +246,12 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
        update the administration */
     for (cid_t i = 0; i < N_OUT_MCONDUITS; i++) {
         struct out_mconduit * const mc = &out_mconduits[i];
-        if (zhe_minseqheap_delete(peeridx, &mc->seqbase)) {
             zhe_assert(zhe_bitset_test(p->mc_member, (unsigned)i));
+        if (zhe_minseqheap_delete(&mc->seqbase, peeridx)) {
             if (zhe_minseqheap_isempty(&mc->seqbase)) {
                 remove_acked_messages(&mc->oc, mc->oc.seq);
             } else {
-                remove_acked_messages(&mc->oc, zhe_minseqheap_get_min(&mc->seqbase));
+                remove_acked_messages(&mc->oc, zhe_minseqheap_min(&mc->seqbase));
             }
         } else {
             zhe_assert(!zhe_bitset_test(p->mc_member, (unsigned)i) || p->state != PEERST_ESTABLISHED);
@@ -296,10 +302,7 @@ static void init_globals(zhe_time_t tnow)
 #endif
         oc_setup1(&mc->oc, i, XMITW_BYTES, out_mconduits_oc_rbuf[i], XMITW_SAMPLES, rbufidx);
         mc->seqbase.n = 0;
-        for (peeridx_t j = 0; j < MAX_PEERS; j++) {
-            mc->seqbase.hx[j] = PEERIDX_INVALID;
-            mc->seqbase.ix[j].i = PEERIDX_INVALID;
-        }
+        zhe_minseqheap_init(&mc->seqbase);
     }
 #endif
     for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
@@ -1089,7 +1092,7 @@ static void accept_peer(peeridx_t peeridx, zhe_paysize_t idlen, const uint8_t * 
     for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
         if (zhe_bitset_test(p->mc_member, (unsigned)cid)) {
             struct out_mconduit * const mc = &out_mconduits[cid];
-            zhe_minseqheap_insert(peeridx, mc->oc.seq, &mc->seqbase);
+            zhe_minseqheap_insert(&mc->seqbase, peeridx, mc->oc.seq);
         }
     }
 #endif
@@ -1652,7 +1655,7 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
         return ZUR_OK;
     }
 
-    DO_FOR_UNICAST_OR_MULTICAST(cid, seq_ack = seq, seq_ack = zhe_minseqheap_update_seq(peeridx, seq, c->seqbase, &out_mconduits[cid].seqbase));
+    DO_FOR_UNICAST_OR_MULTICAST(cid, seq_ack = seq, seq_ack = zhe_minseqheap_raisekey(&out_mconduits[cid].seqbase, peeridx, seq, c->seqbase));
     remove_acked_messages(c, seq_ack);
 
     if (mask == 0) {
