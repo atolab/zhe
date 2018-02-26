@@ -30,9 +30,7 @@ uint16_t zhe_pack_locs_calcsize(void);
 void zhe_pack_locs(void);
 void zhe_oc_hit_full_window(struct out_conduit *c, zhe_time_t tnow);
 int zhe_oc_am_draining_window(const struct out_conduit *c);
-cid_t zhe_oc_get_cid(struct out_conduit *c);
-bool zhe_out_conduit_is_connected(peeridx_t peeridx, cid_t cid);
-int zhe_ocm_have_peers(const struct out_mconduit *mc); /* FIXME: do I need to keep this? */
+bool zhe_out_conduit_is_connected(cid_t cid);
 void zhe_pack_msend(zhe_time_t tnow);
 zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int relflag, zhe_paysize_t sz, zhe_time_t tnow);
 void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from);
@@ -40,6 +38,6 @@ void zhe_oc_pack_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, c
 void zhe_oc_pack_payload_done(struct out_conduit *c, int relflag, zhe_time_t tnow);
 int zhe_seq_lt(seq_t a, seq_t b);
 int zhe_seq_le(seq_t a, seq_t b);
-struct out_conduit *zhe_out_conduit_from_cid(peeridx_t peeridx, cid_t cid);
+struct out_conduit *zhe_out_conduit_from_cid(cid_t cid);
 
 #endif

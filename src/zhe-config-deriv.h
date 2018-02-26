@@ -69,7 +69,8 @@ struct msgsize_leq_paysize_t {
 
 /* There is not a fundamental limit on the number of conduits, but there are some places
  where a conduit id is assumed to fit in a single byte in message processing, and there
- are some places where a signed integer is used to index either conduit or peer. */
+ are some places where a non-negative integer is used to index a multicast conduit, and a
+ negative one a unicast conduit as (-(cid_t)peeridx-1). */
 #if N_OUT_CONDUITS <= 127 && N_IN_CONDUITS <= 127 && MAX_PEERS <= 127
 typedef int8_t cid_t;
 #  define MAX_CID_T 127

@@ -217,22 +217,43 @@ void zhe_pack_mclose(zhe_address_t *dst, uint8_t reason, const struct peerid *ow
     zhe_pack1(reason);
 }
 
-void zhe_pack_reserve_mconduit(zhe_address_t *dst, struct out_conduit *oc, cid_t cid, zhe_paysize_t cnt, zhe_time_t tnow)
+static zhe_paysize_t zhe_pack_mconduit_reqsize(cid_t cid)
 {
-    zhe_paysize_t cid_size = (cid > 0) + (cid > 4);
-    zhe_assert(cid >= 0);
-    zhe_assert(cid < N_OUT_CONDUITS);
 #if N_OUT_CONDUITS > 127
 #error "N_OUT_CONDUITS must be <= 127 or unconditionally packing a CID into a byte won't work"
 #endif
-    zhe_assert(oc == NULL || zhe_oc_get_cid(oc) == cid);
-    zhe_pack_reserve(dst, oc, cid_size + cnt, tnow);
+    zhe_assert(cid >= 0 && cid <= 127);
+    return (cid > 0) + (cid > 4);
+}
+
+static void zhe_pack_mconduit(cid_t cid)
+{
+    zhe_assert(cid >= 0 && cid <= 127);
     if (cid > 4) {
         zhe_pack2(MCONDUIT, (uint8_t)cid);
     } else if (cid > 0) {
         uint8_t eid = (uint8_t)((cid - 1) << 5);
         zhe_pack1(MCONDUIT | MZFLAG | eid);
     }
+}
+
+void zhe_pack_reserve_mconduit(zhe_address_t *dst, cid_t cid, bool track_cid, zhe_paysize_t cnt, zhe_time_t tnow)
+{
+#if HAVE_UNICAST_CONDUIT
+    const cid_t norm_cid = (cid >= 0) ? cid : UNICAST_CID;
+#else
+    const cid_t norm_cid = cid;
+#endif
+    const zhe_paysize_t norm_cid_size = zhe_pack_mconduit_reqsize(norm_cid);
+    zhe_pack_reserve(dst, track_cid ? zhe_out_conduit_from_cid(cid) : NULL, norm_cid_size + cnt, tnow);
+    zhe_pack_mconduit(norm_cid);
+}
+
+void zhe_pack_reserve_mconduit_rawcid(zhe_address_t *dst, cid_t cid, zhe_paysize_t cnt, zhe_time_t tnow)
+{
+    const zhe_paysize_t cid_size = zhe_pack_mconduit_reqsize(cid);
+    zhe_pack_reserve(dst, NULL, cid_size + cnt, tnow);
+    zhe_pack_mconduit(cid);
 }
 
 unsigned zhe_synch_sent;
@@ -242,7 +263,7 @@ void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase
     seq_t cnt_shifted = (seq_t)(cnt << SEQNUM_SHIFT);
     seq_t seq_msg = seqbase + cnt_shifted;
     ZT(RELIABLE, "pack_msynch cid %d sflag %u seqbase %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt);
-    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seq_msg) + zhe_pack_seqreq(cnt_shifted), tnow);
+    zhe_pack_reserve_mconduit(dst, cid, false, 1 + zhe_pack_seqreq(seq_msg) + zhe_pack_seqreq(cnt_shifted), tnow);
     zhe_pack1(MRFLAG | sflag | (cnt > 0 ? MUFLAG : 0) | MSYNCH);
     zhe_pack_seq(seq_msg);
     if (cnt > 0) {
@@ -253,7 +274,7 @@ void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase
 
 void zhe_pack_macknack(zhe_address_t *dst, cid_t cid, seq_t seq, uint32_t mask, zhe_time_t tnow)
 {
-    zhe_pack_reserve_mconduit(dst, NULL, cid, 1 + zhe_pack_seqreq(seq) + (mask ? zhe_pack_vle32req(mask) : 0), tnow);
+    zhe_pack_reserve_mconduit_rawcid(dst, cid, 1 + zhe_pack_seqreq(seq) + (mask ? zhe_pack_vle32req(mask) : 0), tnow);
     zhe_pack1((mask == 0 ? 0 : MMFLAG) | MACKNACK);
     zhe_pack_seq(seq);
     if (mask != 0) {

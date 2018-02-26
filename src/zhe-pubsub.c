@@ -15,6 +15,13 @@
 #include "zhe-simpleset.h"
 #include "zhe-arylist.h"
 
+/* The "xmitcid/xmitneed" guard on a subscription can't really deal with unicast conduits, unless there can be at most one peer. */
+#if MAX_PEERS_1 == 1
+#  define N_XMITCID_CONDUITS N_OUT_CONDUITS
+#else
+#  define N_XMITCID_CONDUITS N_OUT_MCONDUITS
+#endif
+
 struct subtable {
     /* ID of the resource subscribed to (could also be a SID, actually) */
     zhe_rid_t rid;
@@ -22,7 +29,7 @@ struct subtable {
     /* Minimum number of bytes that must be available in transmit window in the given conduit
      before calling, must include message overhead (for writing SDATA -- that is, no PRID
      present -- worst case is 9 bytes with a payload limit of 127 bytes and 32-bit RIDs) */
-    struct out_conduit *oc;
+    cid_t xmitcid;
     zhe_paysize_t xmitneed;
 
     /* */
@@ -50,7 +57,7 @@ static zhe_residx2sub_t residx2sub[ZHE_MAX_RESOURCES];
 #endif
 
 struct pubtable {
-    struct out_conduit *oc;
+    cid_t cid;
     zhe_rid_t rid;
 };
 static struct pubtable pubs[ZHE_MAX_PUBLICATIONS];
@@ -476,17 +483,18 @@ int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysi
             zhe_handle_mwdata_matches[nm.idx++] = k;
         }
     }
-    /* FIXME: this doesn't work for unicast conduits; perhaps should speed things up in the trivial cases */
-    zhe_paysize_t xmitneed[N_OUT_CONDUITS];
+    /* FIXME: this doesn't distinguish between unicast conduits; perhaps should speed things up in the trivial cases */
+    zhe_paysize_t xmitneed[N_XMITCID_CONDUITS];
     memset(xmitneed, 0, sizeof(xmitneed));
     for (zhe_subidx_t k = { 0 }; k.idx < nm.idx; k.idx++) {
         const struct subtable *s = &subs[k.idx];
         if (s->xmitneed > 0) {
-            xmitneed[zhe_oc_get_cid(s->oc)] += s->xmitneed;
+            zhe_assert(s->xmitcid >= 0 && s->xmitcid < N_XMITCID_CONDUITS);
+            xmitneed[s->xmitcid] += s->xmitneed;
         }
     }
-    for (cid_t cid = 0; cid < N_OUT_CONDUITS; cid++) {
-        if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(0, cid), xmitneed[cid])) {
+    for (cid_t cid = 0; cid < N_XMITCID_CONDUITS; cid++) {
+        if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(cid), xmitneed[cid])) {
             return 0;
         }
     }
@@ -507,7 +515,7 @@ static int zhe_handle_msdata_deliver_anon(zhe_rid_t prid, zhe_paysize_t paysz, c
     }
     const struct subtable *s = &subs[subidx.idx];
     if (s->next.idx == subidx.idx) {
-        if (s->xmitneed == 0 || zhe_xmitw_hasspace(s->oc, s->xmitneed)) {
+        if (s->xmitneed == 0 || zhe_xmitw_hasspace(zhe_out_conduit_from_cid(s->xmitcid), s->xmitneed)) {
             /* Do note that "xmitneed" had better include overhead! */
             s->handler(prid, pay, paysz, s->arg);
             return 1;
@@ -516,18 +524,19 @@ static int zhe_handle_msdata_deliver_anon(zhe_rid_t prid, zhe_paysize_t paysz, c
         }
     } else {
         /* FIXME: this doesn't work for unicast conduits */
-        zhe_paysize_t xmitneed[N_OUT_CONDUITS];
+        zhe_paysize_t xmitneed[N_XMITCID_CONDUITS];
         memset(xmitneed, 0, sizeof(xmitneed));
         const struct subtable *t;
         t = s;
         do {
             if (t->xmitneed > 0) {
-                xmitneed[zhe_oc_get_cid(t->oc)] += t->xmitneed;
+                zhe_assert(t->xmitcid >= 0 && t->xmitcid < N_XMITCID_CONDUITS);
+                xmitneed[t->xmitcid] += t->xmitneed;
             }
             t = &subs[t->next.idx];
         } while (t != s);
-        for (cid_t cid = 0; cid < N_OUT_CONDUITS; cid++) {
-            if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(0, cid), xmitneed[cid])) {
+        for (cid_t cid = 0; cid < N_XMITCID_CONDUITS; cid++) {
+            if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(cid), xmitneed[cid])) {
                 return 0;
             }
         }
@@ -548,7 +557,7 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
     if (!zhe_uristore_getidx_for_rid(prid, &prid_idx)) {
         return zhe_handle_msdata_deliver_anon(prid, paysz, pay);
     } else {
-        zhe_paysize_t xmitneed[N_OUT_CONDUITS];
+        zhe_paysize_t xmitneed[N_XMITCID_CONDUITS];
         zhe_residx2sub_iter_t it;
         zhe_subidx_t subidx;
         memset(xmitneed, 0, sizeof(xmitneed));
@@ -556,11 +565,12 @@ int zhe_handle_msdata_deliver(zhe_rid_t prid, zhe_paysize_t paysz, const void *p
         while (zhe_residx2sub_iter_next(&it, &subidx)) {
             const struct subtable *s = &subs[subidx.idx];
             if (s->xmitneed > 0) {
-                xmitneed[zhe_oc_get_cid(s->oc)] += s->xmitneed;
+                zhe_assert(s->xmitcid >= 0 && s->xmitcid < N_XMITCID_CONDUITS);
+                xmitneed[s->xmitcid] += s->xmitneed;
             }
         }
-        for (cid_t cid = 0; cid < N_OUT_CONDUITS; cid++) {
-            if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(0, cid), xmitneed[cid])) {
+        for (cid_t cid = 0; cid < N_XMITCID_CONDUITS; cid++) {
+            if (xmitneed[cid] > 0 && !zhe_xmitw_hasspace(zhe_out_conduit_from_cid(cid), xmitneed[cid])) {
                 return 0;
             }
         }
@@ -790,25 +800,22 @@ static int send_declare_commit(struct out_conduit *oc, uint8_t commitid, zhe_tim
 
 static bool zhe_send_declares1(zhe_time_t tnow, const cursoridx_t cursoridx, struct out_conduit **commit_oc)
 {
-    peeridx_t peeridx;
     cid_t cid;
     bool committed;
     zhe_assert(cursoridx == MULTICAST_CURSORIDX || cursoridx < MAX_PEERS_1);
     if (cursoridx == MULTICAST_CURSORIDX) {
         committed = false;
-        peeridx = 0;
         cid = 0;
     } else {
         committed = true;
-        peeridx = (peeridx_t)cursoridx;
 #if HAVE_UNICAST_CONDUIT
-        cid = UNICAST_CID;
+        cid = -(cid_t)cursoridx-1;
 #else
         cid = 0;
 #endif
     }
-    struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, cid);
-    if (!zhe_out_conduit_is_connected(peeridx, cid)) {
+    struct out_conduit * const oc = zhe_out_conduit_from_cid(cid);
+    if (!zhe_out_conduit_is_connected(cid)) {
         enum declitem_kind kind;
         kind = DECLITEM_KIND_FIRST;
         do {
@@ -1024,10 +1031,9 @@ zhe_pubidx_t zhe_publish(zhe_rid_t rid, unsigned cid, int reliable)
     }
     zhe_assert(pubidx.idx < ZHE_MAX_PUBLICATIONS);
     zhe_assert(!zhe_bitset_test(pubs_isrel, pubidx.idx));
-    zhe_assert(cid < N_OUT_CONDUITS);
+    zhe_assert(cid < N_XMITCID_CONDUITS);
     pubs[pubidx.idx].rid = rid;
-    /* FIXME: horrible hack ... */
-    pubs[pubidx.idx].oc = zhe_out_conduit_from_cid(0, (cid_t)cid);
+    pubs[pubidx.idx].cid = (cid_t)cid;
     max_pubidx = pubidx;
     if (reliable) {
         zhe_bitset_set(pubs_isrel, pubidx.idx);
@@ -1070,6 +1076,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
 {
     zhe_subidx_t subidx;
     zhe_assert(rid > 0 && rid <= ZHE_MAX_RID);
+    zhe_assert(cid < N_XMITCID_CONDUITS);
     zhe_assert(max_subidx.idx < ZHE_MAX_SUBSCRIPTIONS);
     if (subs[max_subidx.idx].rid == 0) {
         subidx = max_subidx;
@@ -1085,8 +1092,7 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
     subs[subidx.idx].rid = rid;
     subs[subidx.idx].next = nextidx;
     subs[subidx.idx].xmitneed = xmitneed;
-    /* FIXME: horrible hack ... */
-    subs[subidx.idx].oc = zhe_out_conduit_from_cid(0, (cid_t)cid);
+    subs[subidx.idx].xmitcid = (cid_t)cid;
     subs[subidx.idx].handler = handler;
     subs[subidx.idx].arg = arg;
     /* FIXME: this fails badly when we can delete subscriptions */
@@ -1105,7 +1111,7 @@ int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_
 {
     /* returns 0 on failure and 1 on success; the only defined failure case is a full transmit
      window for reliable pulication while remote subscribers exist */
-    struct out_conduit * const oc = pubs[pubidx.idx].oc;
+    struct out_conduit * const oc = zhe_out_conduit_from_cid(pubs[pubidx.idx].cid);
     int relflag;
     zhe_assert(pubs[pubidx.idx].rid != 0);
 #if ZHE_MAX_URISPACE == 0 || MAX_PEERS == 0
@@ -1142,10 +1148,10 @@ int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_
     size_t urisz = strlen(uri);
     if (!zhe_urivalid((const uint8_t *)uri, urisz)) {
         return -1;
-    } else if (!zhe_out_conduit_is_connected(0, 0)) {
+    } else if (!zhe_out_conduit_is_connected(0)) {
         return 1;
     } else {
-        struct out_conduit * const oc = zhe_out_conduit_from_cid(0, 0);
+        struct out_conduit * const oc = zhe_out_conduit_from_cid(0);
         if (zhe_oc_am_draining_window(oc)) {
             return 0;
         } else if (!zhe_oc_pack_mwdata(oc, 1, (zhe_paysize_t)urisz, uri, sz, tnow)) {

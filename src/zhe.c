@@ -99,24 +99,6 @@ static xwpos_t out_mconduits_oc_rbufidx[N_OUT_MCONDUITS][XMITW_SAMPLES];
 #endif
 #endif
 
-#if N_OUT_MCONDUITS == 0
-#  define DO_FOR_UNICAST_OR_MULTICAST(cid_, unicast_, multicast_) do { \
-          unicast_; \
-      } while (0)
-#elif ! HAVE_UNICAST_CONDUIT
-#  define DO_FOR_UNICAST_OR_MULTICAST(cid_, unicast_, multicast_) do { \
-          multicast_; \
-      } while (0)
-#else
-#  define DO_FOR_UNICAST_OR_MULTICAST(cid_, unicast_, multicast_) do { \
-          if (cid_ == UNICAST_CID) { \
-              unicast_; \
-          } else { \
-              multicast_; \
-          } \
-      } while (0)
-#endif
-
 unsigned zhe_trace_cats;
 struct zhe_platform *zhe_platform;
 
@@ -277,8 +259,15 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
 #else
     xwpos_t * const rbufidx = NULL;
 #endif
-    oc_setup1(&p->oc, UNICAST_CID, XMITW_BYTES_UNICAST, peers_oc_rbuf[peeridx], XMITW_SAMPLES_UNICAST, rbufidx);
+#if MAX_PEERS_1 == 1
+#if UNICAST_CID != 0
+#error "how can this be?"
 #endif
+    oc_setup1(&p->oc, 0, XMITW_BYTES_UNICAST, peers_oc_rbuf[peeridx], XMITW_SAMPLES_UNICAST, rbufidx);
+#else
+    oc_setup1(&p->oc, -(cid_t)peeridx-1, XMITW_BYTES_UNICAST, peers_oc_rbuf[peeridx], XMITW_SAMPLES_UNICAST, rbufidx);
+#endif
+#endif /* HAVE_UNICAST_CONDUIT */
     for (cid_t i = 0; i < N_IN_CONDUITS; i++) {
         p->ic[i].seq = 0;
         p->ic[i].lseqpU = 0;
@@ -553,11 +542,6 @@ void zhe_pack_locs(void)
 #endif
 }
 
-cid_t zhe_oc_get_cid(struct out_conduit *c)
-{
-    return c->cid;
-}
-
 void zhe_oc_hit_full_window(struct out_conduit *c, zhe_time_t tnow)
 {
     c->draining_window = 1;
@@ -571,13 +555,6 @@ int zhe_oc_am_draining_window(const struct out_conduit *c)
 {
     return c->draining_window;
 }
-
-#if N_OUT_MCONDUITS > 0
-int zhe_ocm_have_peers(const struct out_mconduit *mc)
-{
-    return !zhe_minseqheap_isempty(&mc->seqbase);
-}
-#endif
 
 void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from)
 {
@@ -596,10 +573,10 @@ zhe_msgsize_t zhe_oc_pack_payload_msgprep(seq_t *s, struct out_conduit *c, int r
 {
     zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
     if (!relflag) {
-        zhe_pack_reserve_mconduit(&c->addr, NULL, c->cid, sz, tnow);
+        zhe_pack_reserve_mconduit(&c->addr, c->cid, false, sz, tnow);
         *s = c->useq;
     } else {
-        zhe_pack_reserve_mconduit(&c->addr, c, c->cid, sz, tnow);
+        zhe_pack_reserve_mconduit(&c->addr, c->cid, true, sz, tnow);
         *s = c->seq;
         outspos = outp;
     }
@@ -643,18 +620,38 @@ void zhe_oc_pack_payload_done(struct out_conduit *c, int relflag, zhe_time_t tno
     }
 }
 
-struct out_conduit *zhe_out_conduit_from_cid(peeridx_t peeridx, cid_t cid)
+struct out_conduit *zhe_out_conduit_from_cid(cid_t cid)
 {
-    struct out_conduit *c;
-    DO_FOR_UNICAST_OR_MULTICAST(cid, c = &peers[peeridx].oc, c = &out_mconduits[cid].oc);
-    return c;
+#if N_OUT_MCONDUITS == 0
+#  if MAX_PEERS_1 != 1 || N_OUT_CONDUITS != 1 || ! HAVE_UNICAST_CONDUIT
+#    error "zhe_out_conduit_from_cid assumes: no out mconduits => one peer, one conduit, unicast"
+#  endif
+    zhe_assert(cid == -1 || cid == 0);
+    return &peers[0].oc;
+#elif ! HAVE_UNICAST_CONDUIT
+    zhe_assert(0 <= cid && cid < N_OUT_MCONDUITS);
+    return &out_mconduits[cid].oc;
+#else
+    zhe_assert(-MAX_PEERS_1 <= cid && cid < N_OUT_MCONDUITS);
+    return (cid >= 0) ? &out_mconduits[cid].oc : &peers[-cid-1].oc;
+#endif
 }
 
-bool zhe_out_conduit_is_connected(peeridx_t peeridx, cid_t cid)
+bool zhe_out_conduit_is_connected(cid_t cid)
 {
-    bool c;
-    DO_FOR_UNICAST_OR_MULTICAST(cid, c = (peers[peeridx].state == PEERST_ESTABLISHED), c = zhe_ocm_have_peers(&out_mconduits[cid]));
-    return c;
+#if N_OUT_MCONDUITS == 0
+#  if MAX_PEERS_1 != 1 || N_OUT_CONDUITS != 1 || ! HAVE_UNICAST_CONDUIT
+#    error "zhe_out_conduit_is_connected assumes: no out mconduits => one peer, one conduit, unicast"
+#  endif
+    zhe_assert(cid == -1 || cid == 0);
+    return peers[0].state == PEERST_ESTABLISHED;
+#elif ! HAVE_UNICAST_CONDUIT
+    zhe_assert(0 <= cid && cid < N_OUT_MCONDUITS);
+    return !zhe_minseqheap_isempty(&out_mconduits[cid].seqbase);
+#else
+    zhe_assert(-MAX_PEERS_1 <= cid && cid < N_OUT_MCONDUITS);
+    return (cid >= 0) ? !zhe_minseqheap_isempty(&out_mconduits[cid].seqbase) : peers[-cid-1].state == PEERST_ESTABLISHED;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -842,9 +839,9 @@ static zhe_unpack_result_t handle_dcommit(peeridx_t peeridx, const uint8_t * con
     }
     if (*interpret == DIM_INTERPRET) {
 #if HAVE_UNICAST_CONDUIT
-        struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, UNICAST_CID);
+        struct out_conduit * const oc = zhe_out_conduit_from_cid(-(cid_t)peeridx-1);
 #else
-        struct out_conduit * const oc = zhe_out_conduit_from_cid(peeridx, 0);
+        struct out_conduit * const oc = zhe_out_conduit_from_cid(0);
 #endif
         zhe_msgsize_t from;
         uint8_t commitres;
@@ -980,7 +977,7 @@ static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
             const size_t tmpsz = zhe_platform_addr2string(zhe_platform, tmp, sizeof(tmp), &out_mconduits[cid].oc.addr);
             if (sz == tmpsz && memcmp(loc, tmp, sz) == 0) {
                 zhe_bitset_set(out_mconduits[cid].members, (unsigned)peeridx);
-                ZT(PEERDISC, "loc %s cid %u", tmp, (unsigned)cid);
+                ZT(PEERDISC, "loc %s cid %d", tmp, cid);
             }
         }
 #endif
@@ -1344,7 +1341,7 @@ static void acknack_if_needed(peeridx_t peeridx, cid_t cid, int wantsack, zhe_ti
     if (wantsack || (mask != 0 && (zhe_timediff_t)(tnow - peers[peeridx].ic[cid].tack) > ROUNDTRIP_TIME_ESTIMATE)) {
         /* ACK goes out over unicast path; the conduit used for sending it doesn't have
            much to do with it other than administrative stuff */
-        ZT(RELIABLE, "acknack_if_needed peeridx %u cid %u wantsack %d mask %u seq %u", peeridx, cid, wantsack, mask, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
+        ZT(RELIABLE, "acknack_if_needed peeridx %u cid %d wantsack %d mask %u seq %u", peeridx, cid, wantsack, mask, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
         zhe_pack_macknack(&peers[peeridx].oc.addr, cid, peers[peeridx].ic[cid].seq, mask, tnow);
         zhe_pack_msend(tnow);
         peers[peeridx].ic[cid].tack = tnow;
@@ -1459,14 +1456,14 @@ static zhe_unpack_result_t handle_msynch(peeridx_t peeridx, const uint8_t * cons
     }
     if (peers[peeridx].state == PEERST_ESTABLISHED) {
         seq_t seqbase = seq_msg - cnt_shifted;
-        ZT(RELIABLE, "handle_msynch peeridx %u cid %u seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+        ZT(RELIABLE, "handle_msynch peeridx %u cid %d seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
         if (!peers[peeridx].ic[cid].synched) {
-            ZT(PEERDISC, "handle_msynch peeridx %u cid %u seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+            ZT(PEERDISC, "handle_msynch peeridx %u cid %d seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
             peers[peeridx].ic[cid].seq = seqbase;
             peers[peeridx].ic[cid].lseqpU = seq_msg;
             peers[peeridx].ic[cid].synched = 1;
         } else if (zhe_seq_le(peers[peeridx].ic[cid].seq, seqbase) || zhe_seq_lt(seq_msg, peers[peeridx].ic[cid].seq)) {
-            ZT(RELIABLE, "handle_msynch peeridx %u cid %u seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
+            ZT(RELIABLE, "handle_msynch peeridx %u cid %d seqbase %u cnt %u", peeridx, cid, seqbase >> SEQNUM_SHIFT, cnt_shifted >> SEQNUM_SHIFT);
             peers[peeridx].ic[cid].seq = seqbase;
             peers[peeridx].ic[cid].lseqpU = seq_msg;
         }
@@ -1515,14 +1512,14 @@ static zhe_unpack_result_t handle_msdata(peeridx_t peeridx, const uint8_t * cons
             peers[peeridx].ic[cid].lseqpU = seq + SEQNUM_UNIT;
         }
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
-            ZT(RELIABLE, "handle_msdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
+            ZT(RELIABLE, "handle_msdata peeridx %u cid %d seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
             if (zhe_handle_msdata_deliver(prid, paysz, pay)) {
                 /* if failed to deliver, we must retry, which necessitates a retransmit and not updating the conduit state */
                 ic_update_seq(&peers[peeridx].ic[cid], hdr, seq);
             }
             zhe_delivered++;
         } else {
-            ZT(RELIABLE, "handle_msdata peeridx %u cid %u seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
+            ZT(RELIABLE, "handle_msdata peeridx %u cid %d seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
             zhe_discarded++;
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
@@ -1569,7 +1566,7 @@ static zhe_unpack_result_t handle_mwdata(peeridx_t peeridx, const uint8_t * cons
         }
         if (ic_may_deliver_seq(&peers[peeridx].ic[cid], hdr, seq)) {
 #if ZHE_MAX_URISPACE > 0
-            ZT(RELIABLE, "handle_mwdata peeridx %u cid %u seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
+            ZT(RELIABLE, "handle_mwdata peeridx %u cid %d seq %u deliver", peeridx, cid, seq >> SEQNUM_SHIFT);
             if (!zhe_urivalid(uri, urisz)) {
                 goto err_invalid_uri;
             }
@@ -1582,7 +1579,7 @@ static zhe_unpack_result_t handle_mwdata(peeridx_t peeridx, const uint8_t * cons
 #endif
             zhe_delivered++;
         } else {
-            ZT(RELIABLE, "handle_mwdata peeridx %u cid %u seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
+            ZT(RELIABLE, "handle_mwdata peeridx %u cid %d seq %u != %u", peeridx, cid, seq >> SEQNUM_SHIFT, peers[peeridx].ic[cid].seq >> SEQNUM_SHIFT);
             zhe_discarded++;
         }
         acknack_if_needed(peeridx, cid, hdr & MSFLAG, tnow);
@@ -1608,7 +1605,7 @@ static xwpos_t xmitw_skip_to_seq(const struct out_conduit *c, xwpos_t p, seq_t s
 
 static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
 {
-    ZT(RELIABLE, "remove_acked_messages cid %u %p seq %u", c->cid, (void*)c, seq >> SEQNUM_SHIFT);
+    ZT(RELIABLE, "remove_acked_messages cid %d %p seq %u", (int)c->cid, (void*)c, seq >> SEQNUM_SHIFT);
 
 #if !defined(NDEBUG) && XMITW_SAMPLE_INDEX
     check_xmitw(c);
@@ -1641,9 +1638,8 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
 
 static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, cid_t cid, zhe_time_t tnow)
 {
-    struct out_conduit * const c = zhe_out_conduit_from_cid(peeridx, cid);
     zhe_unpack_result_t res;
-    seq_t seq, seq_ack;
+    seq_t seq;
     uint8_t hdr;
     uint32_t mask;
     if (cid >= N_OUT_CONDUITS) {
@@ -1671,27 +1667,45 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
         return ZUR_OK;
     }
 
+    /* Conduit ID is "normalised" to wire format, which means the unicast conduit for peer "peeridx" is
+       represented by conduit id UNICAST_CID, if a unicast conduit is configured at all.  However, it
+       can still be implemented as a multicast conduit ... that depends on the configuration (perhaps I
+       should change this?) */
+#if N_OUT_MCONDUITS == 0
+    struct out_conduit * const c = &peers[peeridx].oc;
+#elif ! HAVE_UNICAST_CONDUIT
+    struct out_conduit * const c = &out_mconduits[cid].oc;
+#else
+    struct out_conduit * const c = (cid == UNICAST_CID) ? &peers[peeridx].oc : &out_mconduits[cid].oc;
+#endif
+
     if (zhe_seq_lt(seq, c->seqbase) || zhe_seq_lt(c->seq, seq)) {
         /* If a peer ACKs messages we have dropped already, or if it NACKs ones we have not
            even sent yet, send a SYNCH and but otherwise ignore the ACKNACK */
-        ZT(RELIABLE, "handle_macknack peeridx %u cid %u %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %d %p seq %u mask %08x - [%u,%u] - send synch", peeridx, cid, (void*)c, seq >> SEQNUM_SHIFT, mask, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
         zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
         zhe_pack_msend(tnow);
         return ZUR_OK;
     }
 
-    DO_FOR_UNICAST_OR_MULTICAST(cid, seq_ack = seq, seq_ack = zhe_minseqheap_raisekey(&out_mconduits[cid].seqbase, peeridx, seq, c->seqbase));
+#if N_OUT_MCONDUITS == 0
+    const seq_t seq_ack = seq;
+#elif ! HAVE_UNICAST_CONDUIT
+    const seq_t seq_ack = zhe_minseqheap_raisekey(&out_mconduits[cid].seqbase, peeridx, seq, c->seqbase);
+#else
+    const seq_t seq_ack = (cid == UNICAST_CID) ? seq : zhe_minseqheap_raisekey(&out_mconduits[cid].seqbase, peeridx, seq, c->seqbase);
+#endif
     remove_acked_messages(c, seq_ack);
 
     if (mask == 0) {
         /* Pure ACK - no need to do anything else */
         if (seq != c->seq) {
-            ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u ACK but we have [%u,%u]", peeridx, cid, seq >> SEQNUM_SHIFT, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
+            ZT(RELIABLE, "handle_macknack peeridx %u cid %d seq %u ACK but we have [%u,%u]", peeridx, cid, seq >> SEQNUM_SHIFT, c->seqbase >> SEQNUM_SHIFT, (c->seq >> SEQNUM_SHIFT)-1);
         } else {
-            ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u ACK", peeridx, cid, seq >> SEQNUM_SHIFT);
+            ZT(RELIABLE, "handle_macknack peeridx %u cid %d seq %u ACK", peeridx, cid, seq >> SEQNUM_SHIFT);
         }
     } else if ((zhe_timediff_t)(tnow - c->last_rexmit) <= ROUNDTRIP_TIME_ESTIMATE && zhe_seq_lt(seq, c->last_rexmit_seq)) {
-        ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u mask %08x - suppress", peeridx, cid, seq >> SEQNUM_SHIFT, mask);
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %d seq %u mask %08x - suppress", peeridx, cid, seq >> SEQNUM_SHIFT, mask);
     } else {
         /* Retransmits can always be performed because they do not require buffering new
            messages, all we need to do is push out the buffered messages.  We want the S bit
@@ -1699,7 +1713,7 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
            before pushing out that last sample. */
         xwpos_t p;
         zhe_msgsize_t sz, outspos_tmp = OUTSPOS_UNSET;
-        ZT(RELIABLE, "handle_macknack peeridx %u cid %u seq %u mask %08x", peeridx, cid, seq >> SEQNUM_SHIFT, mask);
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %d seq %u mask %08x", peeridx, cid, seq >> SEQNUM_SHIFT, mask);
         /* Do not set the S bit on anything that happens to currently be in the output buffer,
            if that is of the same conduit as the one we are retransmitting on, as we by now know
            that we will retransmit at least one message and therefore will send a message with
@@ -1727,7 +1741,7 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
                 ZT(RELIABLE, "handle_macknack   rx %u", seq >> SEQNUM_SHIFT);
                 sz = xmitw_load_msgsize(c, p);
                 p = xmitw_pos_add(c, p, sizeof(zhe_msgsize_t));
-                zhe_pack_reserve_mconduit(&c->addr, NULL, cid, sz, tnow);
+                zhe_pack_reserve_mconduit(&c->addr, cid, false, sz, tnow);
                 outspos_tmp = outp;
                 while (sz--) {
                     zhe_pack1(c->rbuf[p]);
