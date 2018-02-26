@@ -710,7 +710,7 @@ static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * c
     if (*interpret == DIM_INTERPRET) {
         zhe_residx_t idx;
         if (zhe_rid_in_use_anonymously(rid)) {
-            zhe_decl_note_error_curpkt(16, rid);
+            zhe_decl_note_error_curpkt(ZHE_DECL_CONFLICT, rid);
             return ZUR_OK;
         } else {
             /* FIXME: when the C flag is set, there's no point in making it tentative (failure would force a disconnect anyway), while it does increases the risk of a failed transaction */
