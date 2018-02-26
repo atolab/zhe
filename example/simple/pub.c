@@ -1,19 +1,7 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include <assert.h>
-#include <inttypes.h>
-#include <time.h>
-
 #include "platform-udp.h"
-#include "zhe.h"
-#include "zhe-tracing.h"
-#include "zhe-assert.h"
-
-#include "zhe-config-deriv.h" /* for N_OUT_CONDUITS, ZTIME_TO_SECu32 */
 #include "zhe-util.h"
-
 
 int main(int argc, char* argv[]) {
     uint16_t port = 7447;
