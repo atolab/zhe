@@ -22,6 +22,7 @@ struct data {
 #define MAX_LAT 10000
 static uint64_t lat[MAX_LAT];
 static int latp = 0;
+static bool ponged;
 
 static int uint64_cmp(const void *va, const void *vb)
 {
@@ -75,9 +76,10 @@ static void ping_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size,
     struct data ping = { hrtnow };
     zhe_write(*pub, &ping, sizeof(ping), tnow);
     zhe_flush(tnow); /* just in case we use latency budget */
+    ponged = true;
 }
 
-static void loop(struct zhe_platform *platform)
+static zhe_time_t loop(struct zhe_platform *platform)
 {
     zhe_time_t tnow = zhe_platform_time(), tend = tnow + (1000000000 / ZHE_TIMEBASE);
     while ((zhe_timediff_t)(tnow - tend) < 0) {
@@ -94,6 +96,7 @@ static void loop(struct zhe_platform *platform)
             tnow = zhe_platform_time();
         }
     }
+    return tnow;
 }
 
 int main(int argc, char * const *argv)
@@ -177,20 +180,27 @@ int main(int argc, char * const *argv)
     if (mode == 0) {/* pong */
         p = zhe_publish(2, cid, 1);
         (void)zhe_subscribe(1, 100, cid, pong_handler, &p);
+        while (1) {
+            (void)loop(platform);
+        }
     } else { /* ping */
         p = zhe_publish(1, cid, 1);
         (void)zhe_subscribe(2, 100, cid, ping_handler, &p);
-        /* while (!decls_done()) ... */
-        loop(platform);
-        /* first write can't really fail with a reasonably sized buffer */
-        struct data d = { gethrtime() };
-        const zhe_time_t tnow = zhe_platform_time();
-        (void)zhe_write(p, &d, sizeof(d), tnow);
-        zhe_flush(tnow);
-    }
-    printf("starting loop\n");
-    while(1) {
-        loop(platform);
+        zhe_time_t tcheck = zhe_platform_time();
+        ponged = false;
+        while (1) {
+            zhe_time_t tnowish = loop(platform);
+            if ((zhe_timediff_t)(tnowish - tcheck) > 3333) {
+                tcheck = tnowish;
+                if (!ponged) {
+                    printf("ping\n");
+                    struct data d = { gethrtime() };
+                    (void)zhe_write(p, &d, sizeof(d), tnowish);
+                    zhe_flush(tnowish);
+                }
+                ponged = false;
+            }
+        }
     }
     return 0;
 }
