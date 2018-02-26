@@ -1785,7 +1785,6 @@ static zhe_unpack_result_t handle_mkeepalive(peeridx_t * restrict peeridx, const
         return res;
     }
     if (idlen == 0 || idlen > PEERID_SIZE) {
-        reset_peer(*peeridx, tnow);
         return ZUR_OVERFLOW;
     }
     (void)find_peeridx_by_id(*peeridx, idlen, id);
@@ -1803,7 +1802,6 @@ static zhe_unpack_result_t handle_mconduit(peeridx_t peeridx, const uint8_t * co
     } else if ((res = zhe_unpack_vle8(end, data, &cid_byte)) != ZUR_OK) {
         return res;
     } else if (cid_byte >= N_IN_CONDUITS) {
-        reset_peer(peeridx, tnow);
         return ZUR_OVERFLOW;
     } else {
         *cid = (cid_t)cid_byte;
