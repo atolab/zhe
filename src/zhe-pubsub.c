@@ -653,7 +653,7 @@ void zhe_accept_peer_sched_hist_decls(peeridx_t peeridx)
     if (pending_decls.cnt == 0) {
         pending_decls.peers[pending_decls.cnt++] = cursoridx;
     } else {
-        zhe_assert(pending_decls.cnt == 1 && pending_decls.peers[pending_decls.cnt] == cursoridx);
+        zhe_assert(pending_decls.cnt == 1 && pending_decls.peers[0] == cursoridx);
     }
 #endif
     enum declitem_kind kind = DECLITEM_KIND_FIRST;
