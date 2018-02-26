@@ -1646,6 +1646,13 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
     seq_t seq, seq_ack;
     uint8_t hdr;
     uint32_t mask;
+    if (cid >= N_OUT_CONDUITS) {
+        /* Generic input validation code verifies that cid < N_IN_CONDUITS */
+#if N_OUT_CONDUITS > N_IN_CONDUITS
+#  error "Validation in MCONDUIT checks against N_IN_CONDUIT, but for MACKNACK it really means it concerns that output conduit, so N_IN >= N_OUT"
+#endif
+        return ZUR_OVERFLOW;
+    }
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_seq(end, data, &seq)) != ZUR_OK) {
         return res;

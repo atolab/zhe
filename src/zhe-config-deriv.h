@@ -80,6 +80,10 @@ typedef int16_t cid_t;
 #  error "Conduits are limited to 127 because the VLE encoding is short-circuited for CIDs"
 #endif
 
+#if N_IN_CONDUITS < N_OUT_CONDUITS
+#  error "Validation in MCONDUIT checks against N_IN_CONDUIT, but for MACKNACK it really means it concerns that output conduit, so N_IN >= N_OUT"
+#endif
+
 /* Size of sequence number in bits is "negotiated" -- that is, determined by the client, so we
  get to choose.  Sequence numbers are VLE on the wire (to allow decoding messages without
  knowing the sequence number size), a multiple of 7 bits avoids spending a byte of which only
