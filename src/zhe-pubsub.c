@@ -251,6 +251,7 @@ static void rsub_register_committed(peeridx_t peeridx, zhe_rid_t rid, uint8_t su
 
 static void rsub_register_tentative(peeridx_t peeridx, zhe_rid_t rid, uint8_t submode)
 {
+    ZT(PUBSUB, "rsub_register_tentative peeridx %u rid %ju", peeridx, (uintmax_t)rid);
 #if MAX_PEERS == 0
     zhe_pubidx_t pubidx;
     zhe_assert(rid != 0);
@@ -393,7 +394,7 @@ void zhe_rsub_precommit_curpkt_done(peeridx_t peeridx)
     /* FIXME: this can be done FAR MORE EFFICIENTLY without any trouble; then again, perhaps one shouldn't even treat the curpkt as a special thing in this manner */
     zhe_ridtable_iter_t it;
     zhe_rid_t rid;
-    zhe_ridtable_iter_init(&it, &precommit[peeridx].rsubs);
+    zhe_ridtable_iter_init(&it, &precommit_curpkt.rsubs);
     while (zhe_ridtable_iter_next(&it, &rid)) {
         switch (zhe_ridtable_insert(&precommit[peeridx].rsubs, rid)) {
             case SSIR_EXISTS:
