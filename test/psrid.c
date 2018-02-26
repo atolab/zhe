@@ -209,10 +209,13 @@ int main(int argc, char * const *argv)
     zhe_rid_t rid_ping_pub;
     zhe_rid_t rid_pong_pub;
     if (wildcards) {
+#if ZHE_MAX_RID < 10 + MAX_KEY * (MAX_KEY+1) + 2
+#error "ZHE_MAX_RID too small for this program"
+#endif
         rid_ping_sub = 1;
         rid_pong_sub = 2;
-        rid_ping_pub = 10 + ownkey * (MAX_KEY+1) + 1;
-        rid_pong_pub = 10 + ownkey * (MAX_KEY+1) + 2;
+        rid_ping_pub = (zhe_rid_t)(10 + ownkey * (MAX_KEY+1) + 1);
+        rid_pong_pub = (zhe_rid_t)(10 + ownkey * (MAX_KEY+1) + 2);
         char name[32];
         snprintf(name, sizeof(name), "/k%"PRIu32"/out/ping", ownkey); zhe_declare_resource(rid_ping_pub, name);
         snprintf(name, sizeof(name), "/k%"PRIu32"/out/pong", ownkey); zhe_declare_resource(rid_pong_pub, name);

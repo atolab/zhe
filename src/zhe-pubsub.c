@@ -763,12 +763,12 @@ static void send_declare_sub(struct out_conduit *oc, declitem_idx_t *cursor, boo
     } else if (subs[sub].rid == 0) {
         (*cursor)++;
     } else if (zhe_oc_pack_mdeclare(oc, committed, 1, WC_DSUB_SIZE, &from, tnow)) {
-        ZT(PUBSUB, "sending dsub %d rid %ju", (uintmax_t)sub, (uintmax_t)subs[sub].rid);
+        ZT(PUBSUB, "sending dsub %ju rid %ju", (uintmax_t)sub, (uintmax_t)subs[sub].rid);
         zhe_pack_dsub(subs[sub].rid);
         zhe_oc_pack_mdeclare_done(oc, from, tnow);
         (*cursor)++;
     } else {
-        ZT(PUBSUB, "postponing dsub %d rid %ju", (uintmax_t)sub, (uintmax_t)subs[sub].rid);
+        ZT(PUBSUB, "postponing dsub %ju rid %ju", (uintmax_t)sub, (uintmax_t)subs[sub].rid);
     }
 }
 
