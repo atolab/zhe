@@ -55,7 +55,7 @@ enum zhe_declstatus {
     ZHE_DECL_OTHER       = 7,    /* some peer rejected the set for another reason */
     ZHE_DECL_PENDING     = 255,  /* some declarations pending (locally declared, not yet accepted by all, but also no rejects) */
 };
-#define DRESULT_IS_VALID_DECLSTATUS(x) ((unsigned)(x) <= ZHE_DECL_OTHER)
+#define ZHE_DRESULT_IS_VALID_DECLSTATUS(x) ((unsigned)(x) <= ZHE_DECL_OTHER)
 
 int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_t tnow);
 void zhe_start(zhe_time_t tnow);

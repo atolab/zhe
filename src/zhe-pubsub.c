@@ -891,7 +891,7 @@ void zhe_note_declstatus(peeridx_t peeridx, uint8_t status, zhe_rid_t rid)
     if (zhe_bitset_test(decl_results.waiting, peeridx)) {
         zhe_bitset_clear(decl_results.waiting, peeridx);
         if (status != (uint8_t)ZHE_DECL_OK && (decl_results.status == (uint8_t)ZHE_DECL_OK || decl_results.status == (uint8_t)ZHE_DECL_AGAIN)) {
-            decl_results.status = DRESULT_IS_VALID_DECLSTATUS(status) ? status : (uint8_t)ZHE_DECL_OTHER;
+            decl_results.status = ZHE_DRESULT_IS_VALID_DECLSTATUS(status) ? status : (uint8_t)ZHE_DECL_OTHER;
             decl_results.rid = rid;
             ZT(PUBSUB, "**** FIXME: handle AGAIN case ****\n");
         }
