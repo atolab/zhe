@@ -17,7 +17,7 @@ typedef struct bitset_iter {
     unsigned size;
     unsigned cursor;
 } bitset_iter_t;
-void zhe_bitset_iter_init(bitset_iter_t *it, const uint8_t *s, unsigned size);
+bool zhe_bitset_iter_first(bitset_iter_t *it, const uint8_t *s, unsigned size, unsigned *idx);
 bool zhe_bitset_iter_next(bitset_iter_t *it, unsigned *idx);
 
 #endif /* BITSET_H */

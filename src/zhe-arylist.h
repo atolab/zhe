@@ -24,8 +24,8 @@
 #define MAKE_ARYLIST_SPEC_insert(linkage_, name_, type_, index_type_, max_elems_) \
     linkage_ void name_##_insert(name_##_t *set, type_ elem);
 
-#define MAKE_ARYLIST_SPEC_iter_init(linkage_, name_, type_, index_type_, max_elems_) \
-    linkage_ void name_##_iter_init(name_##_iter_t *it, const name_##_t *set); \
+#define MAKE_ARYLIST_SPEC_iter_first(linkage_, name_, type_, index_type_, max_elems_) \
+    linkage_ bool name_##_iter_first(name_##_iter_t *it, const name_##_t *set, type_ *elem); \
 
 #define MAKE_ARYLIST_SPEC_iter_next(linkage_, name_, type_, index_type_, max_elems_) \
     linkage_ bool name_##_iter_next(name_##_iter_t *it, type_ *elem);
@@ -50,11 +50,17 @@
         set->count index_type_sub_ = set->count index_type_sub_ + 1;    \
     }
 
-#define MAKE_ARYLIST_BODY_iter_init(linkage_, name_, type_, index_type_, index_type_sub_, max_elems_) \
-    linkage_ void name_##_iter_init(name_##_iter_t *it, const name_##_t *set) \
+#define MAKE_ARYLIST_BODY_iter_first(linkage_, name_, type_, index_type_, index_type_sub_, max_elems_) \
+    linkage_ bool name_##_iter_first(name_##_iter_t *it, const name_##_t *set, type_ *elem) \
     {                                                                   \
-        it->set = set;                                                  \
-        it->cursor index_type_sub_ = 0;                                 \
+        if (set->count index_type_sub_ > 0) {                           \
+            *elem = set->elems[0];                                      \
+            it->set = set;                                              \
+            it->cursor index_type_sub_ = 1;                             \
+            return true;                                                \
+        } else {                                                        \
+            return false;                                               \
+        }                                                               \
     }
 
 #define MAKE_ARYLIST_BODY_iter_next(linkage_, name_, type_, index_type_, index_type_sub_, max_elems_) \

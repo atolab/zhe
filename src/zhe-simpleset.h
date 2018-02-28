@@ -39,8 +39,8 @@ typedef enum simpleset_insert_result {
 #define MAKE_SIMPLESET_SPEC_delete(linkage_, name_, key_type_, type_, index_type_, max_elems_) \
     linkage_ bool name_##_delete(name_##_t *set, type_ elem); \
 
-#define MAKE_SIMPLESET_SPEC_iter_init(linkage_, name_, key_type_, type_, index_type_, max_elems_) \
-    linkage_ void name_##_iter_init(name_##_iter_t *it, const name_##_t *set); \
+#define MAKE_SIMPLESET_SPEC_iter_first(linkage_, name_, key_type_, type_, index_type_, max_elems_) \
+    linkage_ bool name_##_iter_first(name_##_iter_t *it, const name_##_t *set, type_ *elem); \
 
 #define MAKE_SIMPLESET_SPEC_iter_next(linkage_, name_, key_type_, type_, index_type_, max_elems_) \
     linkage_ bool name_##_iter_next(name_##_iter_t *it, type_ *elem);
@@ -126,11 +126,17 @@ typedef enum simpleset_insert_result {
         }                                                               \
     }
 
-#define MAKE_SIMPLESET_BODY_iter_init(linkage_, name_, key_type_, type_, index_type_, index_type_sub_, cmp_, key_from_elem_, max_elems_) \
-    linkage_ void name_##_iter_init(name_##_iter_t *it, const name_##_t *set) \
+#define MAKE_SIMPLESET_BODY_iter_first(linkage_, name_, key_type_, type_, index_type_, index_type_sub_, cmp_, key_from_elem_, max_elems_) \
+    linkage_ bool name_##_iter_first(name_##_iter_t *it, const name_##_t *set, type_ *elem) \
     {                                                                   \
-        it->set = set;                                                  \
-        it->cursor index_type_sub_ = 0;                                 \
+        if (set->count index_type_sub_ > 0) {                           \
+            *elem = set->elems[0];                                      \
+            it->set = set;                                              \
+            it->cursor index_type_sub_ = 1;                             \
+            return true;                                                \
+        } else {                                                        \
+            return false;                                               \
+        }                                                               \
     }
 
 #define MAKE_SIMPLESET_BODY_iter_next(linkage_, name_, key_type_, type_, index_type_, index_type_sub_, cmp_, key_from_elem_, max_elems_) \
@@ -173,8 +179,8 @@ typedef enum simpleset_insert_result {
 #define MAKE_SIMPLESET_ALIAS_SPEC_delete(linkage_, name_, base_name_, key_type_, type_, index_type_, base_type_, base_index_type_) \
     linkage_ bool name_##_delete(name_##_t *set, type_ elem);
 
-#define MAKE_SIMPLESET_ALIAS_SPEC_iter_init(linkage_, name_, base_name_, key_type_, type_, index_type_, base_type_, base_index_type_) \
-    linkage_ void name_##_iter_init(name_##_iter_t *it, const name_##_t *set);
+#define MAKE_SIMPLESET_ALIAS_SPEC_iter_first(linkage_, name_, base_name_, key_type_, type_, index_type_, base_type_, base_index_type_) \
+    linkage_ bool name_##_iter_first(name_##_iter_t *it, const name_##_t *set, type_ *elem);
 
 #define MAKE_SIMPLESET_ALIAS_SPEC_iter_next(linkage_, name_, base_name_, key_type_, type_, index_type_, base_type_, base_index_type_) \
     linkage_ bool name_##_iter_next(name_##_iter_t *it, type_ *elem);
@@ -210,26 +216,14 @@ typedef enum simpleset_insert_result {
         return zhe_base_name_##_delete(&set->x_##base_name_, elem);     \
     }
 
-#define MAKE_SIMPLESET_ALIAS_BODY_iter_init(linkage_, name_, base_name_, key_type, type_, index_type_) \
-    linkage_ void name_##_iter_init(name_##_iter_t *it, const name_##_t *set) { \
-        zhe_base_name_##_iter_init(&it, &set->x_##base_name_);          \
+#define MAKE_SIMPLESET_ALIAS_BODY_iter_first(linkage_, name_, base_name_, key_type, type_, index_type_) \
+    linkage_ bool name_##_iter_first(name_##_iter_t *it, const name_##_t *set, type_ *elem) { \
+        return zhe_base_name_##_iter_first(&it, &set->x_##base_name_, elem); \
     }
 
 #define MAKE_SIMPLESET_ALIAS_BODY_iter_next(linkage_, name_, base_name_, key_type, type_, index_type_) \
     linkage_ bool name_##_iter_next(name_##_iter_t *it, type_ *elem) {  \
         return zhe_base_name_##_iter_next(&it->x_##base_name_, elem);   \
     }
-
-#if 0
-#define CMP(a,b) ((a) == (b) ? 0 : ((a) < (b)) ? -1 : 1)
-#define ELEM(a) ((a).rid)
-MAKE_PACKAGE_SPEC (SIMPLESET, (static, rid2sub, zhe_rid_t, rid2sub_t, zhe_subidx_t, ZHE_MAX_SUBSCRIPTIONS),
-                   type, iter_type, init, search, insert, delete, iter_init, iter_next)
-MAKE_PACKAGE_BODY (SIMPLESET, (static, rid2sub, zhe_rid_t, rid2sub_t, zhe_subidx_t, .idx, CMP, ELEM, ZHE_MAX_SUBSCRIPTIONS),
-                   init, search, insert, delete, iter_init, iter_next)
-
-MAKE_PACKAGE_SPEC (SIMPLESET_ALIAS, (static, xyzzy, rid2sub, zhe_rid_t, rid2xyzzy_t, zhe_xyzzyidx_t, rid2sub_t, zhe_subidx_t), type, iter_type, init, search, insert, delete, iter_init, iter_next)
-MAKE_PACKAGE_BODY (SIMPLESET_ALIAS, (static, xyzzy, rid2sub, zhe_rid_t, rid2xyzzy_t, zhe_xyzzyidx_t), init, search, insert, delete, iter_init, iter_next)
-#endif
 
 #endif
