@@ -1137,7 +1137,7 @@ int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_
         zhe_oc_pack_msdata_payload(oc, relflag, sz, data);
         zhe_oc_pack_msdata_done(oc, relflag, tnow);
 #if LATENCY_BUDGET == 0
-        zhe_pack_msend();
+        zhe_pack_msend(tnow);
 #endif
         return 1;
     }
@@ -1160,7 +1160,7 @@ int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_
             zhe_oc_pack_msdata_payload(oc, 1, sz, data);
             zhe_oc_pack_msdata_done(oc, 1, tnow);
 #if LATENCY_BUDGET == 0
-            zhe_pack_msend();
+            zhe_pack_msend(tnow);
 #endif
             return 1;
         }
