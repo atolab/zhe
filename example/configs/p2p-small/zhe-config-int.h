@@ -42,7 +42,7 @@
 
 /* Setting a latency budget globally for now, though it could be done per-publisher as well. Packets will go out when full or when LATENCY_BUDGET milliseconds passed since we started filling it. Setting it to 0 will disable packing of data messages, setting to INF only stops packing when the MTU is reached and generally requires explicit flushing. Both edge cases eliminate the latency budget handling and state from the code, saving a whopping 4 bytes of RAM!  */
 #define LATENCY_BUDGET_INF      (4294967295u)
-#define LATENCY_BUDGET         10 /* units, see ZHE_TIMEBASE */
+#define LATENCY_BUDGET          0 /* units, see ZHE_TIMEBASE */
 
 /* Send a SYNCH message set every MSYNCH_INTERVAL ms when unack'd messages are present in the transmit window. Ideally this would be based on a measured round-trip time, but instead it is based on an estimate of the round-trip time. */
 #define MSYNCH_INTERVAL        10 /* units, see ZHE_TIMEBASE */
