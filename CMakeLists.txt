@@ -2,7 +2,15 @@ cmake_minimum_required(VERSION 3.9)
 project(zhe C)
 
 set(CMAKE_C_STANDARD 11)
-
+include(CheckIPOSupported)
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  check_ipo_supported(RESULT supported OUTPUT error)
+  if(supported)
+    #message(STATUS "IPO / LTO enabled")
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+endif()
+  
 add_compile_options(
   $<$<C_COMPILER_ID:MSVC>:/W3>
   $<$<C_COMPILER_ID:Clang>:-Wall>
