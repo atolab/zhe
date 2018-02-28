@@ -16,6 +16,8 @@
 
 #if ZHE_MAX_URISPACE > 0
 
+#define BSEARCH_THRESHOLD 32
+
 static union {
     uint8_t store[sizeof(struct icgcb) + ZHE_MAX_URISPACE];
     struct icgcb b;
@@ -36,7 +38,8 @@ static struct restable ress[ZHE_MAX_RESOURCES]; /* contains nres entries where r
 /* [0 .. nres-1] indices into ress where rid != 0, sorted in ascending order on rid;
    [nres .. ZHE_MAX_RESOURCES-1] indices into ress where rid == 0 */
 /* FIXME: maybe should embed rid in table to reduce the number of cache misses */
-static zhe_residx_t rid2idx[ZHE_MAX_RESOURCES];
+static zhe_residx_t ress_idx[ZHE_MAX_RESOURCES];
+static zhe_rid_t ress_rid[ZHE_MAX_RESOURCES];
 
 void zhe_uristore_init(void)
 {
@@ -44,7 +47,8 @@ void zhe_uristore_init(void)
     memset(&ress, 0, sizeof(ress));
     for (zhe_residx_t i = 0; i < ZHE_MAX_RESOURCES; i++) {
         ress[i].tentative = PEERIDX_INVALID;
-        rid2idx[i] = i;
+        ress_idx[i] = i;
+        ress_rid[i] = 0;
     }
     nres = 0;
 }
@@ -82,20 +86,6 @@ static void set_props_list(struct restable * const r, const uint8_t *tag, size_t
         tag += taglen + 1;
         len -= taglen - 1;
     } while(tag[-1] == ',');
-}
-
-static int rid2idx_rid_cmp(const void *vk, const void *ve)
-{
-    const zhe_rid_t *k = vk;
-    const zhe_residx_t *e = ve;
-    return (*k == ress[*e].rid) ? 0 : (*k < ress[*e].rid) ? -1 : 1;
-}
-
-static int rid2idx_cmp(const void *va, const void *vb)
-{
-    const zhe_residx_t *a = va;
-    const zhe_residx_t *b = vb;
-    return (ress[*a].rid == ress[*b].rid) ? 0 : (ress[*a].rid < ress[*b].rid) ? -1 : 1;
 }
 
 static peeridx_t zhe_uristore_record_tentative(peeridx_t peeridx, zhe_residx_t idx)
@@ -156,8 +146,18 @@ static enum uristore_result zhe_uristore_store_new(zhe_residx_t free_idx, peerid
             set_props_one(&ress[free_idx], hash+1, urilen - (size_t)(hash+1 - uri));
         }
     }
+    /* update index - it is sorted on ascending RID, move those with RIDs greater than RID */
+    zhe_residx_t i;
+    for (i = 0; i < nres; i++) {
+        if (ress[ress_idx[i]].rid > rid) {
+            break;
+        }
+    }
+    memmove(&ress_idx[i+1], &ress_idx[i], (nres-i) * sizeof(ress_idx[i]));
+    memmove(&ress_rid[i+1], &ress_rid[i], (nres-i) * sizeof(ress_rid[i]));
+    ress_idx[i] = free_idx;
+    ress_rid[i] = rid;
     nres++;
-    qsort(rid2idx, nres, sizeof(rid2idx[0]), rid2idx_cmp);
     ZT(PUBSUB, "uristore_store: ok, index %u", (unsigned)free_idx);
     return USR_OK;
 }
@@ -188,6 +188,41 @@ static enum uristore_result zhe_uristore_store_dup(zhe_residx_t idx, peeridx_t p
     }
 }
 
+#if ZHE_MAX_RESOURCES > BSEARCH_THRESHOLD
+static int ress_rid_cmp(const void *vk, const void *ve)
+{
+    const zhe_rid_t *k = vk;
+    const zhe_rid_t *e = ve;
+    return (*k == *e) ? 0 : (*k < *e) ? -1 : 1;
+}
+#endif
+
+static zhe_residx_t lookup_rid_ress_idx(zhe_rid_t rid)
+{
+#if ZHE_MAX_RESOURCES > BSEARCH_THRESHOLD
+    if (nres > 32) {
+        const zhe_rid_t *e = bsearch(&rid, ress_rid, nres, sizeof(ress_rid[0]), ress_rid_cmp);
+        return (e == NULL) ? RESIDX_INVALID : (zhe_residx_t)(e - ress_rid);
+    } else {
+#endif
+    zhe_residx_t i;
+    for (i = 0; i < nres; i++) {
+        if (ress_rid[i] == rid) {
+            return i;
+        }
+    }
+    return RESIDX_INVALID;
+#if ZHE_MAX_RESOURCES > BSEARCH_THRESHOLD
+    }
+#endif
+}
+
+static zhe_residx_t lookup_rid(zhe_rid_t rid)
+{
+    const zhe_residx_t i = lookup_rid_ress_idx(rid);
+    return (i == RESIDX_INVALID) ? i : ress_idx[i];
+}
+
 enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx, zhe_rid_t rid, const uint8_t *uri, size_t urilen_in, bool tentative, peeridx_t *loser)
 {
     zhe_assert(peeridx <= MAX_PEERS_1); /* MAX_PEERS_1 is self */
@@ -198,9 +233,8 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
     }
     const uripos_t urilen = (uripos_t)urilen_in;
     ZT(PUBSUB, "uristore_store: store %ju %*.*s", (uintmax_t)rid, (int)urilen, (int)urilen, (char*)uri);
-    const zhe_residx_t *e = bsearch(&rid, rid2idx, nres, sizeof(rid2idx[0]), rid2idx_rid_cmp);
-    if (e != NULL) {
-        const zhe_residx_t idx = *e;
+    const zhe_residx_t idx = lookup_rid(rid);
+    if (idx != RESIDX_INVALID) {
         const uripos_t sz = zhe_icgcb_getsize(&uris.b, uris.store + ress[idx].uripos);
         ZT(PUBSUB, "uristore_store: check against %u %*.*s", (unsigned)idx, (int)sz, (int)sz, (char*)uris.store + ress[idx].uripos);
         if (sz == urilen && memcmp(uri, uris.store + ress[idx].uripos, urilen) == 0) {
@@ -215,15 +249,15 @@ enum uristore_result zhe_uristore_store(zhe_residx_t *res_idx, peeridx_t peeridx
         ZT(PUBSUB, "uristore_store: no space (max res hit)");
         return USR_NOSPACE;
     } else {
-        const zhe_residx_t free_idx = rid2idx[nres];
+        const zhe_residx_t free_idx = ress_idx[nres];
         *res_idx = free_idx;
         return zhe_uristore_store_new(free_idx, peeridx, rid, uri, urilen, tentative);
     }
 }
 
-static void zhe_uristore_drop_idx(peeridx_t peeridx, zhe_residx_t rid2idx_idx)
+static void zhe_uristore_drop_idx(peeridx_t peeridx, zhe_residx_t ress_idx_idx)
 {
-    const zhe_residx_t idx = rid2idx[rid2idx_idx];
+    const zhe_residx_t idx = ress_idx[ress_idx_idx];
     unsigned count;
     zhe_bitset_clear(ress[idx].peers, peeridx);
     count = zhe_bitset_count(ress[idx].peers, MAX_PEERS_1 + 1);
@@ -237,16 +271,17 @@ static void zhe_uristore_drop_idx(peeridx_t peeridx, zhe_residx_t rid2idx_idx)
         ZT(PUBSUB, "uristore_reset_peer: drop %ju", (uintmax_t)ress[idx].rid);
         zhe_icgcb_free(&uris.b, uris.store + ress[idx].uripos);
         ress[idx].rid = 0;
-        memmove(&rid2idx[rid2idx_idx], &rid2idx[rid2idx_idx+1], (nres - (rid2idx_idx+1)) * sizeof(rid2idx[0]));
-        rid2idx[--nres] = idx;
+        memmove(&ress_idx[ress_idx_idx], &ress_idx[ress_idx_idx+1], (nres - (ress_idx_idx+1)) * sizeof(ress_idx[0]));
+        memmove(&ress_rid[ress_idx_idx], &ress_rid[ress_idx_idx+1], (nres - (ress_idx_idx+1)) * sizeof(ress_rid[0]));
+        ress_idx[--nres] = idx;
     }
 }
 
 void zhe_uristore_drop(peeridx_t peeridx, zhe_rid_t rid)
 {
-    zhe_residx_t *e = bsearch(&rid, rid2idx, nres, sizeof(rid2idx[0]), rid2idx_rid_cmp);
-    if (e != NULL) {
-        zhe_uristore_drop_idx(peeridx, (zhe_residx_t)(e - rid2idx));
+    const zhe_residx_t ress_idx_idx = lookup_rid_ress_idx(rid);
+    if (ress_idx_idx != RESIDX_INVALID) {
+        zhe_uristore_drop_idx(peeridx, ress_idx_idx);
     }
 }
 
@@ -273,7 +308,7 @@ bool zhe_uristore_iter_next(uristore_iter_t *it, zhe_rid_t *rid, zhe_paysize_t *
 {
     while (it->cursor < nres) {
         bool dummy;
-        if (zhe_uristore_geturi_for_idx(rid2idx[it->cursor++], rid, sz, uri, &dummy)) {
+        if (zhe_uristore_geturi_for_idx(ress_idx[it->cursor++], rid, sz, uri, &dummy)) {
             return true;
         }
     }
@@ -282,23 +317,23 @@ bool zhe_uristore_iter_next(uristore_iter_t *it, zhe_rid_t *rid, zhe_paysize_t *
 
 bool zhe_uristore_geturi_for_rid(zhe_rid_t rid, zhe_paysize_t *sz, const uint8_t **uri)
 {
-    const zhe_residx_t *e = bsearch(&rid, rid2idx, nres, sizeof(rid2idx[0]), rid2idx_rid_cmp);
-    if (e == NULL) {
+    const zhe_residx_t idx = lookup_rid(rid);
+    if (idx == RESIDX_INVALID) {
         return false;
     } else {
         bool dummy;
         zhe_rid_t dummyrid;
-        return zhe_uristore_geturi_for_idx(*e, &dummyrid, sz, uri, &dummy);
+        return zhe_uristore_geturi_for_idx(idx, &dummyrid, sz, uri, &dummy);
     }
 }
 
-bool zhe_uristore_getidx_for_rid(zhe_rid_t rid, zhe_residx_t *idx)
+bool zhe_uristore_getidx_for_rid(zhe_rid_t rid, zhe_residx_t *ret_idx)
 {
-    const zhe_residx_t *e = bsearch(&rid, rid2idx, nres, sizeof(rid2idx[0]), rid2idx_rid_cmp);
-    if (e == NULL) {
+    const zhe_residx_t idx = lookup_rid(rid);
+    if (idx == RESIDX_INVALID) {
         return false;
     } else {
-        *idx = *e;
+        *ret_idx = idx;
         return true;
     }
 }
@@ -307,7 +342,7 @@ void zhe_uristore_reset_peer(peeridx_t peeridx)
 {
     zhe_residx_t i = 0;
     while (i < nres) {
-        const zhe_residx_t idx = rid2idx[i];
+        const zhe_residx_t idx = ress_idx[i];
         if (zhe_bitset_test(ress[idx].peers, peeridx)) {
             zhe_uristore_drop_idx(peeridx, i);
         } else {
@@ -335,7 +370,7 @@ void zhe_uristore_abort_tentative(peeridx_t peeridx)
 {
     zhe_residx_t i = 0;
     while (i < nres) {
-        const zhe_residx_t idx = rid2idx[i];
+        const zhe_residx_t idx = ress_idx[i];
         if (ress[idx].tentative == peeridx) {
             zhe_uristore_drop_idx(peeridx, i);
         } else {
@@ -347,7 +382,7 @@ void zhe_uristore_abort_tentative(peeridx_t peeridx)
 void zhe_uristore_commit_tentative(peeridx_t peeridx)
 {
     for (zhe_residx_t i = 0; i < nres; i++) {
-        const zhe_residx_t idx = rid2idx[i];
+        const zhe_residx_t idx = ress_idx[i];
         if (ress[idx].tentative == peeridx) {
             ress[idx].tentative = PEERIDX_INVALID;
             if (!ress[idx].committed) {
