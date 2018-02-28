@@ -384,17 +384,29 @@ static xwpos_t xmitw_skip_sample(const struct out_conduit *c, xwpos_t p)
 }
 
 #if XMITW_SAMPLE_INDEX
+static seq_t xmitw_addindices(seq_t firstidx, seq_t off, seq_t limit)
+{
+    /* (firstidx + off) % limit, where limit may be > (INT_MAX+1)/2 */
+    zhe_assert(firstidx < limit);
+    zhe_assert(off < limit);
+    if (off < limit - firstidx) {
+        return firstidx + off;
+    } else {
+        return off - (limit - firstidx);
+    }
+}
+
 static xwpos_t xmitw_load_rbufidx(const struct out_conduit *c, seq_t seq)
 {
-    seq_t off = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
-    seq_t idx = (c->firstidx + off) % c->xmitw_samples;
+    const seq_t off = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
+    const seq_t idx = xmitw_addindices(c->firstidx, off, c->xmitw_samples);
     return c->rbufidx[idx];
 }
 
 static void xmitw_store_rbufidx(const struct out_conduit *c, seq_t seq, xwpos_t p)
 {
-    seq_t off = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
-    seq_t idx = (c->firstidx + off) % c->xmitw_samples;
+    const seq_t off = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
+    const seq_t idx = xmitw_addindices(c->firstidx, off, c->xmitw_samples);
     c->rbufidx[idx] = p;
 }
 
@@ -562,10 +574,20 @@ void zhe_oc_pack_copyrel(struct out_conduit *c, zhe_msgsize_t from)
     zhe_assert(c->pos == xmitw_pos_add(c, c->spos, sizeof(zhe_msgsize_t)));
     zhe_assert(from < outp);
     zhe_assert(!(outbuf[from] & MSFLAG));
-    while (from < outp) {
-        zhe_assert(c->pos != c->firstpos || c->seq == c->seqbase);
-        c->rbuf[c->pos] = outbuf[from++];
-        c->pos = xmitw_pos_add(c, c->pos, 1);
+    const zhe_msgsize_t sz = (zhe_msgsize_t)(outp - from);
+    if (sz < c->xmitw_bytes - c->pos) {
+        memcpy(c->rbuf + c->pos, outbuf + from, sz);
+        c->pos += sz;
+    } else {
+        const zhe_msgsize_t sz0 = (zhe_msgsize_t)(c->xmitw_bytes - c->pos);
+        memcpy(c->rbuf + c->pos, outbuf + from, sz0);
+        if (sz0 == sz) {
+            c->pos = 0;
+        } else {
+            const zhe_msgsize_t sz1 = sz - sz0;
+            memcpy(c->rbuf, outbuf + from + sz0, sz1);
+            c->pos = sz1;
+        }
     }
 }
 
@@ -588,14 +610,23 @@ void zhe_oc_pack_payload(struct out_conduit *c, int relflag, zhe_paysize_t sz, c
     /* c->spos points to size byte, header byte immediately follows it, so reliability flag is
      easily located in the buffer */
     const uint8_t *data = (const uint8_t *)vdata;
-    while (sz--) {
-        outbuf[outp++] = *data;
-        if (relflag) {
-            zhe_assert(c->pos != c->firstpos);
-            c->rbuf[c->pos] = *data;
-            c->pos = xmitw_pos_add(c, c->pos, 1);
+    memcpy(outbuf + outp, data, sz);
+    outp += sz;
+    if (relflag) {
+        if (sz < c->xmitw_bytes - c->pos) {
+            memcpy(c->rbuf + c->pos, data, sz);
+            c->pos += sz;
+        } else {
+            const zhe_paysize_t sz0 = (zhe_paysize_t)(c->xmitw_bytes - c->pos);
+            memcpy(c->rbuf + c->pos, data, sz0);
+            if (sz0 == sz) {
+                c->pos = 0;
+            } else {
+                const zhe_paysize_t sz1 = sz - sz0;
+                memcpy(c->rbuf, data + sz0, sz1);
+                c->pos = sz1;
+            }
         }
-        data++;
     }
 }
 
@@ -710,7 +741,6 @@ static zhe_unpack_result_t handle_dresource(peeridx_t peeridx, const uint8_t * c
             zhe_decl_note_error_curpkt(ZHE_DECL_CONFLICT, rid);
             return ZUR_OK;
         } else {
-            /* FIXME: when the C flag is set, there's no point in making it tentative (failure would force a disconnect anyway), while it does increases the risk of a failed transaction */
             peeridx_t loser;
             switch (zhe_uristore_store(&idx, peeridx, rid, uri, urisize, tentative, &loser)) {
                 case USR_OK:
@@ -1622,7 +1652,7 @@ static void remove_acked_messages(struct out_conduit * restrict c, seq_t seq)
 #if XMITW_SAMPLE_INDEX
         seq_t cnt = (seq_t)(seq - c->seqbase) >> SEQNUM_SHIFT;
         c->firstpos = (seq == c->seq) ? c->spos : xmitw_load_rbufidx(c, seq);
-        c->firstidx = (c->firstidx + cnt) % c->xmitw_samples;
+        c->firstidx = xmitw_addindices(c->firstidx, cnt, c->xmitw_samples);
         c->seqbase = seq;
 #else
         c->firstpos = xmitw_skip_to_seq(c, c->firstpos, c->seqbase, seq);
