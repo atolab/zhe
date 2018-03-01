@@ -89,22 +89,22 @@ typedef int16_t cid_t;
  get to choose.  Sequence numbers are VLE on the wire (to allow decoding messages without
  knowing the sequence number size), a multiple of 7 bits avoids spending a byte of which only
  a few bits will be used. */
-#if SEQNUM_LEN == 7
+#if SEQNUM_LEN <= 8
 typedef uint8_t seq_t;    /* type internally used for representing sequence numbers */
 typedef int8_t sseq_t;    /* signed version of seq_t */
-#elif SEQNUM_LEN == 14
+#elif SEQNUM_LEN <= 16
 typedef uint16_t seq_t;
 typedef int16_t sseq_t;
-#elif SEQNUM_LEN == 28
+#elif SEQNUM_LEN <= 32
 typedef uint32_t seq_t;
 typedef int32_t sseq_t;
-#elif SEQNUM_LEN == 56
+#elif SEQNUM_LEN <= 64
 typedef uint64_t seq_t;
 typedef int64_t sseq_t;
 #else
-#error "SEQNUM_LEN must be either 7, 14, 28 or 56"
+#  error "SEQNUM_LEN out of range"
 #endif
-#define SEQNUM_SHIFT        (sizeof(seq_t))
+#define SEQNUM_SHIFT        (CHAR_BIT * sizeof(seq_t) - SEQNUM_LEN)
 #define SEQNUM_UNIT         ((seq_t)(1 << SEQNUM_SHIFT))
 
 #define ZHE_NEED_ICGCB (ZHE_MAX_URISPACE > 0)

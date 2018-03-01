@@ -9,10 +9,7 @@
 #include "zhe-tracing.h"
 #include "zhe-assert.h"
 
-#if (SEQNUM_LEN % 7) != 0
-#error "SEQNUM_LEN is not a multiple of 7 - how can this be?"
-#endif
-#define WORST_CASE_SEQ_SIZE (8 * SEQNUM_LEN / 7)
+#define WORST_CASE_SEQ_SIZE ((8 * SEQNUM_LEN + 6) / 7)
 
 static const uint8_t auth[] = { 2, 3 }; /* we don't do auth, but this matches Angelo's broker proto */
 
@@ -84,14 +81,14 @@ zhe_paysize_t zhe_pack_vle64req(uint64_t x)
 
 void zhe_pack_seq(seq_t x)
 {
-#if SEQNUM_LEN == 7
-    return zhe_pack1(x >> SEQNUM_SHIFT);
-#elif SEQNUM_LEN == 14
-    return zhe_pack_vle16(x >> SEQNUM_SHIFT);
-#elif SEQNUM_LEN == 28
-    return zhe_pack_vle32(x >> SEQNUM_SHIFT);
-#elif SEQNUM_LEN == 56
-    return zhe_pack_vle64(x >> SEQNUM_SHIFT);
+#if SEQNUM_LEN <= 8
+    zhe_pack1(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN <= 16
+    zhe_pack_vle16(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN <= 32
+    zhe_pack_vle32(x >> SEQNUM_SHIFT);
+#elif SEQNUM_LEN <= 64
+    zhe_pack_vle64(x >> SEQNUM_SHIFT);
 #else
 #error "zhe_pack_seq: invalid SEQNUM_LEN"
 #endif
@@ -99,13 +96,13 @@ void zhe_pack_seq(seq_t x)
 
 zhe_paysize_t zhe_pack_seqreq(seq_t x)
 {
-#if SEQNUM_LEN == 7
+#if SEQNUM_LEN <= 8
     return 1;
-#elif SEQNUM_LEN == 14
+#elif SEQNUM_LEN <= 16
     return zhe_pack_vle16req(x >> SEQNUM_SHIFT);
-#elif SEQNUM_LEN == 28
+#elif SEQNUM_LEN <= 32
     return zhe_pack_vle32req(x >> SEQNUM_SHIFT);
-#elif SEQNUM_LEN == 56
+#elif SEQNUM_LEN <= 64
     return zhe_pack_vle64req(x >> SEQNUM_SHIFT);
 #else
 #error "zhe_pack_seqreq: invalid SEQNUM_LEN"

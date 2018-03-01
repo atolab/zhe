@@ -167,27 +167,29 @@ enum zhe_unpack_result zhe_unpack_vle64(uint8_t const * const end, uint8_t const
 enum zhe_unpack_result zhe_unpack_seq(uint8_t const * const end, uint8_t const * * const data, seq_t * restrict u)
 {
     enum zhe_unpack_result res;
-#if SEQNUM_LEN == 7
+#if SEQNUM_LEN <= 8
     res = zhe_unpack_vle8(end, data, u);
-#elif SEQNUM_LEN == 14
+#elif SEQNUM_LEN <= 16
     res = zhe_unpack_vle16(end, data, u);
-#elif SEQNUM_LEN == 28
+#elif SEQNUM_LEN <= 32
     res = zhe_unpack_vle32(end, data, u);
-#elif SEQNUM_LEN == 56
+#elif SEQNUM_LEN <= 64
     res = zhe_unpack_vle64(end, data, u);
 #else
 #error "unpack_seq: invalid SEQNUM_LEN"
 #endif
     if (res != ZUR_OK) {
         return res;
-    } else if (*u & (seq_t)((seq_t)-1 << SEQNUM_LEN)) {
+    }
+#if SEQNUM_LEN != 8 && SEQNUM_LEN != 16 && SEQNUM_LEN != 32 && SEQNUM_LEN != 64
+    if (*u & (seq_t)((seq_t)-1 << SEQNUM_LEN)) {
         /* Oy vey! the unpacked number fits in seq_t, but it has some of the msbs
            that we will shift out set, which really makes it an overflow */
         return ZUR_OVERFLOW;
-    } else {
-        *u <<= SEQNUM_SHIFT;
-        return ZUR_OK;
     }
+#endif
+    *u <<= SEQNUM_SHIFT;
+    return ZUR_OK;
 }
 
 const uint8_t *zhe_skip_validated_vle(const uint8_t *data)
