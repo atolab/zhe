@@ -26,8 +26,8 @@
 /* Transmit window size for multicast conduits (XMITW_BYTES) and for unicast conduits (XMITW_BYTES_UNICAST). Neither type of conduit need be enabled, and no sizes needs to be given for the one that is not configured. Each reliable message is stored in the window prefixed by its size in represented as a "zhe_msgsize_t" (for which, see below). */
 #define XMITW_BYTES 384u
 #define XMITW_BYTES_UNICAST 511u
-#define XMITW_SAMPLES 160u
-#define XMITW_SAMPLES_UNICAST 255u
+#define XMITW_SAMPLES 32u
+#define XMITW_SAMPLES_UNICAST 63u
 
 /* Whether or not to maintain a index of samples in the transmit windows that maps sequence number to byte position */
 #define XMITW_SAMPLE_INDEX 0

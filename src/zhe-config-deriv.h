@@ -112,6 +112,10 @@ typedef int64_t sseq_t;
 #define SEQNUM_SHIFT        (CHAR_BIT * sizeof(seq_t) - SEQNUM_LEN)
 #define SEQNUM_UNIT         ((seq_t)(1 << SEQNUM_SHIFT))
 
+#if (defined(XMITW_SAMPLES) && XMITW_SAMPLES >= (1 << (SEQNUM_LEN-1))) || (defined(XMITW_SAMPLES_UNICAST) && XMITW_SAMPLES_UNICAST >= (1 << (SEQNUM_LEN-1)))
+#  error "XMITW_SAMPLES or XMITW_SAMPLES_UNICAST too large for SEQNUM_LEN"
+#endif
+
 #define ZHE_NEED_ICGCB (ZHE_MAX_URISPACE > 0)
 
 #if ZHE_TIMEBASE != 1000000

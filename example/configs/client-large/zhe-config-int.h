@@ -62,7 +62,7 @@
 #define PEERID_SIZE            16
 
 /* Sequence numbers are represented on the wire as VLE, but internally as a fixed size unsigned integer, but counting only 7 bits per byte (there is no point in having mostly unused bytes for the sequence number most of the time). So, uint16_t is a 14-bit sequence number, uint8_t a 7-bit one, uint32_t a 28-bit one and uint64_t a 56-bit one. The transmit window size and the sequence number are related: the window must be full before the window contains as many samples as half the range can represent (i.e., for a 14-bit sequence number the window must be smaller than 8192 messages, worst-case). */
-#define SEQNUM_LEN              7u
+#define SEQNUM_LEN              11u
 
 /* We're pretty dependent on making no typos in HAVE_UNICAST_CONDUIT, so it seems sensible to
    enable warnings for the use of undefined macros */
