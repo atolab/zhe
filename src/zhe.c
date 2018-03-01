@@ -40,7 +40,15 @@ struct in_conduit {
     zhe_time_t tack;              /* time of most recent ack sent */
 };
 
+#if XMITW_BYTES < UINT8_MAX && XMITW_BYTES_UNICAST < UINT8_MAX
+typedef uint8_t xwpos_t;
+#elif XMITW_BYTES < UINT16_MAX && XMITW_BYTES_UNICAST < UINT16_MAX
 typedef uint16_t xwpos_t;
+#elif XMITW_BYTES < UINT32_MAX && XMITW_BYTES_UNICAST < UINT32_MAX
+typedef uint32_t xwpos_t;
+#else
+#  error "transmit windows > 4GB are not currently supported"
+#endif
 
 struct out_conduit {
     zhe_address_t addr;           /* destination address */
@@ -373,7 +381,7 @@ int zhe_xmitw_hasspace(const struct out_conduit *c, zhe_paysize_t sz)
         return 0;
     }
 #endif
-    const zhe_paysize_t av = zhe_xmitw_bytesavail(c);
+    const xwpos_t av = zhe_xmitw_bytesavail(c);
     return av >= sizeof(zhe_msgsize_t) && av - sizeof(zhe_msgsize_t) >= sz;
 }
 
