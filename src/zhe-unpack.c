@@ -17,9 +17,7 @@ enum zhe_unpack_result zhe_unpack_byte(uint8_t const * const end, uint8_t const 
     if (end - *data < 1) {
         return ZUR_SHORT;
     }
-    if (u) {
-        *u = **data;
-    }
+    *u = **data;
     *data += 1;
     return ZUR_OK;
 }
@@ -107,14 +105,11 @@ enum zhe_unpack_result zhe_unpack_rid(uint8_t const * const end, uint8_t const *
 {
     /* Not verifying that the RID is less than MAX_RID, only that it fits in zhe_rid_t */
     enum zhe_unpack_result res;
-    zhe_rid_t tmp;
-    if ((res = SUFFIX_WITH_SIZE(zhe_unpack_vle, ZHE_RID_SIZE)(end, data, &tmp)) != ZUR_OK) {
+    if ((res = SUFFIX_WITH_SIZE(zhe_unpack_vle, ZHE_RID_SIZE)(end, data, u)) != ZUR_OK) {
         return res;
     }
-    zhe_assert(!(tmp & 1)); /* while not doing SIDs yet */
-    if (u != NULL) {
-        *u = tmp >> 1;
-    }
+    zhe_assert(!(*u & 1)); /* while not doing SIDs yet */
+    *u >>= 1;
     return ZUR_OK;
 }
 
@@ -148,9 +143,7 @@ enum zhe_unpack_result zhe_unpack_vecref(uint8_t const * const end, uint8_t cons
     if (end - *data < *u) {
         return ZUR_SHORT;
     }
-    if (v) {
-        *v = *data;
-    }
+    *v = *data;
     (*data) += *u;
     return ZUR_OK;
 }
@@ -160,13 +153,14 @@ enum zhe_unpack_result zhe_unpack_locs(uint8_t const * const end, uint8_t const 
     enum zhe_unpack_result res;
     uint16_t n;
     zhe_paysize_t dummy;
+    const uint8_t *dummydata;
     if ((res = zhe_unpack_vle16(end, data, &n)) != ZUR_OK) {
         return res;
     }
     it->n = n;
     it->data = *data;
     while (n--) {
-        if ((res = zhe_unpack_vecref(end, data, &dummy, NULL)) != ZUR_OK) {
+        if ((res = zhe_unpack_vecref(end, data, &dummy, &dummydata)) != ZUR_OK) {
             return res;
         }
     }
@@ -197,6 +191,7 @@ enum zhe_unpack_result zhe_unpack_props(uint8_t const * const end, uint8_t const
     uint16_t n;
     uint8_t propid;
     zhe_paysize_t dummy;
+    const uint8_t *dummydata;
     if ((res = zhe_unpack_vle16(end, data, &n)) != ZUR_OK) {
         return res;
     }
@@ -207,7 +202,7 @@ enum zhe_unpack_result zhe_unpack_props(uint8_t const * const end, uint8_t const
         if ((res = zhe_unpack_vle8(end, data, &propid)) != ZUR_OK && res != ZUR_OVERFLOW) {
             return res;
         }
-        if ((res = zhe_unpack_vecref(end, data, &dummy, NULL)) != ZUR_OK) {
+        if ((res = zhe_unpack_vecref(end, data, &dummy, &dummydata)) != ZUR_OK) {
             return res;
         }
     }

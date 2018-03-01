@@ -115,4 +115,12 @@ typedef int64_t sseq_t;
 #define ZTIME_TO_SECu32(zt) ((uint32_t)((zt) / (1000000000 / ZHE_TIMEBASE)))
 #define ZTIME_TO_MSECu32(zt) ((uint32_t)((zt) / (1000000 / ZHE_TIMEBASE)) % 1000u)
 
+#ifdef __GNUC__
+#define ZHE_NONNULL_ALL __attribute__((__nonnull__))
+#define ZHE_NONNULL(l) __attribute__((__nonnull__ l))
+#else
+#define ZHE_NONNULL_ALL
+#define ZHE_NONNULL(l)
+#endif
+
 #endif

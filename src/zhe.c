@@ -781,9 +781,10 @@ static zhe_unpack_result_t handle_dpub(peeridx_t peeridx, const uint8_t * const 
 {
     zhe_unpack_result_t res;
     uint8_t hdr;
+    zhe_rid_t rid;
     struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
-        (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
+        (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK) {
         return res;
     }
     if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
@@ -807,9 +808,10 @@ static zhe_unpack_result_t handle_dsub(peeridx_t peeridx, const uint8_t * const 
         return ZUR_OVERFLOW;
     }
     if (mode == SUBMODE_PERIODPULL || mode == SUBMODE_PERIODPUSH) {
-        if ((res = zhe_unpack_vle32(end, data, NULL)) != ZUR_OK /* temporal origin */ ||
-            (res = zhe_unpack_vle32(end, data, NULL)) != ZUR_OK /* period */ ||
-            (res = zhe_unpack_vle32(end, data, NULL)) != ZUR_OK /* duration */) {
+        uint32_t x, y, z;
+        if ((res = zhe_unpack_vle32(end, data, &x)) != ZUR_OK /* temporal origin */ ||
+            (res = zhe_unpack_vle32(end, data, &y)) != ZUR_OK /* period */ ||
+            (res = zhe_unpack_vle32(end, data, &z)) != ZUR_OK /* duration */) {
             return res;
         }
     }
@@ -828,10 +830,11 @@ static zhe_unpack_result_t handle_dselection(peeridx_t peeridx, const uint8_t * 
     zhe_rid_t sid;
     uint8_t hdr;
     zhe_paysize_t dummy;
+    const uint8_t *dummydata;
     struct unpack_props_iter it;
     if ((res = zhe_unpack_byte(end, data, &hdr)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, &sid)) != ZUR_OK ||
-        (res = zhe_unpack_vec(end, data, 0, &dummy, NULL)) != ZUR_OK) {
+        (res = zhe_unpack_vecref(end, data, &dummy, &dummydata)) != ZUR_OK) {
         return res;
     }
     if ((hdr & DPFLAG) && (res = zhe_unpack_props(end, data, &it)) != ZUR_OK) {
@@ -846,10 +849,10 @@ static zhe_unpack_result_t handle_dselection(peeridx_t peeridx, const uint8_t * 
 static zhe_unpack_result_t handle_dbindid(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
     zhe_unpack_result_t res;
-    zhe_rid_t sid;
+    zhe_rid_t sid, sid1;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
         (res = zhe_unpack_rid(end, data, &sid)) != ZUR_OK ||
-        (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
+        (res = zhe_unpack_rid(end, data, &sid1)) != ZUR_OK) {
         return res;
     }
     if (*interpret == DIM_INTERPRET) {
@@ -924,8 +927,9 @@ static zhe_unpack_result_t handle_dresult(peeridx_t peeridx, const uint8_t * con
 static zhe_unpack_result_t handle_dfresource(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
     zhe_unpack_result_t res;
+    zhe_rid_t rid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
-        (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
+        (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK) {
         return res;
     }
     return ZUR_OK;
@@ -934,8 +938,9 @@ static zhe_unpack_result_t handle_dfresource(peeridx_t peeridx, const uint8_t * 
 static zhe_unpack_result_t handle_dfpub(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data, enum declaration_interpretation_mode *interpret)
 {
     zhe_unpack_result_t res;
+    zhe_rid_t rid;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
-        (res = zhe_unpack_rid(end, data, NULL)) != ZUR_OK) {
+        (res = zhe_unpack_rid(end, data, &rid)) != ZUR_OK) {
         return res;
     }
     return ZUR_OK;
@@ -1812,8 +1817,9 @@ static zhe_unpack_result_t handle_mping(peeridx_t peeridx, const uint8_t * const
 static zhe_unpack_result_t handle_mpong(peeridx_t peeridx, const uint8_t * const end, const uint8_t **data)
 {
     zhe_unpack_result_t res;
+    uint16_t dummy;
     if ((res = zhe_unpack_skip(end, data, 1)) != ZUR_OK ||
-        (res = zhe_unpack_vle16(end, data, NULL)) != ZUR_OK) {
+        (res = zhe_unpack_vle16(end, data, &dummy)) != ZUR_OK) {
         return res == ZUR_OVERFLOW ? ZUR_OK : res;
     }
     return ZUR_OK;
