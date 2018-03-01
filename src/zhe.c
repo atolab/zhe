@@ -396,7 +396,7 @@ static seq_t xmitw_addindices(seq_t firstidx, seq_t off, seq_t limit)
 {
     /* (firstidx + off) % limit, where limit may be > (INT_MAX+1)/2 */
     zhe_assert(firstidx < limit);
-    zhe_assert(off < limit);
+    zhe_assert(off <= limit);
     if (off < limit - firstidx) {
         return firstidx + off;
     } else {
