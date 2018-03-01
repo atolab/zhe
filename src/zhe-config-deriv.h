@@ -2,6 +2,7 @@
 #define ZHE_CONFIG_DERIV_H
 
 #include <limits.h>
+#include <inttypes.h>
 #include "zhe-config-int.h"
 #include "zhe-rid.h"
 
@@ -92,15 +93,19 @@ typedef int16_t cid_t;
 #if SEQNUM_LEN <= 8
 typedef uint8_t seq_t;    /* type internally used for representing sequence numbers */
 typedef int8_t sseq_t;    /* signed version of seq_t */
+#define PRIuSEQ PRIu8
 #elif SEQNUM_LEN <= 16
 typedef uint16_t seq_t;
 typedef int16_t sseq_t;
+#define PRIuSEQ PRIu16
 #elif SEQNUM_LEN <= 32
 typedef uint32_t seq_t;
 typedef int32_t sseq_t;
+#define PRIuSEQ PRIu32
 #elif SEQNUM_LEN <= 64
 typedef uint64_t seq_t;
 typedef int64_t sseq_t;
+#define PRIuSEQ PRIu64
 #else
 #  error "SEQNUM_LEN out of range"
 #endif

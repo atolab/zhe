@@ -263,7 +263,7 @@ void zhe_pack_msynch(zhe_address_t *dst, uint8_t sflag, cid_t cid, seq_t seqbase
 {
     seq_t cnt_shifted = (seq_t)(cnt << SEQNUM_SHIFT);
     seq_t seq_msg = seqbase + cnt_shifted;
-    ZT(RELIABLE, "pack_msynch cid %d sflag %u seqbase %u cnt %u", cid, (unsigned)sflag, seqbase >> SEQNUM_SHIFT, (unsigned)cnt);
+    ZT(RELIABLE, "pack_msynch cid %d sflag %u seqbase %"PRIuSEQ" cnt %"PRIuSEQ, cid, (unsigned)sflag, (seq_t)(seqbase >> SEQNUM_SHIFT), cnt);
     zhe_pack_reserve_mconduit(dst, cid, false, 1 + zhe_pack_seqreq(seq_msg) + zhe_pack_seqreq(cnt_shifted), tnow);
     zhe_pack1(MRFLAG | sflag | (cnt > 0 ? MUFLAG : 0) | MSYNCH);
     zhe_pack_seq(seq_msg);
