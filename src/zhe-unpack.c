@@ -22,49 +22,147 @@ enum zhe_unpack_result zhe_unpack_byte(uint8_t const * const end, uint8_t const 
     return ZUR_OK;
 }
 
-#define DEF_UNPACK_VLE(size_) \
-enum zhe_unpack_result zhe_unpack_vle##size_(uint8_t const * const end, uint8_t const * * const data, uint##size_##_t * restrict u) \
-{ \
-    uint##size_##_t n; \
-    uint8_t shift = 7; \
-    uint8_t x; \
-    if (end == *data) { \
-        return ZUR_SHORT; \
-    } \
-    x = **data; (*data)++; \
-    n = x & 0x7f; \
-    while (x & 0x80 && shift < CHAR_BIT * sizeof(*u)) { \
-        if (end == *data) { \
-            return ZUR_SHORT; \
-        } \
-        x = **data; (*data)++; \
-        n |= ((uint##size_##_t)(x & 0x7f)) << shift; \
-        shift += 7; \
-    } \
-    if (u) { \
-        *u = n; \
-    } \
-    if (shift < CHAR_BIT * sizeof(*u)) { \
-        return ZUR_OK; \
-    } else { \
-        uint8_t overflow = ((sizeof(*u) % 7) == 0) ? 0 : (x >> (sizeof(*u) % 7)); \
-        while (x & 0x80) { \
-            if (end == *data) { \
-                return ZUR_SHORT; \
-            } \
-            x = **data; (*data)++; \
-            overflow |= x & 0x7f; \
-        } \
-        return (overflow ? ZUR_OVERFLOW : ZUR_OK); \
-    } \
+/* zhe_unpack_vle_..._overflow is the fallback routine once we know there is overflow (we're simply declaring padding with 0s at the most-significant end is not allowed) */
+#define DEF_UNPACK_VLE_OVERFLOW(size_)                                  \
+    enum zhe_unpack_result zhe_unpack_vle##size_##_overflow(uint8_t const * const end, uint8_t const * * const data, uint##size_##_t * restrict u) \
+    {                                                                   \
+        uint8_t const * const start = *data;                            \
+        const uint8_t *c = start;                                       \
+        while (c != end && *c > 0x7f) {                                 \
+            c++;                                                        \
+        }                                                               \
+        if (c == end) {                                                 \
+            return ZUR_SHORT;                                           \
+        }                                                               \
+        *data = c+1;                                                    \
+        uint##size_##_t n = *c;                                         \
+        while (c-- != start) {                                          \
+            n = (uint##size_##_t)(n << 7) | (*c & 0x7f);                \
+        }                                                               \
+        *u = n;                                                         \
+        return ZUR_OVERFLOW;                                            \
+    }
+DEF_UNPACK_VLE_OVERFLOW(8)
+DEF_UNPACK_VLE_OVERFLOW(16)
+DEF_UNPACK_VLE_OVERFLOW(32)
+
+#define ADD_SEPTET(size_, msb_, lsb_) ((uint##size_##_t)(((uint##size_##_t)msb_ << 7) | (lsb_ & 0x7f)))
+
+enum zhe_unpack_result zhe_unpack_vle8(uint8_t const * const end, uint8_t const * * const data, uint8_t * restrict u)
+{
+    const uint8_t *c = *data;
+    if (c+0 == end) {
+        return ZUR_SHORT;
+    } else if (c[0] <= 0x7f) {
+        *u = c[0];
+        (*data) += 1;
+        return ZUR_OK;
+    } else if (c+1 == end) {
+        return ZUR_SHORT;
+    } else if (c[1] <= 0x1) {
+        *u = ADD_SEPTET(8, c[1], c[0]);
+        (*data) += 2;
+        return ZUR_OK;
+    } else {
+        return zhe_unpack_vle8_overflow(end, data, u);
+    }
 }
-DEF_UNPACK_VLE(8)
-DEF_UNPACK_VLE(16)
-DEF_UNPACK_VLE(32)
+
+enum zhe_unpack_result zhe_unpack_vle16(uint8_t const * const end, uint8_t const * * const data, uint16_t * restrict u)
+{
+    const uint8_t *c = *data;
+    if (c+0 == end) {
+        return ZUR_SHORT;
+    } else if (c[0] <= 0x7f) {
+        *u = c[0];
+        (*data) += 1;
+        return ZUR_OK;
+    } else if (c+1 == end) {
+        return ZUR_SHORT;
+    } else if (c[1] <= 0x7f) {
+        *u = ADD_SEPTET(16, c[1], c[0]);
+        (*data) += 2;
+        return ZUR_OK;
+    } else if (c+2 == end) {
+        return ZUR_SHORT;
+    } else if (c[2] <= 0x3) {
+        *u = ADD_SEPTET(16, ADD_SEPTET(16, c[2], c[1]), c[0]);
+        (*data) += 3;
+        return ZUR_OK;
+    } else {
+        return zhe_unpack_vle16_overflow(end, data, u);
+    }
+}
+
+enum zhe_unpack_result zhe_unpack_vle32(uint8_t const * const end, uint8_t const * * const data, uint32_t * restrict u)
+{
+    const uint8_t *c = *data;
+    if (c+0 == end) {
+        return ZUR_SHORT;
+    } else if (c[0] <= 0x7f) {
+        *u = c[0];
+        (*data) += 1;
+        return ZUR_OK;
+    } else if (c+1 == end) {
+        return ZUR_SHORT;
+    } else if (c[1] <= 0x7f) {
+        *u = ADD_SEPTET(32, c[1], c[0]);
+        (*data) += 2;
+        return ZUR_OK;
+    } else if (c+2 == end) {
+        return ZUR_SHORT;
+    } else if (c[2] <= 0x7f) {
+        *u = ADD_SEPTET(32, ADD_SEPTET(32, c[2], c[1]), c[0]);
+        (*data) += 3;
+        return ZUR_OK;
+    } else if (c+3 == end) {
+        return ZUR_SHORT;
+    } else if (c[3] <= 0x7f) {
+        *u = ADD_SEPTET(32, ADD_SEPTET(32, ADD_SEPTET(32, c[3], c[2]), c[1]), c[0]);
+        (*data) += 4;
+        return ZUR_OK;
+    } else if (c+4 == end) {
+        return ZUR_SHORT;
+    } else if (c[4] <= 0xf) {
+        *u = ADD_SEPTET(32, ADD_SEPTET(32, ADD_SEPTET(32, ADD_SEPTET(32, c[4], c[3]), c[2]), c[1]), c[0]);
+        (*data) += 5;
+        return ZUR_OK;
+    } else {
+        return zhe_unpack_vle32_overflow(end, data, u);
+    }
+}
+
+#undef ADD_SEPTET
+
 #if ZHE_RID_SIZE > 32 || SEQNUM_LEN > 28
-DEF_UNPACK_VLE(64)
+/* 64-bit case is fairly rare, and I'm ok with it being a bit slower in return for being a bit smaller */
+enum zhe_unpack_result zhe_unpack_vle64(uint8_t const * const end, uint8_t const * * const data, uint64_t * restrict u)
+{
+    uint8_t const * const start = *data;
+    const uint8_t *c = start;
+    while (c != end && *c > 0x7f) {
+        c++;
+    }
+    if (c == end) {
+        return ZUR_SHORT;
+    }
+    *data = c+1;
+    bool overflow;
+    if (c+1 - start < (8*sizeof(*u)+6)/7) {
+        overflow = false;
+    } else if (c+1 - start == (8*sizeof(*u)+6)/7) {
+        overflow = (((8*sizeof(*u)) % 7) == 0) ? false : (*c >> ((8*sizeof(*u)) % 7) != 0);
+    } else {
+        overflow = true;
+    }
+    uint64_t n = *c;
+    while (c-- != start) {
+        n = (uint64_t)(n << 7) | (*c & 0x7f);
+    }
+    *u = n;
+    return (overflow ? ZUR_OVERFLOW : ZUR_OK);
+}
 #endif
-#undef DEF_UNPACK_VLE
 
 enum zhe_unpack_result zhe_unpack_seq(uint8_t const * const end, uint8_t const * * const data, seq_t * restrict u)
 {

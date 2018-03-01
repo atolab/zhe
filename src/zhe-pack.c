@@ -18,38 +18,42 @@ static const uint8_t auth[] = { 2, 3 }; /* we don't do auth, but this matches An
 
 void zhe_pack_vle8(uint8_t x)
 {
-    do {
-        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
-        x >>= 7;
-    } while (x);
+    if (x <= 0x7f) {
+        zhe_pack1(x);
+    } else {
+        zhe_pack1(0x80 | (x & 0x7f));
+        zhe_pack1(1);
+    }
 }
 
 zhe_paysize_t zhe_pack_vle8req(uint8_t x)
 {
-    zhe_paysize_t n = 0;
-    do { n++; x >>= 7; } while (x != 0);
-    return n;
+    return (x <= 0x7f) ? 1 : 2;
 }
 
 void zhe_pack_vle16(uint16_t x)
 {
-    do {
-        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
-        x >>= 7;
-    } while (x);
+    if (x <= 0x7f) {
+        zhe_pack1((uint8_t)x);
+    } else if (x <= 0x3fff) {
+        zhe_pack1(0x80 | ((uint8_t)x & 0x7f));
+        zhe_pack1((uint8_t)(x >> 7));
+    } else {
+        zhe_pack1(0x80 | ((uint8_t)x & 0x7f)); x >>= 7;
+        zhe_pack1(0x80 | ((uint8_t)x & 0x7f)); x >>= 7;
+        zhe_pack1((uint8_t)x);
+    }
 }
 
 zhe_paysize_t zhe_pack_vle16req(uint16_t x)
 {
-    zhe_paysize_t n = 0;
-    do { n++; x >>= 7; } while (x != 0);
-    return n;
+    return (x <= 0x7f) ? 1 : (x <= 0x3fff) ? 2 : 3;
 }
 
 void zhe_pack_vle32(uint32_t x)
 {
     do {
-        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
+        zhe_pack1((x & 0x7f) | ((x > 0x7f) ? 0x80 : 0));
         x >>= 7;
     } while (x);
 }
@@ -65,7 +69,7 @@ zhe_paysize_t zhe_pack_vle32req(uint32_t x)
 void zhe_pack_vle64(uint64_t x)
 {
     do {
-        zhe_pack1((x & 0x7f) | ((x > 127) ? 0x80 : 0));
+        zhe_pack1((x & 0x7f) | ((x > 0x7f) ? 0x80 : 0));
         x >>= 7;
     } while (x);
 }
