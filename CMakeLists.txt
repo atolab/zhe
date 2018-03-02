@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.9)
 project(zhe C)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
 include(CheckIPOSupported)
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
   check_ipo_supported(RESULT supported OUTPUT error)
@@ -16,6 +16,10 @@ add_compile_options(
   $<$<C_COMPILER_ID:Clang>:-Wall>
   $<$<C_COMPILER_ID:AppleClang>:-Wall>
   $<$<C_COMPILER_ID:GNU>:-Wall>)
+add_compile_options(
+  $<$<C_COMPILER_ID:Clang>:-pedantic>
+  $<$<C_COMPILER_ID:AppleClang>:-pedantic>
+  $<$<C_COMPILER_ID:GNU>:-pedantic>)
 
 include_directories(
         "${PROJECT_SOURCE_DIR}/src"

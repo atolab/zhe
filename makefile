@@ -17,7 +17,7 @@ ZHE_PLATFORM := platform-udp.c
 ZHE := $(notdir $(wildcard $(SRCDIR)/src/*.c)) $(ZHE_PLATFORM)
 
 OPT = #-O2
-CFLAGS = $(OPT) -std=gnu11 -g -Wall $(SUBDIRS:%=-I$(SRCDIR)/%)
+CFLAGS = $(OPT) -std=c99 -pedantic -g -Wall $(SUBDIRS:%=-I$(SRCDIR)/%)
 LDFLAGS = $(OPT)
 
 SRC_roundtrip = roundtrip.c zhe-util.c $(ZHE)
