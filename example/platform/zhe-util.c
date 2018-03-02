@@ -71,8 +71,6 @@ struct zhe_platform *  zhe(uint16_t port) {
         exit(1);
     }
     printf("Starting zhe!\n");
-    printf("Pointer from C: %p\n", platform);
-    printf("Pointer from C: %p\n", (void*)platform);
     zhe_start(zhe_platform_time());
 
     return platform;

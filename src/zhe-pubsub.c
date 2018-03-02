@@ -905,7 +905,7 @@ void zhe_note_declstatus(peeridx_t peeridx, uint8_t status, zhe_rid_t rid)
         if (status != (uint8_t)ZHE_DECL_OK && (decl_results.status == (uint8_t)ZHE_DECL_OK || decl_results.status == (uint8_t)ZHE_DECL_AGAIN)) {
             decl_results.status = ZHE_DRESULT_IS_VALID_DECLSTATUS(status) ? status : (uint8_t)ZHE_DECL_OTHER;
             decl_results.rid = rid;
-            ZT(PUBSUB, "**** FIXME: handle AGAIN case ****\n");
+            ZT(PUBSUB, "**** FIXME: handle AGAIN case ****");
         }
     }
 }

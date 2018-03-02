@@ -16,12 +16,12 @@ extern unsigned zhe_trace_cats;
 extern struct zhe_platform *zhe_platform;
 
 #define ZTT(catsimple_) (zhe_trace_cats & ZTCAT_##catsimple_)
-#define ZT(catsimple_, fmt_, ...) ((zhe_trace_cats & ZTCAT_##catsimple_) ? zhe_platform_trace(zhe_platform, fmt_, ##__VA_ARGS__) : (void)0)
+#define ZT(catsimple_, ...) ((zhe_trace_cats & ZTCAT_##catsimple_) ? zhe_platform_trace(zhe_platform, __VA_ARGS__) : (void)0)
 
 #else
 
 #define ZTT(catsimple_) (0)
-#define ZT(catsimple_, fmt_, ...) ((void)0)
+#define ZT(catsimple_, ...) ((void)0)
 
 #endif
 
