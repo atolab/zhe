@@ -22,7 +22,6 @@ typedef uint8_t uripos_t;
 struct icgcb_hdr {
     uripos_t size;      /* includes header, multiple of UNIT unless allocated; sentinel is exception and has size = 0 */
     uripos_t ref;       /* URIPOS_INVALID if free, else whatever the user puts in */
-    unsigned char data[];
 };
 
 struct icgcb {
@@ -32,10 +31,7 @@ struct icgcb {
     uripos_t firstfree; /* index in e[], first free block, GC starts here */
     uripos_t openspace; /* index in e[], nothing to the end of the buffer, allocations happen here */
     uripos_t sentinel;  /* index in e[] of sentinel at the end of memory */
-    union {
-        struct icgcb_hdr e; /* really e[] ... C is so overrated ... */
-        char buf;       /* really buf[] ... */
-    } u;
+    struct icgcb_hdr e[];
 };
 
 enum icgcb_alloc_result {
