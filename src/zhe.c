@@ -1982,7 +1982,7 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
         if (peers[peeridx].state == PEERST_ESTABLISHED) {
             peers[peeridx].tlease = tnow;
         }
-        res = handle_packet(&peeridx, buf + sz, &bufp, tnow);
+        res = handle_packet(&peeridx, (const uint8_t *)buf + sz, &bufp, tnow);
         switch (res)
         {
             case ZUR_OK:
