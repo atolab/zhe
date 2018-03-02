@@ -163,7 +163,7 @@ void cfg_handle_addrs(struct zhe_config *cfg, struct zhe_platform *platform, con
         zhe_platform_join(platform, cfg->scoutaddr);
     }
 
-    static struct zhe_address mcgroups_join[MAX_MULTICAST_GROUPS]; /* FIXME: 't is a bit ugly this way */
+    static struct zhe_address mcgroups_join[MAX_MULTICAST_GROUPS+1]; /* FIXME: 't is a bit ugly this way */
     cfg->n_mcgroups_join = 0;
     cfg->mcgroups_join = mcgroups_join;
     str = strdup(mcgroups_join_str);
@@ -180,7 +180,7 @@ void cfg_handle_addrs(struct zhe_config *cfg, struct zhe_platform *platform, con
     }
     free(str);
 
-    static struct zhe_address mconduit_dstaddrs[N_OUT_MCONDUITS]; /* FIXME: 't is a bit ugly this way */
+    static struct zhe_address mconduit_dstaddrs[N_OUT_MCONDUITS+1]; /* FIXME: 't is a bit ugly this way */
     cfg->n_mconduit_dstaddrs = 0;
     cfg->mconduit_dstaddrs = mconduit_dstaddrs;
     str = strdup(mconduit_dstaddrs_str);
