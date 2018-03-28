@@ -27,7 +27,6 @@
 struct udp {
     int s[2];
     int next;
-    uint16_t port;
     uint16_t ucport;
     size_t nself;
     in_addr_t self[MAX_SELF];
@@ -63,7 +62,7 @@ static void set_nonblock(int sock)
     (void)fcntl(sock, F_SETFL, flags);
 }
 
-struct zhe_platform *zhe_platform_new(uint16_t port)
+struct zhe_platform *zhe_platform_new(void)
 {
     const int one = 1;
     struct udp * const udp = &gudp;
@@ -73,8 +72,6 @@ struct zhe_platform *zhe_platform_new(uint16_t port)
 
     (void)clock_gettime(CLOCK_MONOTONIC, &toffset);
     toffset.tv_sec -= toffset.tv_sec % 10000;
-
-    udp->port = htons(port);
 
     /* Get own IP addresses so we know what to filter out -- disabling MC loopback would help if
        we knew there was only a single proces on a node, but I actually want to run multiple for
@@ -146,7 +143,7 @@ struct zhe_platform *zhe_platform_new(uint16_t port)
 #endif
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = udp->port;
+    addr.sin_port = PORT_NBO;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(udp->s[1], (struct sockaddr *)&addr, sizeof(addr)) == -1) {
         perror("bind[1]");

@@ -9,7 +9,7 @@ static const uint8_t uniqueid[] = { 2 };
 
 int main()
 {
-    struct zhe_platform * const platform = zhe_platform_new(PORT);
+    struct zhe_platform * const platform = zhe_platform_new();
     struct zhe_config cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.id = uniqueid;

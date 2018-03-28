@@ -13,7 +13,7 @@ typedef struct zhe_address {
 #define TRANSPORT_ADDRSTRLEN (4 + INET_ADDRSTRLEN + 6) /* udp/IP:PORT -- udp/ is 4, colon is 1, PORT in [1,5] */
 
 zhe_time_t zhe_platform_time(void);
-struct zhe_platform *zhe_platform_new(uint16_t port);
+struct zhe_platform *zhe_platform_new(void);
 int zhe_platform_join(const struct zhe_platform *pf, const struct zhe_address *addr);
 void zhe_platform_wait(const struct zhe_platform *pf);
 int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size, zhe_address_t * restrict src);
