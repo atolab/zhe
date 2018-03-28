@@ -56,3 +56,8 @@ install (TARGETS ssub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
 install (TARGETS psrid DESTINATION ${PROJECT_SOURCE_DIR}/bin)
 install (TARGETS dzhe DESTINATION lib)
 install(FILES ${Headers} DESTINATION include/zhe)
+
+# note: this also uses example/configs/p2p, even though it really should have its own config
+file(GLOB MDSources "src/*.c" example/mindeps/mindeps-platform.c)
+add_executable(mindeps-sub example/mindeps/mindeps-sub.c ${MDSources})
+add_executable(mindeps-pub example/mindeps/mindeps-pub.c ${MDSources})
