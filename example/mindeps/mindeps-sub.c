@@ -7,21 +7,6 @@
 /* NB this is pushing it: a hardcoded unique peer id ... */
 static const uint8_t uniqueid[] = { 1 };
 
-void background(struct zhe_platform * const platform)
-{
-    char inbuf[TRANSPORT_MTU];
-    zhe_address_t insrc;
-    int recvret;
-    zhe_time_t tnow = zhe_platform_time();
-    zhe_housekeeping(tnow);
-    /* Note: calling "wait" just to lower CPU load a bit */
-    zhe_platform_wait(platform);
-    tnow = zhe_platform_time();
-    if ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
-        zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
-    }
-}
-
 void data_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *vpub)
 {
     uint64_t count;
