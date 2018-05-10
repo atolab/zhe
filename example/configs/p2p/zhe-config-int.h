@@ -4,7 +4,9 @@
 
 #include "zhe-config.h"
 
+/**********************************************************************/
 #ifndef TCPTLS
+/**********************************************************************/
 
 /* Maximum number of peers one node can have (that is, the network may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0, it becomes a client rather than a peer, and scouts for a broker instead */
 #define MAX_PEERS 16
@@ -22,7 +24,10 @@
 #define MAX_MULTICAST_GROUPS 5
 
 #include "platform-udp.h"
-#elif TRANSPORT_MODE == TRANSPORT_STREAM
+
+/**********************************************************************/
+#else
+/**********************************************************************/
 
 #define MAX_PEERS 16
 #define N_IN_CONDUITS 2
@@ -33,7 +38,10 @@
 #define ZHE_TCPOPEN_THROTTLE 8000
 
 #include "platform-tcptls.h"
-#endif /* TRANSPORT_MODE */
+
+/**********************************************************************/
+#endif
+/**********************************************************************/
 
 /* Maximum number of subscriptions a peer may register */
 #define ZHE_MAX_SUBSCRIPTIONS_PER_PEER ZHE_MAX_SUBSCRIPTIONS
