@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include "zhe-util.h"
 #include "zhe-platform.h"
 
@@ -12,7 +13,7 @@ int main(int argc, char* argv[])
     zhe_once(platform, delay);
     uint64_t count = 0;
     while (true) {
-        printf(">> Writing count %llu\n", count);
+        printf(">> Writing count %"PRIu64"\n", count);
         zhe_write(p, &count, sizeof(count), zhe_platform_time());
         count += 1;
         zhe_once(platform, delay);

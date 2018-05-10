@@ -102,8 +102,10 @@ static void set_nonblock(int sock)
 
 static void set_nosigpipe(int sock)
 {
+#ifdef SO_NOSIGPIPE
     int set = 1;
     setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, (void *)&set, sizeof(int));
+#endif
 }
 
 struct zhe_platform *zhe_platform_new(uint16_t port, const char *pingaddrs)
@@ -372,7 +374,11 @@ static int zhe_platform_send_conn(struct tcp * const tcp, const void * restrict 
     zhe_assert(conn->s != -1);
     zhe_assert(conn->out.pos < conn->out.lim || (conn->out.pos == 0 && conn->out.lim == 0));
     if (conn->out.pos < conn->out.lim) {
+#if defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
         ret = write(conn->s, conn->out.buf + conn->out.pos, conn->out.lim - conn->out.pos);
+#else
+        ret = send(conn->s, conn->out.buf + conn->out.pos, conn->out.lim - conn->out.pos, MSG_NOSIGPIPE);
+#endif
         if (ret > 0) {
             conn->out.pos += (zhe_msgsize_t)ret;
             if (conn->out.pos == conn->out.lim) {
@@ -396,7 +402,17 @@ static int zhe_platform_send_conn(struct tcp * const tcp, const void * restrict 
         iov[iovcnt++].iov_len = size;
         xsize += size;
         /* write length + messages and retain any leftovers */
+#if defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
         ret = writev(conn->s, iov, iovcnt);
+#else
+        {
+            struct msghdr mh;
+            memset(&mh, 0, sizeof(mh));
+            mh.msg_iov = iov;
+            mh.msg_iovlen = iovcnt;
+            ret = sendmsg(conn->s, &mh, MSG_NOSIGPIPE);
+        }
+#endif
         if (ret > 0 && (size_t)ret < xsize) {
             size_t nwr = (size_t)ret;
             int i = 0;
