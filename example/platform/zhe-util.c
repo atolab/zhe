@@ -7,10 +7,10 @@
 #include <time.h>
 
 #include "zhe-util.h"
-#ifndef TCPTLS
+#ifndef TCP
 #include "platform-udp.h"
 #else
-#include "platform-tcptls.h"
+#include "platform-tcp.h"
 #endif
 #include "zhe.h"
 #include "zhe-tracing.h"
@@ -33,7 +33,7 @@ extern void init_rnd_gen() {
 
 struct zhe_platform *zhe(uint16_t port, const char *peers)
 {
-#ifndef TCPTLS
+#ifndef TCP
     const char *scoutaddrstr = "239.255.0.1";
 #else
     const char *scoutaddrstr = "0.0.0.0:0";
@@ -55,7 +55,7 @@ struct zhe_platform *zhe(uint16_t port, const char *peers)
     cfg.id = ownid;
     cfg.idlen = ownidsize;
 
-#ifdef TCPTLS
+#ifdef TCP
     struct zhe_platform * const platform = zhe_platform_new(port, peers);
 #else
     struct zhe_platform * const platform = zhe_platform_new(port, 0);

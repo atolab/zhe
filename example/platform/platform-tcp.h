@@ -1,5 +1,5 @@
-#ifndef TRANSPORT_TCPTLS_H
-#define TRANSPORT_TCPTLS_H
+#ifndef TRANSPORT_TCP_H
+#define TRANSPORT_TCP_H
 
 #include <netinet/in.h>
 #include "zhe-platform.h"

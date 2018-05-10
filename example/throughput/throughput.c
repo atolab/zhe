@@ -6,8 +6,8 @@
 #include <inttypes.h>
 #include <time.h>
 
-#ifdef TCPTLS
-#include "platform-tcptls.h"
+#ifdef TCP
+#include "platform-tcp.h"
 #else
 #include "platform-udp.h"
 #endif
@@ -117,7 +117,7 @@ int main(int argc, char * const *argv)
     int check_likely_success = 0;
     bool sub_to_wildcard = false;
     zhe_time_t duration = (zhe_time_t)~0;
-#ifdef TCPTLS
+#ifdef TCP
     uint16_t port = 0;
     const char *pingaddrs = "";
     const char *scoutaddrstr = "0.0.0.0:0"; /* meaningless but required to use correct syntax */
@@ -142,7 +142,7 @@ int main(int argc, char * const *argv)
 #endif
 
     while((opt = getopt(argc, argv, "D:C:k:c:h:pP:squX:xw"
-#ifndef TCPTLS
+#ifndef TCP
                         "S:G:M:" /* options controlling addressing that are meaningful only for UDP/IP */
 #endif
                         )) != EOF) {
@@ -170,7 +170,7 @@ int main(int argc, char * const *argv)
             case 'P': port = (uint16_t)atoi(optarg); break;
             case 'C': checkintv = (unsigned)atoi(optarg); break;
             case 'x': check_likely_success = 1; break;
-#ifndef TCPTLS
+#ifndef TCP
             case 'X': drop_pct = atoi(optarg); break;
             case 'S': scoutaddrstr = optarg; break;
             case 'G': mcgroups_join_str = optarg; break;
@@ -192,7 +192,7 @@ int main(int argc, char * const *argv)
     cfg.id = ownid;
     cfg.idlen = ownidsize;
 
-#ifdef TCPTLS
+#ifdef TCP
     struct zhe_platform * const platform = zhe_platform_new(port, pingaddrs);
 #else
     struct zhe_platform * const platform = zhe_platform_new(port, drop_pct);

@@ -18,7 +18,7 @@ void data_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *
 
 int main(int argc, char* argv[])
 {
-#ifdef TCPTLS
+#ifdef TCP
     struct zhe_platform * const platform = zhe(0, "127.0.0.1:7447");
 #else
     struct zhe_platform * const platform = zhe(7447, NULL);

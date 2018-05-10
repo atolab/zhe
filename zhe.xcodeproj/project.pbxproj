@@ -39,9 +39,9 @@
 		031EC64C20A0183500C1B7B7 /* zhe-util.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041688202F505A000EC6AF /* zhe-util.h */; };
 		031EC64D20A0183500C1B7B7 /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D5202F505A000EC6AF /* zhe-config.h */; };
 		031EC64E20A0183500C1B7B7 /* zhe-package.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041668202F39C8000EC6AF /* zhe-package.h */; };
-		031EC65420A0184700C1B7B7 /* platform-tcptls.c in Sources */ = {isa = PBXBuildFile; fileRef = 031EC63920A017F300C1B7B7 /* platform-tcptls.c */; };
+		031EC65420A0184700C1B7B7 /* platform-tcp.c in Sources */ = {isa = PBXBuildFile; fileRef = 031EC63920A017F300C1B7B7 /* platform-tcp.c */; };
 		031EC65720A0186E00C1B7B7 /* throughput.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416DC202F505A000EC6AF /* throughput.c */; };
-		031EC65F20A0187D00C1B7B7 /* liblibzhe-tcptls.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 031EC65320A0183500C1B7B7 /* liblibzhe-tcptls.a */; };
+		031EC65F20A0187D00C1B7B7 /* liblibzhe-tcp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 031EC65320A0183500C1B7B7 /* liblibzhe-tcp.a */; };
 		031EC66320A40BE200C1B7B7 /* zhe-mscout.h in Headers */ = {isa = PBXBuildFile; fileRef = 031EC66220A40BE200C1B7B7 /* zhe-mscout.h */; };
 		0362B515202085E700EF87EC /* zhe-uri.c in Sources */ = {isa = PBXBuildFile; fileRef = 0362B512202085E700EF87EC /* zhe-uri.c */; };
 		036D95461F93D6A8003C047B /* zhe-icgcb.c in Sources */ = {isa = PBXBuildFile; fileRef = 036D953F1F8CF05D003C047B /* zhe-icgcb.c */; };
@@ -141,10 +141,10 @@
 		030587661EF92BEB0040F446 /* throughput */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = throughput; sourceTree = BUILT_PRODUCTS_DIR; };
 		030FFBE2203C6F6A001CE88B /* zhe-binheap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-binheap.h"; path = "src/zhe-binheap.h"; sourceTree = SOURCE_ROOT; };
 		030FFBE7203D6A90001CE88B /* pub */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pub; sourceTree = BUILT_PRODUCTS_DIR; };
-		031EC63820A017F300C1B7B7 /* platform-tcptls.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "platform-tcptls.h"; sourceTree = "<group>"; };
-		031EC63920A017F300C1B7B7 /* platform-tcptls.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "platform-tcptls.c"; sourceTree = "<group>"; };
-		031EC65320A0183500C1B7B7 /* liblibzhe-tcptls.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "liblibzhe-tcptls.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		031EC65E20A0186E00C1B7B7 /* throughput-tcptls */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "throughput-tcptls"; sourceTree = BUILT_PRODUCTS_DIR; };
+		031EC63820A017F300C1B7B7 /* platform-tcp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "platform-tcp.h"; sourceTree = "<group>"; };
+		031EC63920A017F300C1B7B7 /* platform-tcp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "platform-tcp.c"; sourceTree = "<group>"; };
+		031EC65320A0183500C1B7B7 /* liblibzhe-tcp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "liblibzhe-tcp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		031EC65E20A0186E00C1B7B7 /* throughput-tcp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "throughput-tcp"; sourceTree = BUILT_PRODUCTS_DIR; };
 		031EC66220A40BE200C1B7B7 /* zhe-mscout.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-mscout.h"; path = "src/zhe-mscout.h"; sourceTree = SOURCE_ROOT; };
 		034BDF811F5472F700F261D1 /* zhe-platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "zhe-platform.h"; path = "src/zhe-platform.h"; sourceTree = SOURCE_ROOT; };
 		034BDF841F5472F700F261D1 /* zhe-bitset.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "zhe-bitset.c"; path = "src/zhe-bitset.c"; sourceTree = SOURCE_ROOT; };
@@ -210,7 +210,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				031EC65F20A0187D00C1B7B7 /* liblibzhe-tcptls.a in Frameworks */,
+				031EC65F20A0187D00C1B7B7 /* liblibzhe-tcp.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -254,8 +254,8 @@
 		03041683202F505A000EC6AF /* platform */ = {
 			isa = PBXGroup;
 			children = (
-				031EC63920A017F300C1B7B7 /* platform-tcptls.c */,
-				031EC63820A017F300C1B7B7 /* platform-tcptls.h */,
+				031EC63920A017F300C1B7B7 /* platform-tcp.c */,
+				031EC63820A017F300C1B7B7 /* platform-tcp.h */,
 				03041687202F505A000EC6AF /* platform-udp.c */,
 				03041684202F505A000EC6AF /* platform-udp.h */,
 				03041685202F505A000EC6AF /* zhe-assert.h */,
@@ -352,8 +352,8 @@
 				0387A4B6202C852200599E82 /* liblibzhe.a */,
 				030417482036DDC2000EC6AF /* psrid */,
 				030FFBE7203D6A90001CE88B /* pub */,
-				031EC65320A0183500C1B7B7 /* liblibzhe-tcptls.a */,
-				031EC65E20A0186E00C1B7B7 /* throughput-tcptls */,
+				031EC65320A0183500C1B7B7 /* liblibzhe-tcp.a */,
+				031EC65E20A0186E00C1B7B7 /* throughput-tcp */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -486,9 +486,9 @@
 			productReference = 030FFBE7203D6A90001CE88B /* pub */;
 			productType = "com.apple.product-type.tool";
 		};
-		031EC63A20A0183500C1B7B7 /* libzhe-tcptls */ = {
+		031EC63A20A0183500C1B7B7 /* libzhe-tcp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 031EC65020A0183500C1B7B7 /* Build configuration list for PBXNativeTarget "libzhe-tcptls" */;
+			buildConfigurationList = 031EC65020A0183500C1B7B7 /* Build configuration list for PBXNativeTarget "libzhe-tcp" */;
 			buildPhases = (
 				031EC63B20A0183500C1B7B7 /* Sources */,
 				031EC64620A0183500C1B7B7 /* Frameworks */,
@@ -498,14 +498,14 @@
 			);
 			dependencies = (
 			);
-			name = "libzhe-tcptls";
+			name = "libzhe-tcp";
 			productName = libzhe;
-			productReference = 031EC65320A0183500C1B7B7 /* liblibzhe-tcptls.a */;
+			productReference = 031EC65320A0183500C1B7B7 /* liblibzhe-tcp.a */;
 			productType = "com.apple.product-type.library.static";
 		};
-		031EC65520A0186E00C1B7B7 /* throughput-tcptls */ = {
+		031EC65520A0186E00C1B7B7 /* throughput-tcp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 031EC65B20A0186E00C1B7B7 /* Build configuration list for PBXNativeTarget "throughput-tcptls" */;
+			buildConfigurationList = 031EC65B20A0186E00C1B7B7 /* Build configuration list for PBXNativeTarget "throughput-tcp" */;
 			buildPhases = (
 				031EC65620A0186E00C1B7B7 /* Sources */,
 				031EC65820A0186E00C1B7B7 /* Frameworks */,
@@ -515,9 +515,9 @@
 			);
 			dependencies = (
 			);
-			name = "throughput-tcptls";
+			name = "throughput-tcp";
 			productName = zhe;
-			productReference = 031EC65E20A0186E00C1B7B7 /* throughput-tcptls */;
+			productReference = 031EC65E20A0186E00C1B7B7 /* throughput-tcp */;
 			productType = "com.apple.product-type.tool";
 		};
 		036D95441F93D6A8003C047B /* icgcbtest */ = {
@@ -619,8 +619,8 @@
 				036D95441F93D6A8003C047B /* icgcbtest */,
 				030417472036DDC2000EC6AF /* psrid */,
 				030FFBE6203D6A90001CE88B /* pub */,
-				031EC63A20A0183500C1B7B7 /* libzhe-tcptls */,
-				031EC65520A0186E00C1B7B7 /* throughput-tcptls */,
+				031EC63A20A0183500C1B7B7 /* libzhe-tcp */,
+				031EC65520A0186E00C1B7B7 /* throughput-tcp */,
 			);
 		};
 /* End PBXProject section */
@@ -663,7 +663,7 @@
 				031EC64220A0183500C1B7B7 /* zhe-uri.c in Sources */,
 				031EC64320A0183500C1B7B7 /* zhe-uristore.c in Sources */,
 				031EC64520A0183500C1B7B7 /* zhe.c in Sources */,
-				031EC65420A0184700C1B7B7 /* platform-tcptls.c in Sources */,
+				031EC65420A0184700C1B7B7 /* platform-tcp.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -908,9 +908,8 @@
 				EXECUTABLE_PREFIX = lib;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
 					"$(inherited)",
-					"TCPTLS=1",
+					"TCP=1",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -928,7 +927,7 @@
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					NDEBUG,
-					"TCPTLS=1",
+					"TCP=1",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -943,7 +942,7 @@
 				CLANG_WARN_SUSPICIOUS_IMPLICIT_CONVERSION = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
-					"TCPTLS=1",
+					"TCP=1",
 				);
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_SIGN_COMPARE = YES;
@@ -959,7 +958,7 @@
 				CLANG_WARN_SUSPICIOUS_IMPLICIT_CONVERSION = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					NDEBUG,
-					"TCPTLS=1",
+					"TCP=1",
 				);
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_SIGN_COMPARE = YES;
@@ -1084,7 +1083,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		031EC65020A0183500C1B7B7 /* Build configuration list for PBXNativeTarget "libzhe-tcptls" */ = {
+		031EC65020A0183500C1B7B7 /* Build configuration list for PBXNativeTarget "libzhe-tcp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				031EC65120A0183500C1B7B7 /* Debug */,
@@ -1093,7 +1092,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		031EC65B20A0186E00C1B7B7 /* Build configuration list for PBXNativeTarget "throughput-tcptls" */ = {
+		031EC65B20A0186E00C1B7B7 /* Build configuration list for PBXNativeTarget "throughput-tcp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				031EC65C20A0186E00C1B7B7 /* Debug */,

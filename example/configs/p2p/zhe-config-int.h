@@ -5,7 +5,7 @@
 #include "zhe-config.h"
 
 /**********************************************************************/
-#ifndef TCPTLS
+#ifndef TCP
 /**********************************************************************/
 
 /* Maximum number of peers one node can have (that is, the network may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0, it becomes a client rather than a peer, and scouts for a broker instead */
@@ -37,7 +37,7 @@
 #define ZHE_TCPOPEN_MAXWAIT 4000
 #define ZHE_TCPOPEN_THROTTLE 8000
 
-#include "platform-tcptls.h"
+#include "platform-tcp.h"
 
 /**********************************************************************/
 #endif

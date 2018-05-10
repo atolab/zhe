@@ -18,7 +18,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
-#include "platform-tcptls.h"
+#include "platform-tcp.h"
 #include "zhe-assert.h"
 #include "zhe-tracing.h"
 #include "zhe-config-deriv.h"

@@ -33,14 +33,14 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/example/configs/p2p"
 )
 
-#set(TCPTLS ON)
+#set(TCP ON)
 
 file(GLOB Headers "src/*.h" "example/platform/*.h" "example/configs/p2p/*.h")
 
-if(TCPTLS)
+if(TCP)
 
-  add_definitions(-DTCPTLS)
-  file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-tcptls.c")
+  add_definitions(-DTCP)
+  file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-tcp.c")
 
   add_library(zhe ${Sources})
   

@@ -113,8 +113,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "031EC65520A0186E00C1B7B7"
-               BuildableName = "throughput-tcptls"
-               BlueprintName = "throughput-tcptls"
+               BuildableName = "throughput-tcp"
+               BlueprintName = "throughput-tcp"
                ReferencedContainer = "container:zhe.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
