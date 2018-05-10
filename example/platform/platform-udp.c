@@ -226,17 +226,24 @@ size_t zhe_platform_addr2string(const struct zhe_platform *pf, char * restrict s
 int zhe_platform_string2addr(const struct zhe_platform *pf, struct zhe_address * restrict addr, const char * restrict str)
 {
     struct udp *udp = (struct udp *)pf;
+    char copy[4*(4+1) + 1+5 + 1]; /* IP:PORT, hex/octal components in IP require potentially 4 characters */
     char *portstr, *portend;
     unsigned long port;
+    size_t len;
     memset(addr, 0, sizeof(*addr));
     if (strncmp(str, "udp/", 4) == 0) {
         str += 4;
     }
-    if ((portstr = strchr(str, ':')) != NULL) {
+    len = strlen(str);
+    if (len >= sizeof(copy)) {
+        return 0;
+    }
+    memcpy(copy, str, len+1);
+    if ((portstr = strchr(copy, ':')) != NULL) {
         *portstr++ = 0;
     }
     addr->a.sin_family = AF_INET;
-    if (inet_pton(AF_INET, str, &addr->a.sin_addr.s_addr) != 1) {
+    if (inet_pton(AF_INET, copy, &addr->a.sin_addr.s_addr) != 1) {
         return 0;
     }
     if (portstr != NULL) {
