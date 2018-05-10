@@ -2,7 +2,7 @@
 
 ## Throughput test
 
-The small (and admittedly rather lacking in beauty) test program named "throughput" in the "test" directory is essentially a bidrectional throughput tester with a platform implementation for POSIX + UDP/IP.
+The small (and admittedly rather lacking in beauty) test program named "throughput" in the "test" directory is essentially a bidrectional throughput tester with a platform implementation for POSIX + UDP/IP and for POSIX + TCP/IP.
 
 It has three modes:
 

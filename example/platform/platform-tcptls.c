@@ -705,9 +705,11 @@ int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *
 int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
 {
     struct tcp * const tcp = (struct tcp *)pf;
-    fd_set rs;
+    fd_set rs, ws;
+    struct timeval tv;
     int maxfd;
     FD_ZERO(&rs);
+    FD_ZERO(&ws);
     if (tcp->servsock != -1) {
         FD_SET(tcp->servsock, &rs);
         maxfd = tcp->servsock;
@@ -723,26 +725,18 @@ int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
             const int s = tcp->conns[i].s;
             FD_SET(s, &rs);
             if (s > maxfd) { maxfd = s; }
+        } else if (tcp->conns[i].state == CS_TCPCONNECT) {
+            const int s = tcp->conns[i].s;
+            FD_SET(s, &ws);
+            if (s > maxfd) { maxfd = s; }
         }
     }
-    if (maxfd != -1) {
-        if (timeout < 0) {
-            return select(maxfd+1, &rs, NULL, NULL, NULL) > 0;
-        } else {
-            struct timeval tv;
-            tv.tv_sec = ZTIME_TO_SECu32(timeout);
-            tv.tv_usec = 1000 * ZTIME_TO_MSECu32(timeout);
-            return select(maxfd+1, &rs, NULL, NULL, &tv) > 0;
-        }
+    if (timeout < 0) {
+        tv.tv_sec = 0;
+        tv.tv_usec = 100000;
     } else {
-        if (timeout < 0) {
-            (void)select(0, NULL, NULL, NULL, NULL);
-        } else if (timeout > 0) {
-            struct timeval tv;
-            tv.tv_sec = ZTIME_TO_SECu32(timeout);
-            tv.tv_usec = 1000 * ZTIME_TO_MSECu32(timeout);
-            (void)select(0, NULL, NULL, NULL, &tv);
-        }
-        return 0;
+        tv.tv_sec = ZTIME_TO_SECu32(timeout);
+        tv.tv_usec = 1000 * ZTIME_TO_MSECu32(timeout);
     }
+    return select(maxfd+1, &rs, &ws, NULL, &tv) > 0;
 }

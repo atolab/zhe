@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <string.h>
-#include "platform-udp.h"
 #include "zhe-util.h"
+#include "zhe-platform.h"
 
-int main(int argc, char* argv[]) {
-    uint16_t port = 7447;
-    struct zhe_platform * const platform = zhe(port);
+int main(int argc, char* argv[])
+{
+    struct zhe_platform * const platform = zhe(7447, NULL);
     zhe_pubidx_t p;
     p = zhe_publish(1, 0, 1);
     uint64_t  delay = 1000000000;

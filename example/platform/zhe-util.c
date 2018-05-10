@@ -31,29 +31,19 @@ extern void init_rnd_gen() {
 
 }
 
-struct zhe_platform *  zhe(uint16_t port) {
-
+struct zhe_platform *zhe(uint16_t port, const char *peers)
+{
+#ifndef TCPTLS
     const char *scoutaddrstr = "239.255.0.1";
+#else
+    const char *scoutaddrstr = "0.0.0.0:0";
+#endif
 
     unsigned char ownid[16];
     zhe_paysize_t ownidsize;
     struct zhe_config cfg;
 
     init_rnd_gen();
-
-#if N_OUT_MCONDUITS == 0
-    char *mcgroups_join_str = "";
-    char *mconduit_dstaddrs_str = "";
-#elif N_OUT_MCONDUITS == 1
-    char *mcgroups_join_str = "239.255.0.2"; /* in addition to scout */
-    char *mconduit_dstaddrs_str = "239.255.0.2";
-#elif N_OUT_MCONDUITS == 2
-    char *mcgroups_join_str = "239.255.0.2,239.255.0.3"; /* in addition to scout */
-    char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
-#elif N_OUT_MCONDUITS == 3
-    char *mcgroups_join_str = "239.255.0.2,239.255.0.3,239.255.0.4"; /* in addition to scout */
-    char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
-#endif
 
 #if ENABLE_TRACING
     zhe_trace_cats = ZTCAT_PEERDISC | ZTCAT_PUBSUB;
@@ -65,10 +55,13 @@ struct zhe_platform *  zhe(uint16_t port) {
     cfg.id = ownid;
     cfg.idlen = ownidsize;
 
+#ifdef TCPTLS
+    struct zhe_platform * const platform = zhe_platform_new(port, peers);
+#else
     struct zhe_platform * const platform = zhe_platform_new(port, 0);
+#endif
 
-    cfg_handle_addrs(&cfg, platform, scoutaddrstr, mcgroups_join_str, mconduit_dstaddrs_str);
-
+    cfg_handle_addrs(&cfg, platform, scoutaddrstr, "", "");
 
     if (zhe_init(&cfg, platform, zhe_platform_time()) < 0) {
         fprintf(stderr, "init failed\n");

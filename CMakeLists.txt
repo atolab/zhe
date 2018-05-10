@@ -43,8 +43,15 @@ if(TCPTLS)
   file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-tcptls.c")
 
   add_library(zhe ${Sources})
+  
   add_executable(throughput example/throughput/throughput.c)
   target_link_libraries(throughput zhe)
+
+  add_executable(spub example/simple/pub.c)
+  target_link_libraries(spub zhe)
+
+  add_executable(ssub example/simple/sub.c)
+  target_link_libraries(ssub zhe)
 
 else()
 

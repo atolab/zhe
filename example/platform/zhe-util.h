@@ -3,7 +3,7 @@
 
 #include "zhe.h"
 
-struct zhe_platform *  zhe(uint16_t port);
+struct zhe_platform *zhe(uint16_t port, const char *peers);
 void zhe_dispatch(struct zhe_platform *platform);
 void zhe_once(struct zhe_platform *platform, uint64_t delay);
 void zhe_loop(struct zhe_platform *platform, uint64_t period);
