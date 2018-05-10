@@ -307,6 +307,14 @@ int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size,
     }
 }
 
+void zhe_platform_housekeeping(struct zhe_platform *pf, zhe_time_t tnow)
+{
+}
+
+void zhe_platform_close_session(struct zhe_platform *pf, const struct zhe_address * restrict addr)
+{
+}
+
 int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *b)
 {
     return a->a.sin_addr.s_addr == b->a.sin_addr.s_addr && a->a.sin_port == b->a.sin_port;

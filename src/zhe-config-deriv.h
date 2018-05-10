@@ -36,6 +36,10 @@
 #  warning "should use a unicast conduit in a client or if there can be at most one peer"
 #endif
 
+#if MAX_MULTICAST_GROUPS == 0 && N_OUT_MCONDUITS > 0
+#  error "MAX_MULTICAST_GROUPS must be at least 1 for multicast group handling to work"
+#endif
+
 #if 0 < LEASE_DURATION && LEASE_DURATION <= SCOUT_INTERVAL
 #  warning "scout interval should be shorter than lease duration"
 #endif
@@ -83,7 +87,7 @@ typedef int16_t cid_t;
 #endif
 
 #if N_IN_CONDUITS < N_OUT_CONDUITS
-#  error "Validation in MCONDUIT checks against N_IN_CONDUIT, but for MACKNACK it really means it concerns that output conduit, so N_IN >= N_OUT"
+#  error "Validation in MCONDUIT checks against N_IN_CONDUIT, but for MACKNACK the conduit id really refers to the output conduit, so N_IN >= N_OUT unless the case for MACKNACK gets special treatment"
 #endif
 
 /* Size of sequence number in bits is "negotiated" -- that is, determined by the client, so we

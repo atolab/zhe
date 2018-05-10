@@ -21,43 +21,60 @@ add_compile_options(
   $<$<C_COMPILER_ID:AppleClang>:-pedantic>
   $<$<C_COMPILER_ID:GNU>:-pedantic>)
 
+# Clang doesn't colour its output by default when invoked by Ninja
+# Can't commit this as it would break when ninja itself is not sending its output to a TTY
+if(${CMAKE_GENERATOR} STREQUAL "Ninja" AND (${CMAKE_C_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_C_COMPILER_ID} STREQUAL "AppleClang"))
+  add_compile_options(-Xclang -fcolor-diagnostics)
+endif()
+
 include_directories(
         "${PROJECT_SOURCE_DIR}/src"
         "${PROJECT_SOURCE_DIR}/example/platform"
         "${PROJECT_SOURCE_DIR}/example/configs/p2p"
 )
 
+#set(TCPTLS ON)
+
 file(GLOB Headers "src/*.h" "example/platform/*.h" "example/configs/p2p/*.h")
-file(GLOB Sources "src/*.c" "example/platform/*.c")
 
-add_library(zhe ${Sources})
-add_library(dzhe SHARED ${Sources})
+if(TCPTLS)
 
-add_executable(throughput example/throughput/throughput.c)
-target_link_libraries(throughput zhe)
+  add_definitions(-DTCPTLS)
+  file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-tcptls.c")
 
-add_executable(roundtrip example/roundtrip/roundtrip.c)
-target_link_libraries(roundtrip zhe)
+  add_library(zhe ${Sources})
+  add_executable(throughput example/throughput/throughput.c)
+  target_link_libraries(throughput zhe)
 
-add_executable(spub example/simple/pub.c)
-target_link_libraries(spub zhe)
+else()
 
-add_executable(ssub example/simple/sub.c)
-target_link_libraries(ssub zhe)
+  file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-udp.c")
 
-add_executable(psrid test/psrid.c)
-target_link_libraries(psrid zhe)
+  add_library(zhe ${Sources})
+  add_library(dzhe SHARED ${Sources})
 
-install (TARGETS zhe DESTINATION ${PROJECT_SOURCE_DIR}/lib)
-install (TARGETS throughput DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-install (TARGETS roundtrip DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-install (TARGETS spub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-install (TARGETS ssub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-install (TARGETS psrid DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-install (TARGETS dzhe DESTINATION lib)
-install(FILES ${Headers} DESTINATION include/zhe)
+  add_executable(throughput example/throughput/throughput.c)
+  target_link_libraries(throughput zhe)
 
-# note: this also uses example/configs/p2p, even though it really should have its own config
-file(GLOB MDSources "src/*.c" example/mindeps/mindeps-platform.c)
-add_executable(mindeps-sub example/mindeps/mindeps-sub.c ${MDSources})
-add_executable(mindeps-pub example/mindeps/mindeps-pub.c ${MDSources})
+  add_executable(roundtrip example/roundtrip/roundtrip.c)
+  target_link_libraries(roundtrip zhe)
+
+  add_executable(spub example/simple/pub.c)
+  target_link_libraries(spub zhe)
+
+  add_executable(ssub example/simple/sub.c)
+  target_link_libraries(ssub zhe)
+
+  add_executable(psrid test/psrid.c)
+  target_link_libraries(psrid zhe)
+
+  install(TARGETS zhe DESTINATION ${PROJECT_SOURCE_DIR}/lib)
+  install(TARGETS throughput DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+  install(TARGETS roundtrip DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+  install(TARGETS spub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+  install(TARGETS ssub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+  install(TARGETS psrid DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+  install(TARGETS dzhe DESTINATION lib)
+  install(FILES ${Headers} DESTINATION include/zhe)
+
+endif()

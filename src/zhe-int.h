@@ -3,6 +3,7 @@
 
 #include "zhe.h"
 #include "zhe-config-deriv.h"
+#include "zhe-mscout.h"
 
 #define SUFFIX_WITH_SIZE1(name, size) name##size
 #define SUFFIX_WITH_SIZE(name, size) SUFFIX_WITH_SIZE1(name, size)

@@ -6,7 +6,11 @@
 #include <inttypes.h>
 #include <time.h>
 
+#ifdef TCPTLS
+#include "platform-tcptls.h"
+#else
 #include "platform-udp.h"
+#endif
 #include "zhe.h"
 #include "zhe-tracing.h"
 #include "zhe-assert.h"
@@ -110,24 +114,21 @@ int main(int argc, char * const *argv)
     int reliable = 1;
     uint32_t key = 0;
     struct zhe_config cfg;
-    uint16_t port = 7447;
-    int drop_pct = 0;
     int check_likely_success = 0;
-    const char *scoutaddrstr = "239.255.0.1";
     bool sub_to_wildcard = false;
     zhe_time_t duration = (zhe_time_t)~0;
-#if N_OUT_MCONDUITS == 0
+#ifdef TCPTLS
+    uint16_t port = 0;
+    const char *pingaddrs = "";
+    const char *scoutaddrstr = "0.0.0.0:0"; /* meaningless but required to use correct syntax */
     char *mcgroups_join_str = "";
     char *mconduit_dstaddrs_str = "";
-#elif N_OUT_MCONDUITS == 1
+#else
+    uint16_t port = 7447;
+    int drop_pct = 0;
+    const char *scoutaddrstr = "239.255.0.1";
     char *mcgroups_join_str = "239.255.0.2"; /* in addition to scout */
     char *mconduit_dstaddrs_str = "239.255.0.2";
-#elif N_OUT_MCONDUITS == 2
-    char *mcgroups_join_str = "239.255.0.2,239.255.0.3"; /* in addition to scout */
-    char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
-#elif N_OUT_MCONDUITS == 3
-    char *mcgroups_join_str = "239.255.0.2,239.255.0.3,239.255.0.4"; /* in addition to scout */
-    char *mconduit_dstaddrs_str = "239.255.0.2,239.255.0.3";
 #endif
 
 #ifdef __APPLE__
@@ -140,8 +141,11 @@ int main(int argc, char * const *argv)
     zhe_trace_cats = ~0u;
 #endif
 
-    scoutaddrstr = "239.255.0.1";
-    while((opt = getopt(argc, argv, "D:C:k:c:h:psquS:G:M:X:xw")) != EOF) {
+    while((opt = getopt(argc, argv, "D:C:k:c:h:pP:squX:xw"
+#ifndef TCPTLS
+                        "S:G:M:" /* options controlling addressing that are meaningful only for UDP/IP */
+#endif
+                        )) != EOF) {
         switch(opt) {
             case 'h': ownidsize = getidfromarg(ownid, sizeof(ownid), optarg); break;
             case 'k':
@@ -163,12 +167,17 @@ int main(int argc, char * const *argv)
                 break;
             }
             case 'u': reliable = 0; break;
+            case 'P': port = (uint16_t)atoi(optarg); break;
             case 'C': checkintv = (unsigned)atoi(optarg); break;
-            case 'S': scoutaddrstr = optarg; break;
             case 'x': check_likely_success = 1; break;
+#ifndef TCPTLS
             case 'X': drop_pct = atoi(optarg); break;
+            case 'S': scoutaddrstr = optarg; break;
             case 'G': mcgroups_join_str = optarg; break;
             case 'M': mconduit_dstaddrs_str = optarg; break;
+#else
+            case 'X': pingaddrs = optarg; break;
+#endif
             case 'D': duration = (zhe_time_t)atoi(optarg); break;
             case 'w': sub_to_wildcard = true; break;
             default: fprintf(stderr, "invalid options given\n"); exit(1); break;
@@ -183,7 +192,15 @@ int main(int argc, char * const *argv)
     cfg.id = ownid;
     cfg.idlen = ownidsize;
 
+#ifdef TCPTLS
+    struct zhe_platform * const platform = zhe_platform_new(port, pingaddrs);
+#else
     struct zhe_platform * const platform = zhe_platform_new(port, drop_pct);
+#endif
+    if (platform == NULL) {
+        fprintf(stderr, "platform initialization failed\n");
+        exit(1);
+    }
     cfg_handle_addrs(&cfg, platform, scoutaddrstr, mcgroups_join_str, mconduit_dstaddrs_str);
     if (zhe_init(&cfg, platform, zhe_platform_time()) < 0) {
         fprintf(stderr, "init failed\n");
@@ -208,12 +225,13 @@ int main(int argc, char * const *argv)
             while (ZTIME_TO_SECu32(zhe_platform_time() - tstart) <= duration) {
                 zhe_time_t tnow;
                 if (zhe_platform_wait(platform, 10)) {
-                    char inbuf[TRANSPORT_MTU];
+                    zhe_recvbuf_t inbuf;
                     zhe_address_t insrc;
                     int recvret;
                     tnow = zhe_platform_time();
-                    if ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
-                        zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
+                    if ((recvret = zhe_platform_recv(platform, &inbuf, &insrc)) > 0) {
+                        int cnt = zhe_input(inbuf.buf, (size_t)recvret, &insrc, tnow);
+                        zhe_platform_advance(platform, &insrc, cnt);
                     }
                 } else {
                     tnow = zhe_platform_time();
@@ -234,11 +252,12 @@ int main(int argc, char * const *argv)
                 zhe_housekeeping(tnow);
 
                 {
-                    char inbuf[TRANSPORT_MTU];
+                    zhe_recvbuf_t inbuf;
                     zhe_address_t insrc;
                     int recvret;
-                    while ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
-                        zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
+                    while ((recvret = zhe_platform_recv(platform, &inbuf, &insrc)) > 0) {
+                        int cnt = zhe_input(inbuf.buf, (size_t)recvret, &insrc, tnow);
+                        zhe_platform_advance(platform, &insrc, cnt);
                     }
                 }
 

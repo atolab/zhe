@@ -230,7 +230,7 @@ int main(int argc, char * const *argv)
     sub_ping = zhe_subscribe(rid_ping_sub, 12 + sizeof(struct pong), 0, ping_handler, NULL);
     sub_pong = zhe_subscribe(rid_pong_sub, 12 + sizeof(struct ping), 0, pong_handler, NULL);
     for (zhe_time_t tnow = tstart; ZTIME_TO_SECu32(tnow - tstart) <= duration; tnow = zhe_platform_time()) {
-        char inbuf[TRANSPORT_MTU];
+        zhe_recvbuf_t inbuf;
         zhe_address_t insrc;
         int recvret;
         for (uint32_t k = 0; k <= MAX_KEY; k++) {
@@ -247,8 +247,8 @@ int main(int argc, char * const *argv)
             tprint = tnow;
         }
         zhe_housekeeping(tnow);
-        while ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
-            zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
+        while ((recvret = zhe_platform_recv(platform, &inbuf, &insrc)) > 0) {
+            zhe_input(inbuf.buf, (size_t)recvret, &insrc, tnow);
         }
         zhe_platform_wait(platform, 10);
     }

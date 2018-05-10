@@ -33,6 +33,12 @@ int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t
 /* Return true if the source address of outgoing packets has changed since last call, false if not. Returning true when nothing changed will cause unnecessary keepalives to be sent, returning false when in fact it did change causes trouble. Called periodically (SCOUT_INTERVAL) so it should be cheap. */
 bool zhe_platform_needs_keepalive(struct zhe_platform *pf);
 
+/* Called by zhe_housekeeping to do whatever the platform the requires in terms of background activity */
+void zhe_platform_housekeeping(struct zhe_platform *pf, zhe_time_t tnow);
+
+/* Called whenever the zhe core code drops a session */
+void zhe_platform_close_session(struct zhe_platform *pf, const struct zhe_address * restrict addr);
+
 void zhe_platform_trace(struct zhe_platform *pf, const char *fmt, ...)
 #ifdef __GNUC__
 __attribute__((format (printf, 2, 3)))

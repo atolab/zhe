@@ -33,6 +33,13 @@ unsigned zhe_bitset_count(const uint8_t *s, unsigned size)
     return n;
 }
 
+void zhe_bitset_andnot(uint8_t *d, const uint8_t *s, unsigned size)
+{
+    for (unsigned i = 0; i < (size + 7) / 8; i++) {
+        d[i] &= ~s[i];
+    }
+}
+
 int zhe_bitset_findfirst(const uint8_t *s, unsigned size)
 {
     unsigned i, j, m;

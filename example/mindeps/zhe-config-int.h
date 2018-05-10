@@ -3,8 +3,7 @@
 #define ZHE_CONFIG_INT_H
 
 #include "zhe-config.h"
-
-#ifndef TCPTLS
+#include "platform-mindeps.h"
 
 /* Maximum number of peers one node can have (that is, the network may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0, it becomes a client rather than a peer, and scouts for a broker instead */
 #define MAX_PEERS 16
@@ -20,20 +19,6 @@
 
 /* The peer joins a number of multicast groups on startup (using transport_ops.join; the transport can define them any way they like, but on the provided UDP/IP transport implementation they have the obvious meaning). The number of these is limited by MAX_MULTICAST_GROUPS, but fewer is allowed, too. These addresses are exchanged during session establishment and used by the peers to determine from which of their output conduits the data will reach the peer */
 #define MAX_MULTICAST_GROUPS 5
-
-#include "platform-udp.h"
-#elif TRANSPORT_MODE == TRANSPORT_STREAM
-
-#define MAX_PEERS 16
-#define N_IN_CONDUITS 2
-#define N_OUT_CONDUITS 2
-#define HAVE_UNICAST_CONDUIT 1
-#define MAX_MULTICAST_GROUPS 1
-#define ZHE_TCPOPEN_MAXWAIT 4000
-#define ZHE_TCPOPEN_THROTTLE 8000
-
-#include "platform-tcptls.h"
-#endif /* TRANSPORT_MODE */
 
 /* Maximum number of subscriptions a peer may register */
 #define ZHE_MAX_SUBSCRIPTIONS_PER_PEER ZHE_MAX_SUBSCRIPTIONS

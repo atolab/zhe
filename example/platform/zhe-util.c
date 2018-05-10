@@ -7,7 +7,11 @@
 #include <time.h>
 
 #include "zhe-util.h"
+#ifndef TCPTLS
 #include "platform-udp.h"
+#else
+#include "platform-tcptls.h"
+#endif
 #include "zhe.h"
 #include "zhe-tracing.h"
 #include "zhe-assert.h"
@@ -80,12 +84,13 @@ void zhe_dispatch(struct zhe_platform *platform) {
     zhe_time_t tnow = zhe_platform_time();
     zhe_housekeeping(tnow);
     zhe_platform_wait(platform, -1);
-    char inbuf[TRANSPORT_MTU];
+    zhe_recvbuf_t inbuf;
     zhe_address_t insrc;
     int recvret;
     tnow = zhe_platform_time();
-    if ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
-        zhe_input(inbuf, (size_t) recvret, &insrc, tnow);
+    if ((recvret = zhe_platform_recv(platform, &inbuf, &insrc)) > 0) {
+        int n = zhe_input(inbuf.buf, (size_t) recvret, &insrc, tnow);
+        zhe_platform_advance(platform, &insrc, n);
     }
 }
 
@@ -102,12 +107,13 @@ void zhe_once(struct zhe_platform *platform, uint64_t delay)
     while ((zhe_timediff_t)(tnow - tend) < 0) {
         zhe_housekeeping(tnow);
         if (zhe_platform_wait(platform, 10)) {
-            char inbuf[TRANSPORT_MTU];
+            zhe_recvbuf_t inbuf;
             zhe_address_t insrc;
             int recvret;
             tnow = zhe_platform_time();
-            if ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
-                zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
+            if ((recvret = zhe_platform_recv(platform, &inbuf, &insrc)) > 0) {
+                int n = zhe_input(inbuf.buf, (size_t) recvret, &insrc, tnow);
+                zhe_platform_advance(platform, &insrc, n);
             }
         } else {
             tnow = zhe_platform_time();

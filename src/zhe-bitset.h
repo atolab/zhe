@@ -8,6 +8,7 @@
 
 void zhe_bitset_set(uint8_t *s, unsigned idx);
 void zhe_bitset_clear(uint8_t *s, unsigned idx);
+void zhe_bitset_andnot(uint8_t *d, const uint8_t *s, unsigned size);
 int zhe_bitset_test(const uint8_t *s, unsigned idx);
 unsigned zhe_bitset_count(const uint8_t *s, unsigned size);
 int zhe_bitset_findfirst(const uint8_t *s, unsigned size);

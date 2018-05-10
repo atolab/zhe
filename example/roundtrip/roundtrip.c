@@ -85,12 +85,12 @@ static zhe_time_t loop(struct zhe_platform *platform)
     while ((zhe_timediff_t)(tnow - tend) < 0) {
         zhe_housekeeping(tnow);
         if (zhe_platform_wait(platform, 10)) {
-            char inbuf[TRANSPORT_MTU];
+            zhe_recvbuf_t inbuf;
             zhe_address_t insrc;
             int recvret;
             tnow = zhe_platform_time();
-            if ((recvret = zhe_platform_recv(platform, inbuf, sizeof(inbuf), &insrc)) > 0) {
-                zhe_input(inbuf, (size_t)recvret, &insrc, tnow);
+            if ((recvret = zhe_platform_recv(platform, &inbuf, &insrc)) > 0) {
+                zhe_input(inbuf.buf, (size_t)recvret, &insrc, tnow);
             }
         } else {
             tnow = zhe_platform_time();

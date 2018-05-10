@@ -344,10 +344,10 @@ static int is_from_me(const struct udp *udp, const zhe_address_t * restrict src)
     return 0;
 }
 
-int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size, zhe_address_t * restrict src)
+int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t * restrict src)
 {
     struct udp *udp = (struct udp *)pf;
-    ssize_t ret = recv1(udp, buf, size, src);
+    ssize_t ret = recv1(udp, buf->buf, sizeof(buf->buf), src);
     if (ret <= 0 || !is_from_me(udp, src)) {
 #if ENABLE_TRACING
         if (ZTT(TRANSPORT) && ret > 0) {
@@ -368,6 +368,14 @@ int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size,
 #endif
         return 0;
     }
+}
+
+void zhe_platform_housekeeping(struct zhe_platform *pf, zhe_time_t tnow)
+{
+}
+
+void zhe_platform_close_session(struct zhe_platform *pf, const struct zhe_address * restrict addr)
+{
 }
 
 int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *b)

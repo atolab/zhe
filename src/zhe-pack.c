@@ -123,13 +123,16 @@ void zhe_pack_mscout(zhe_address_t *dst, zhe_time_t tnow)
 {
     /* Client mode should only look for a broker, but a peer should look for peers and brokers
        (because a broker really can be considered a peer). */
-#if MAX_PEERS == 0
-    const uint8_t mask = MSCOUT_BROKER;
-#else
-    const uint8_t mask = MSCOUT_BROKER | MSCOUT_PEER;
+    uint8_t buf[MSCOUT_MAX_SIZE];
+    zhe_msgsize_t sz = zhe_make_mscout(buf, sizeof(buf));
+    zhe_assert(sz >= 2);
+    zhe_pack_reserve(dst, NULL, sz, tnow);
+    zhe_pack2(buf[0], buf[1]);
+#if MSCOUT_MAX_SIZE > 2
+    for (i = 2; i < sz; i++) {
+        zhe_pack1(buf[i]);
+    }
 #endif
-    zhe_pack_reserve(dst, NULL, 2, tnow);
-    zhe_pack2(MSCOUT, mask);
 }
 
 void zhe_pack_mhello(zhe_address_t *dst, zhe_time_t tnow)

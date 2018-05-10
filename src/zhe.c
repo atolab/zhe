@@ -219,6 +219,7 @@ static void reset_peer(peeridx_t peeridx, zhe_time_t tnow)
     if (p->state != PEERST_UNKNOWN) { /* test is just to supress the trace at start-up */
         ZT(PEERDISC, "reset_peer @ %u", peeridx);
     }
+    zhe_platform_close_session(zhe_platform, &p->oc.addr);
     zhe_reset_peer_rsubs(peeridx);
     /* If data destined for this peer, drop it it */
     zhe_reset_peer_unsched_hist_decls(peeridx);
@@ -438,6 +439,19 @@ static void check_xmitw(const struct out_conduit *c)
 #endif
 #endif
 
+zhe_msgsize_t zhe_make_mscout(uint8_t *buf, size_t bufsz)
+{
+    zhe_assert(bufsz >= 2);
+#if MAX_PEERS == 0
+    const uint8_t mask = MSCOUT_BROKER;
+#else
+    const uint8_t mask = MSCOUT_BROKER | MSCOUT_PEER;
+#endif
+    buf[0] = MSCOUT;
+    buf[1] = mask;
+    return 2;
+}
+
 void zhe_pack_msend(zhe_time_t tnow)
 {
 #if MSYNCH_INTERVAL < 2 * ROUNDTRIP_TIME_ESTIMATE
@@ -461,14 +475,12 @@ void zhe_pack_msend(zhe_time_t tnow)
             }
         }
         const int sendres = zhe_platform_send(zhe_platform, outbuf, outp, outdst);
-        if (sendres < 0) {
-            zhe_assert(0);
-        } else {
+        if (sendres == SENDRECV_ERROR) {
+            ZT(ERROR, "**** ZHE_PLATFORM_SEND ERROR ****");
+        } else if (sendres > 0) {
 #if MAX_PEERS == 0
-            if (sendres > 0) {
-                /* we didn't drop the packet for lack of space, so postpone next keepalive */
-                tlastscout = tnow;
-            }
+            /* we didn't drop the packet for lack of space, so postpone next keepalive */
+            tlastscout = tnow;
 #endif
         }
         outp = 0;
@@ -1014,6 +1026,7 @@ static int set_peer_mcast_locs(peeridx_t peeridx, struct unpack_locs_iter *it)
     zhe_paysize_t sz;
     const uint8_t *loc;
     while (zhe_unpack_locs_iter(it, &sz, &loc)) {
+        ZT(PEERDISC, "set_peer_mcast_locs: loc %*.*s", (int)sz, (int)sz, (const char *)loc);
 #if N_OUT_MCONDUITS > 0
         for (cid_t cid = 0; cid < N_OUT_MCONDUITS; cid++) {
             char tmp[TRANSPORT_ADDRSTRLEN];
@@ -1915,8 +1928,8 @@ int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_
     ownid_union.v_nonconst.len = (zhe_paysize_t)config->idlen;
     memcpy(ownid_union.v_nonconst.id, config->id, config->idlen);
 
-    init_globals(tnow);
     zhe_platform = pf;
+    init_globals(tnow);
     scoutaddr = *config->scoutaddr;
     /* For multicast receive locators and multicast destination addresses: allow setting fewer than we support (for out conduits, that simply means, no peer will ever match the unused ones, making them effectively unused and the result is simply a waste of memory and a bit of CPU time). Secondly, if either is set to 0 then treat it as a synonym for using the scouting address (this simplifies life a little bit for a minimal test program). When it is not zero, don't do this. */
 #if MAX_MULTICAST_GROUPS > 0
@@ -1947,7 +1960,6 @@ void zhe_start(zhe_time_t tnow)
     tlastscout = tnow;
 }
 
-#if TRANSPORT_MODE == TRANSPORT_PACKET
 int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow)
 {
 #if ENABLE_TRACING
@@ -1988,6 +2000,10 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
             case ZUR_OK:
                 break;
             case ZUR_SHORT:
+                /* Short input is acceptable on a stream: it just means we need to get more data.  For a datagram-based transport, it really means invalid input and ends the session. */
+#if TRANSPORT_MODE == TRANSPORT_STREAM
+                break;
+#endif
             case ZUR_OVERFLOW:
             case ZUR_ABORT:
                 reset_peer(peeridx, tnow);
@@ -1999,37 +2015,6 @@ int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *sr
         return 0;
     }
 }
-#elif TRANSPORT_MODE == TRANSPORT_STREAM
-#if MAX_PEERS != 0
-#  error "stream currently only implemented for client mode"
-#endif
-int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow)
-{
-    if (sz == 0) {
-        return 0;
-    } else {
-        zhe_unpack_result_t res;
-        const uint8_t *bufp = buf;
-        peeridx_t peeridx = 0;
-        res = handle_packet(&peeridx, buf + sz, &bufp, tnow);
-        if (bufp > (const uint8_t *)buf && peers[0].state == PEERST_ESTABLISHED) {
-            /* any complete message is considered proof of liveliness of the broker once a connection has been established */
-            peers[0].tlease = tnow;
-        }
-        switch (res)
-        {
-            case ZUR_OK:
-            case ZUR_SHORT:
-                break;
-            case ZUR_OVERFLOW:
-            case ZUR_ABORT:
-                reset_peer(peeridx, tnow);
-                break;
-        }
-        return (int)(bufp - (const uint8_t *)buf);
-    }
-}
-#endif
 
 #if MAX_PEERS == 0
 static void send_scout(zhe_time_t tnow)
@@ -2088,6 +2073,8 @@ void zhe_flush(zhe_time_t tnow)
 
 void zhe_housekeeping(zhe_time_t tnow)
 {
+    zhe_platform_housekeeping(zhe_platform, tnow);
+
     /* FIXME: obviously, this is a waste of CPU time if MAX_PEERS is biggish (but worst-case cost isn't affected) */
     for (peeridx_t i = 0; i < MAX_PEERS_1; i++) {
         switch(peers[i].state) {
