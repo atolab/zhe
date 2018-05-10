@@ -199,6 +199,14 @@ int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *
     return 1;
 }
 
+void zhe_platform_close_session(struct zhe_platform *pf, const struct zhe_address * restrict addr)
+{
+}
+
+void zhe_platform_housekeeping(struct zhe_platform *pf, zhe_time_t tnow)
+{
+}
+
 void pre_panic_handler(void)
 {
 #if BLINKENLIGHTS
