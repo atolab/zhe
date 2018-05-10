@@ -1,4 +1,12 @@
-# Test programs
+# Example programs
+
+## Simple pub/sub
+
+Simple pub/sub (`spub` and `spub`) show a the simplest use of *zhe* by using a wrapper that takes care of most of the work of calling housekeeping and handling network input. This wrapper necessarily makes assumptions on how the platform code implements receiving data from the network, which is an aspect of the network handling that was deliberately left out of the *zhe* platform interface. This is probably a good thing, as it is arguably better to put such dependencies in a single wrapper than it is to have them in application code.
+
+The publisher writes an 8-byte sequence number at 1Hz as resource id 1, and the subscriber displays the values.
+
+When using the UDP implementation, it uses default multicast addresses and port number 7447; when using TCP, it is hardcoded to have the publisher run as a TCP server listening on port 7447 and the subscriber as a client that tries to connect to port number 7447 on the local host. Nothing requires that the TCP connections are set up like this: it is simply convenient for a quick test.
 
 ## Throughput test
 
