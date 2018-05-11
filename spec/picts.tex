@@ -1,0 +1,294 @@
+% ======== MESSAGES ========
+\begin{SaveVerbatim}{pictScoutId}
++-+-+-+---------+
+|X|X|P|    1    | (ScoutId)
++-+-+-+---------+
+~     mask      ~
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictHelloId}
++-+-+-+---------+
+|X|X|P|    2    | (HelloId)
++-+-+-+---------+
+~     mask      ~
++---------------+
+~   locators    ~
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictOpenId}
++-+-+-+---------+
+|X|X|P|    3    | (OpenId)
++-+-+-+---------+
+|    version    |
++---------------+
+~      pid      ~
++---------------+
+~     lease     ~
++---------------+
+~   locators    ~
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictAcceptId}
++-+-+-+---------+
+|X|X|P|    4    | (AcceptId)
++-+-+-+---------+
+~    openPid    ~
++---------------+
+~   acceptPid   ~
++---------------+
+~     lease     ~
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictCloseId}
++-+-+-+---------+
+|X|X|X|    5    | (CloseId)
++-+-+-+---------+
+~      pid      ~
++---------------+
+|    reason     |
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictDeclareId}
++-+-+-+---------+
+|X|C|S|    6    | (DeclareId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~ declarations  ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictStreamDataId}
++-+-+-+---------+
+|A|R|S|    7    | (StreamDataId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~      id       ~
++---------------+
+~     prid      ~ if A
++---------------+
+~    payload    ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictBatchedDataId}
++-+-+-+---------+
+|0|R|S|    8    | (BatchedDataId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~      id       ~
++---------------+
+~    payload    ~
++---------------+
++-+-+-+---------+
+|1|R|S|    8    | (BatchedDataId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~      id       ~
++---------------+
+~ prid,payload  ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictWriteDataId}
++-+-+-+---------+
+|X|R|S|    9    | (WriteDataId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~   resource    ~
++---------------+
+~    payload    ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictPullId}
++-+-+-+---------+
+|F|N|S|   11    | (PullId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~      id       ~
++---------------+
+~  maxSamples   ~ if N
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictPingPongId}
++-+-+-+---------+
+|X|X|O|   12    | (PingPongId)
++-+-+-+---------+
+~     hash      ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictSynchId}
++-+-+-+---------+
+|U|R|S|   14    | (SynchId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~     count     ~ if U
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictAckNackId}
++-+-+-+---------+
+|X|X|M|   15    | (AckNackId)
++-+-+-+---------+
+~      sn       ~
++---------------+
+~     mask      ~ if M
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictKeepAliveId}
++-+-+-+---------+
+|X|X|X|   16    | (KeepAliveId)
++-+-+-+---------+
+~      pid      ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictFragId}
++-+-+-+---------+
+|X|N|X|   18    | (FragId)
++-+-+-+---------+
+~    snBase     ~
++---------------+
+~       n       ~ if N
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictConduitId}
++-+-+-+---------+
+|Z|H|L|   19    | (ConduitId)
++-+-+-+---------+
+~      id       ~ if not Z
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictMigrateId}
++-+-+-+---------+
+|X|X|I|   20    | (MigrateId)
++-+-+-+---------+
+~     ocid      ~
++---------------+
+~      id       ~ if I
++---------------+
+~   rchLastSN   ~
++---------------+
+~  bechLastSN   ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictRSpaceId}
++-+-+-+---------+
+|Z|H|L|   24    | (RSpaceId)
++-+-+-+---------+
+~      id       ~ if not Z
++---------------+
+\end{SaveVerbatim}
+% ====== DECLARATIONS ======
+\begin{SaveVerbatim}{pictResourceDeclId}
++-+-+-+---------+
+|X|X|P|    1    | (ResourceDeclId)
++-+-+-+---------+
+~      rid      ~
++---------------+
+~   resource    ~
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictPublisherDeclId}
++-+-+-+---------+
+|X|X|P|    2    | (PublisherDeclId)
++-+-+-+---------+
+~      rid      ~
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictSubscriberDeclId}
++-+-+-+---------+
+|X|X|P|    3    | (SubscriberDeclId)
++-+-+-+---------+
+~      id       ~
++---------------+
+~     mode      ~
++---------------+
+~temporalOrigin ~ if mode in {PeriodicPushModeId,PeriodicPullModeId}
++---------------+
+~    period     ~ if mode in {PeriodicPushModeId,PeriodicPullModeId}
++---------------+
+~   duration    ~ if mode in {PeriodicPushModeId,PeriodicPullModeId}
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictSelectionDeclId}
++-+-+-+---------+
+|G|X|P|    4    | (SelectionDeclId)
++-+-+-+---------+
+~      sid      ~
++---------------+
+~     query     ~
++---------------+
+~  properties   ~ if P
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictBindingDeclId}
++-+-+-+---------+
+|G|X|X|    5    | (BindingDeclId)
++-+-+-+---------+
+~     oldId     ~
++---------------+
+~     newId     ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictCommitDeclId}
++-+-+-+---------+
+|X|X|X|    6    | (CommitDeclId)
++-+-+-+---------+
+|   commitId    |
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictResultDeclId}
++-+-+-+---------+
+|X|X|X|    7    | (ResultDeclId)
++-+-+-+---------+
+|   commitId    |
++---------------+
+|    status     |
++---------------+
+~      id       ~ if 1 <= status <= 254
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictForgetResourceDeclId}
++-+-+-+---------+
+|X|X|X|    8    | (ForgetResourceDeclId)
++-+-+-+---------+
+~      rid      ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictForgetPublisherDeclId}
++-+-+-+---------+
+|X|X|X|    9    | (ForgetPublisherDeclId)
++-+-+-+---------+
+~      id       ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictForgetSubscriberDeclId}
++-+-+-+---------+
+|X|X|X|   10    | (ForgetSubscriberDeclId)
++-+-+-+---------+
+~      id       ~
++---------------+
+\end{SaveVerbatim}
+\begin{SaveVerbatim}{pictForgetSelectionDeclId}
++-+-+-+---------+
+|X|X|X|   11    | (ForgetSelectionDeclId)
++-+-+-+---------+
+~      sid      ~
++---------------+
+\end{SaveVerbatim}

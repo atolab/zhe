@@ -2,22 +2,28 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{hyperref}
 \usepackage{syntax}
 \usepackage{tabu}
 \usepackage{syntax}
 \usepackage{verbatim}
 \usepackage{minted}
+% \usepackage{fancyvrb}}
 \makeatletter
 \newcommand{\verbatimfont}[1]{\def\verbatim@font{#1}}%
 \makeatother
 \verbatimfont{\small}%
 
 % all verbatim blocks that contain definitions related to messages type are marked with % MSG
-% therefore:
-% gawk '/% MSG/{p=1;next;}/end.verbatim/{p=0}p&&!/begin.verbatim/{print}' xrce.tex > qq.txt
-% extracts the full set of definitions ...
-% ... and my ugly Haskell code can check it with
-% readFile "xrce/zeno-doc/spec/qq.txt" >>= return . parseType
+%
+%   gawk '/^% MSG/{p=1;next;}/end.minted/{p=0}p&&!/begin.minted/{print}' zenoh.tex |
+%     stack exec runhaskell msgfmt.hs < qq.txt
+%
+% extracts all message definitions and pipes into the message definition checker/pictorial
+% representation generator (a very ugly Haskell program ...)
+%
+
+\input{picts.tex}
 
 \begin{document}
 
@@ -27,46 +33,75 @@
 
 \maketitle
 
-\chapter{XRCE Overview}
+\epigraphfontsize{\small\itshape}
+\epigraph{``“Simplicity is a great virtue but it requires hard work to achieve it and education to appreciate it. And to make matters worse: complexity sells better.''}{--- \textup{Edsger W.\ Dijkstra}}
 
-This specification defines the protocol used by XRCE applications to communicate with a broker
+\chapter{Introduction}
+
+Zenoh's goal is to bring data-centric abstractions and connectivity to devices that are constrained with respect to the node resources, such as computational and storage, power, and the network.  Zenoh deployments such as those reported in Figure~\ref{fig:typical-deployment}, highlights how devices constrained by local resources and or network can be deployed transparently using peer-to-peer or client-to-broker.
+
+\begin{figure}
+  \centering
+  \includegraphics[scale=0.3]{typical-deployment.png}
+  \caption{Typical deployment of a Zenoh system, also showing a possible bridging from/to DDS\@.}\label{fig:typical-deployment}
+\end{figure}
+
+It is important to remark that constraints, on the node and on the network, are orthogonal and apply independently.  For instance, there are some use cases in which non-constrained devices communicate through extremely constrained networks.  In other cases, constrained devices may communicate through non-constrained networks such as WiFi.
+
+Zenoh targets environments where devices may have very little computational power and memory, such as an Arduino\footnote{The specification for existing Arduino variants is available at \url{https://www.arduino.cc/en/Products/Compare}} Uno which has 2 Kbytes of SRAM and 32 Kbytes of FLASH, may be battery powered and may communicate through constrained networks such as 40-100 Kbps LoWPANs and the newly standardised NB-IoT\@.  Notice, that use cases for which only a subset of these requirements apply are still ideally addressed by Zenoh.
+
+From a high-level perspective, the key requirements that a Zenoh implementation has to satisfy are (1) extremely low footprint --- addressing targets such as an Arduino Uno platform, (2) extremely efficient wire protocol --- inducing a protocol overhead of just a few bytes over the user data, and (3) support devices that undergo aggressive sleep cycles.
+
+As shown in Figure~\ref{fig:zenoh-dds-stack-compare}, zenoh can be (1) used stand-alone, (2) bridged to DDS through an gateway, and (3) run as a replacement of the DDSI-RTPS protocol for better scalability and performance.  This specification does not address the API that should be used by Zenoh applications.  As far as an application exposes an "on-the-wire" behaviour in conformance with the Zenoh protocol, the API used by the application is entirely up to the vendor.  The decision of keeping the API out of scope is to ensure that the right level of variability can be achieved to address the constraints imposed by different targets.
+
+\begin{figure}
+  \centering
+  \includegraphics[scale=0.3]{zenoh-dds-stack-compare.png}
+  \caption{Typical deployment of a Zenoh system, also showing a possible bridging from/to DDS\@.}\label{fig:zenoh-dds-stack-compare}
+\end{figure}
+
+\chapter{Zenoh}
+
+This specification defines the protocol used by Zenoh applications to communicate with a broker
 and/or with each other.  Before delving into the details of the protocol, this specification defines
 the abstractions supported and how these relate to the concepts of the OMG DDS specification.  Then,
 it precisely defines the protocol, including its semantics, state machine and framing.
 
 \section{Abstraction}
 
-XRCE applications coordinate by autonomously, anonymously and asynchronously writing and reading in
+Zenoh applications coordinate by autonomously, anonymously and asynchronously writing and reading in
 a data space while being decoupled in time and space.  The abstraction of a time decoupled
-data-space is essential in in supporting applications that undergo sleep cycles and specifically in
+data-space is essential in supporting applications that undergo sleep cycles and specifically in
 decoupling the availability of data with the availability of the applications that wrote it (as the
-latter may be sleeping now).  In the reminder of this section we will define precisely the
-abstraction used by XRCE and how they map to DDS.
+latter may be sleeping now).
+
+In the reminder of this section we will define precisely the abstraction used by Zenoh and how they
+map to DDS.
 
 \subsection{Resources}
 
-XRCE relies on \emph{resources} to identify the information to be exchanged between readers and
+Zenoh relies on \emph{resources} to identify the information to be exchanged between readers and
 writers and on \emph{resource properties} to specify the properties of exchanged data.  The concepts
-used by XRCE at the same time simplify and extend the concepts used by DDS.  These changes were
+used by Zenoh at the same time simplify and extend the concepts used by DDS.  These changes were
 motivated by over a decade of user feedback with respect to some of the complexities of DDS.
 
-An XRCE \emph{resource} is a closed description for a set.  If the cardinality of the set is one
-then we call it a \emph{trivial resource}.  An XRCE resource is described by means of a URI which
+An Zenoh \emph{resource} is a closed description for a set.  If the cardinality of the set is one
+then we call it a \emph{trivial resource}.  An Zenoh resource is described by means of a URI which
 may only include path expansions.  Note, for compactness we take the liberty of representing trivial
 resources by the single element that constitutes the set as opposed to the single element set.
 
-Below are some non-normative examples of XRCE resources:
+Below are some non-normative examples of Zenoh resources:
 \begin{minted}[linenos=false,fontsize=\small]{html}
 -- These are Resources
-xrce://myhouse/**/bedroom/*/LightStatus 
-xrce://myhouse/**/musicroom/LightStatus
-xrce://myhouse/**/LightStatus
-xrce://myhouse/**
+zenoh://myhouse/**/bedroom/*/LightStatus 
+zenoh://myhouse/**/musicroom/LightStatus
+zenoh://myhouse/**/LightStatus
+zenoh://myhouse/**
 
 -- These are Trivial Resources
-xrce://myhouse/floor/1/musicroom/LightStatus
-xrce://myhouse/floor/2/musicroom/LightStatus
-xrce://myhouse/floor/2/bedroom/erik/LightStatus
+zenoh://myhouse/floor/1/musicroom/LightStatus
+zenoh://myhouse/floor/2/musicroom/LightStatus
+zenoh://myhouse/floor/2/bedroom/erik/LightStatus
 \end{minted}
 
 The canonical representation of a resource shall not contain white space characters.
@@ -74,14 +109,14 @@ The canonical representation of a resource shall not contain white space charact
 Resources have associated properties.  These properties are propagated as part of resource
 declaration (see declaration messages) and are made available under the /property URI postfix.
 
-The data read and written by XRCE applications is associated with one or more resources identified
+The data read and written by Zenoh applications is associated with one or more resources identified
 by a URI.  Depending on the context a resource may represent a topic or an instance.  In other
 terms, instances may be addressed by including the instance-id in the URI, or instances may be
-implemented by a layer on top of XRCE.
+implemented by a layer on top of Zenoh.
 
 The formal syntax for resources is defined below:
 \begin{minted}[linenos=false,fontsize=\small]{haskell}
-resource         ::= "xrce://" path markers
+resource         ::= "zenoh://" path markers
 path             ::= name | name "/" path 
 markers          ::= "#" | "#" markerlist
 markerList       ::= name | "{" nonemptynamelist "}"
@@ -104,35 +139,51 @@ the resource and interpretation by the durability service. For instance:
 
 \begin{minted}[linenos=false,fontsize=\small]{html}
 -- Volatile Data
-xrce://myhouse/floor/1/musicroom/LightStatus 
-xrce://myhouse/floor/1/musicroom/LightStatus/ID12345 
+zenoh://myhouse/floor/1/musicroom/LightStatus 
+zenoh://myhouse/floor/1/musicroom/LightStatus/ID12345 
 
-xrce://myhouse/floor/1/musicroom/LightStatus/property
+zenoh://myhouse/floor/1/musicroom/LightStatus/property
 
 -- Persistent Data
-xrce://myhouse/floor/1/musicroom/LightStatus#persistent
+zenoh://myhouse/floor/1/musicroom/LightStatus#persistent
 
 -- Transient    
-xrce://myhouse/floor/1/musicroom/LightStatus#transient
+zenoh://myhouse/floor/1/musicroom/LightStatus#transient
 
 -- All Resources that may be either transient or persistent 
-xrce://**#{transient,persistent}
-xrce://**#{transient,persistent}
+zenoh://**#{transient,persistent}
+zenoh://**#{transient,persistent}
 \end{minted}
+
+\subsection{Meta Resources}
+
+These are system defined read-only resources such as:
+
+\begin{minted}[linenos=false,fontsize=\small]{html}
+zenoh://myhouse/floor/2/bedroom\$ls
+\end{minted}
+
+The resource above would return the set of child resources of \verb|zenoh://myhouse/floor/2/bedroom|.
+
+\begin{tabu}{lX}
+  meta resource & \\ \hline
+  \$ls          & list of child resources \\
+  \$id          & an ID currently associated with the resources, selected arbitrarily from the set of currently known IDs associated with it \\
+\end{tabu}
 
 \subsection{Selections}
 
-An XRCE \emph{Selection} is the conjunction of a Resource, a list of hashes, and a predicate over
-the resource content.  XRCE provides a compact way of representing queries by concatenating the
+An Zenoh \emph{Selection} is the conjunction of a Resource, a list of hashes, and a predicate over
+the resource content.  Zenoh provides a compact way of representing queries by concatenating the
 string representation of the resource, the list of hashes and the predicate.  The resource and the
 list of hashes are separated by a ``\#'' while the hashes and the predicate are separated by a ``?''.
 
-For instance, these are legal XRCE queries:
+For instance, these are legal Zenoh queries:
 \begin{minted}[linenos=false,fontsize=\small]{html}
-xrce://myhouse/floor/2/bedroom/erik/LightStatus#?
-xrce://myhouse/floor/*/bedroom/*/LightStatus#?{luminosity>0}
-xrce://myhouse/floor/*/bedroom/*/LightStatus#{transient}?{luminosity>0}
-xrce://myhouse/floor/1/musicroom/LightStatus/ID12345?{inRange(property.location,
+zenoh://myhouse/floor/2/bedroom/erik/LightStatus#?
+zenoh://myhouse/floor/*/bedroom/*/LightStatus#?{luminosity>0}
+zenoh://myhouse/floor/*/bedroom/*/LightStatus#{transient}?{luminosity>0}
+zenoh://myhouse/floor/1/musicroom/LightStatus/ID12345?{inRange(property.location,
                                                               someLocation,radius)}
 \end{minted}
 
@@ -145,8 +196,8 @@ predicate is a tautology the ``?'' can also be omitted.
 
 Consequently, the two queries below are equivalent:
 \begin{minted}[linenos=false,fontsize=\small]{html}
-xrce://myhouse/floor/2/bedroom/erik/LightStatus#?
-xrce://myhouse/floor/2/bedroom/erik/LightStatus
+zenoh://myhouse/floor/2/bedroom/erik/LightStatus#?
+zenoh://myhouse/floor/2/bedroom/erik/LightStatus
 \end{minted}
 
 The formal syntax for queries is reported below:
@@ -160,16 +211,16 @@ For interoperation with DDS, implementations that provide the support for querie
 support as predicate the same subset of SQL92 supported by DDS on (X)CDR encoded data.  That said,
 implementations are free to support many different syntaxes, such a subset of JavaScript.
 
-XRCE has entities that serve a role equivalent to that of DDS' Domain Participant, Data Writer and
-Data Reader.  XRCE terminology however, while the participant still exists and has a unique ID
+Zenoh has entities that serve a role equivalent to that of DDS' Domain Participant, Data Writer and
+Data Reader.  Zenoh terminology however, while the participant still exists and has a unique ID
 across the system, the entities that write and read data are called publisher and subscribers. These
 should not be confused with DDS Publisher/Subscriber as these entities are not exposed on the wire.
 
-\section{Mapping DDS Topics to XRCE Resources and Vice-versa}
+\section{Mapping DDS Topics to Zenoh Resources and Vice-versa}
 
-The mapping of a DDS Topic into an XRCE resource is relatively straightforward, but due to the fact
+The mapping of a DDS Topic into an Zenoh resource is relatively straightforward, but due to the fact
 that DDS matched readers and writers based on the QoS as well as the partition setting of the DDS
-Publisher/Subscriber entities, it is impossible to declare an XRCE resource corresponding to a
+Publisher/Subscriber entities, it is impossible to declare an Zenoh resource corresponding to a
 Topic. Instead one can only declare the resources for the DDS DataReaders/DataWriters — as only in
 this case all the relevant elements are known.
 
@@ -182,51 +233,59 @@ resource $R$ for a given sequence $S$ that acts as the equivalent of a path sepa
 names is as follows:
 \begin{itemize}
 \item The Topic QoS as well as the topic type information is written as a property of the Resource.
-  Where XRCE does not explicitly specify its own encoding, the serialisation format shall be the
+  Where Zenoh does not explicitly specify its own encoding, the serialisation format shall be the
   same as the one used by DDS when transmitting the QoS information over the wire.
 \item The partition $P$ is transformed into a valid URI path by repeatedly substituting ``/'' for
   each occurrence of $S$, ``*'' for each occurrence of ``**'' and of ``?*''for ``*?'' until no
   further substitutions can be made; then substituting ``**'' for each occurrence of ``*''.
-\item The resource name is then concatenation of the string ``xrce://'', the URI path equivalent to
+\item The resource name is then concatenation of the string ``zenoh://'', the URI path equivalent to
   the partition, a slash, the topic name, and the durability tag corresponding to the durability of
   the writer/reader (if necessary).
 \end{itemize}
-Mapping an XRCE resource into a DDS topic, is trivial as all the information required is provided as
+Mapping an Zenoh resource into a DDS topic, is trivial as all the information required is provided as
 part of the resource properties.  This information, will be created by the broker to create the
-proper DDS entities to ensure interoperability between DDS and XRCE.
+proper DDS entities to ensure interoperability between DDS and Zenoh.
 
-\section{Programming Model}
+\section{Zenoh Programming Model}
 
-As discussed above the XRCE standard does not define an API\@.  That said the programming model is
+As discussed above the Zenoh standard does not define an API\@.  That said the programming model is
 conceptually the same as the one for DDS\@.  In other terms, as depicted in
-Figure~\ref{fig:interaction-model}, XRCE provides a data space abstraction in which applications can
-read and write data autonomously and asynchronously.  The data read and written by XRCE applications
+Figure~\ref{fig:interaction-model}, Zenoh provides a data space abstraction in which applications can
+read and write data autonomously and asynchronously.  The data read and written by Zenoh applications
 is associated with one or more resources identified by a URI\@.
 
 \begin{figure}
   \centering
-  \includegraphics[scale=0.8]{xrce-interaction-model.pdf}
-  \caption{XRCE interaction model}\label{fig:interaction-model}
+  \includegraphics[scale=0.5]{zenoh-interaction-model.png}
+  \caption{Zenoh interaction model}\label{fig:interaction-model}
 \end{figure}
 
-The reminder of this specification defines the protocol that makes it possible to implement the XRCE
+The remainder of this specification defines the protocol that makes it possible to implement the Zenoh
 data space abstraction.  This protocol supports data space implementations that are (1) based on a
 network of brokers, (2) decentralised/peer-to-peer, or (3) a combination of (1) and (2).
 
 As a result, the protocol defines how applications can discover each other, how application can
 declare their interests and how they can share data.
 
-\chapter{Message Notation and Serialization}
+\chapter{Message Structure, Framing and Encoding}
 
-\subsection{Notation}
+\section{Notation}
 
-XRCE messages are defined using a very small domain-specific language.  The primary reason for using
+Zenoh messages are defined using a very small domain-specific language.  The primary reason for using
 a DSL is to efficiently and unambiguously describe the way header flags are used to elide
 discriminators in discriminated records.  The only primitive types are natural numbers and
 bytes. The natural numbers are serialised using variable length encoding, whereas bytes are
 serialised unchanged.  The language specification allows any number of definitions to be
 concatenated, in this document we will present individual definitions that together constitute the
-full set of definitions for XRCE messages.
+full set of definitions for Zenoh messages.
+
+XXX standard tokenized language where white space is ignored\\
+XXX tokenization follows the maximal-munch rule\\
+XXX identifiers are a letter or underscore followed by a, possibly empty, sequence of letters, underscores or digits\\
+XXX natural numbers are non-empty sequences of decmial digits\\
+XXX keywords cannot be used as identifiers\\
+XXX keywords and identifiers are case-sensitive\\
+XXX booleans are pre-defined enumerated types with constants `false' and `true'
 
 \begin{grammar}
   <definitions> ::= <definition> \alt <definition> <definitions>
@@ -239,14 +298,24 @@ full set of definitions for XRCE messages.
 All identifiers in the lhs of a definition are defined to be of the type specified as the rhs.
 
 \begin{grammar}
-  <type> ::= <identifier> \alt `nat' \alt `byte' \alt <sequence> \alt <header> \alt <flag> \alt <enum> \alt <record> \alt <case> \alt <option>
+  <type> ::= <identifier> \alt `nat' \alt `byte' \alt <sequence> \alt <header> \alt <flag> \alt <enum> \alt <record> \alt <case> \alt <option> \alt <type> <constraint>
 
   <sequence> ::= `[' <type> `]'
+
+  <constraint> ::= `range' <nat> `...' [<nat>]
 \end{grammar}
 
 A \emph{sequence} is a (possibly empty) list of any type other than a \emph{flag}. Serialisation of
 a list is the length serialised as a natural number followed by the serialisation of the elements of
 the list.
+
+The only \emph{constraint} is the range constraint, which may be applied to integral types
+(\emph{nat} and \emph{byte}) and to sequence types.  For an integral type, the value is required to
+be within the interval; for a sequence type the constraint is on the length of the sequence. Hence 
+\begin{minted}[linenos=false,fontsize=\scriptsize,frame=lines]{ada}
+[nat range 1 ... 31415] range 1 ...
+\end{minted}
+is a non-empty list of natural numbers, with each number no less than 1 and no larger than 31415.
 
 \begin{grammar}
   <header> ::= `header' <nat> <type>
@@ -336,9 +405,24 @@ Strings are simply sequences of bytes, i.e.:
 string = [byte]
 \end{minted}
 
-\subsection{Header}
+\section{Framing}
 
-An XRCE message is composed of a single byte header and a body:
+The zenoh protocol assumes that communication occurs as arbitrary sized messages containing a
+concatenation of zenoh messages.  For a particular transport, implementations may limit the size of
+the messages, e.g., on Ethernet it makes sense to adhere to the Ethernet MTU of 1500 bytes.
+
+For message-preserving transports such as UDP/IP, each of these arbitrary sized messaged corresponds
+to a single transport message (UDP datagram).  For reliable streaming transports such as TCP/IP, the
+transport layer shall insert information to reconstruct the message boundaries. Each arbitrary sized
+message shall be preceded with its size in bytes using VLE encoding.  An implementation may signal
+an unbounded message size by specifying a size of 0 bytes, after which the stream consists of
+nothing but zenoh messages.
+
+XXX picture
+
+\section{Message Structure}
+
+An Zenoh message is composed of a single byte header and a body:
 \begin{minted}[linenos=false,fontsize=\small]{text}
  7 6 5 4 3 2 1 0
 +-+-+-+-+-+-+-+-+
@@ -365,13 +449,14 @@ Message = record {
     BatchedDataId -> BatchedData,
     WriteDataId   -> WriteData,
     PullId        -> Pull,
-    PingId        -> Ping,
-    PongId        -> Pong,
+    PingPongId    -> PingPong,
     SynchId       -> Synch,
     AckNackId     -> AckNack,
     KeepAliveId   -> KeepAlive,
     FragId        -> Frag,
-    ConduitId     -> Conduit
+    ConduitId     -> Conduit,
+    MigrateId     -> Migrate,
+    RSpaceId      -> RSpace
   }
 }
 
@@ -387,34 +472,36 @@ MessageId = enum {
   WriteDataId       = 9,
   QueryId           = 10,
   PullId            = 11,
-  PingId            = 12,
-  PongId            = 13,
+  PingPongId        = 12,
   SynchId           = 14,
   AckNackId         = 15,
   KeepAliveId       = 16,
   ConduitCloseId    = 17,
   FragId            = 18,
-  ConduitId         = 19
+  ConduitId         = 19,
   MigrateId         = 20,
   StreamDeltaId     = 21,
   BatchedDeltaId    = 22,
-  WriteDeltaId      = 23
+  WriteDeltaId      = 23,
+  RSpaceId          = 24
 }
 \end{minted}
+
+\subsection{Flags}
 
 The header flags have single-letter names, but to let these letters be mnemonic, each flag has
 several names depending on context:
 % MSG
-
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
-S, M, P, L = flag 5
-C, R, H, N = flag 6
-Z, A, U, G = flag 7  
-\end{minted}  
+S, I, M, P, O, L = flag 5
+C, R, H, N       = flag 6
+F, U, G, A, Z    = flag 7  
+\end{minted}
+XXX I think we should rename the O flag to the E flag (for ``Echo''): then it reads ``SIMPLE'' :)
 
 Their (primary) use is as outlined in the below table, for easy reference.  For the definitions, see
 the message definitions that use them.  The Z, L and H flags are odd ones and used only for Conduit
-message.
+message. XXX what about I, F XXX wasn't there another one besides Conduit now? XXX
 
 \begin{tabu}{llX}
   flag & name       & interpretation \\ \hline
@@ -466,12 +553,31 @@ Locators are ... udp/A.B.C.D:PORT ...
 Locator = string
 \end{minted}
 
+\subsection{Peer IDs}
+
+...
+% MSG
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
+PeerID = [byte] range 1 ...
+\end{minted}
+
+\section{Message Decoration}
+
+Messages can be “decorated” by prefixing them with certain markers. A message together with its decoration shall be treated as an atomic unit on the network. In this version of the protocol, the only markers are Conduit and Frag, both described the following sections.
+When a message is decorated with multiple markers, these markers shall occur in the order:
+\begin{itemize}
+\item Conduit
+\item Frag
+\item RSpace
+\end{itemize}
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Scouting}
 
-Scouting is used to discover anything that may engage in an XRCE interaction, such as brokers,
-services, peers, etc.  For those familiar with the DDS discovery protocol, XRCE scouting can be seen
+Scouting is used to discover anything that may engage in an Zenoh interaction, such as brokers,
+services, peers, etc.  For those familiar with the DDS discovery protocol, Zenoh scouting can be seen
 as some kind of Participant Discovery Protocol.
 
 \subsection{Scout Message}
@@ -485,10 +591,11 @@ Scout = record {
   properties: Properties
 }  
 \end{minted}
+\UseVerbatim{pictScoutId}
 
 Its attributes have the following meaning:
 \begin{description}
-\item[mask] The bitmask identifying the kind of XRCE nodes being scouted, and is unbounded.
+\item[mask] The bitmask identifying the kind of Zenoh nodes being scouted, and is unbounded.
   Implementations are required to handle at least masks $< 16384$.  the meaning of the bits of mask
   is:
 
@@ -516,10 +623,11 @@ Hello = record {
   properties: Properties
 }  
 \end{minted}
+\UseVerbatim{pictHelloId}
 
 Its attributes have the following meaning:
 \begin{description}
-\item[mask] The bitmask describing the XRCE node that is sending the Hello; see the Scout message
+\item[mask] The bitmask describing the Zenoh node that is sending the Hello; see the Scout message
   for additional information on the interpretation of the mask.
 \item[locators] The list of locators at which this node can be reached, in addition to the source
   address of the Hello message.
@@ -530,39 +638,39 @@ Its attributes have the following meaning:
 \section{Session Management}
 
 Once scouting has resulted in the discovery of other nodes, or alternatively if scouting information
-is configured statically, an XRCE node can start establishing sessions with the entities with which
-it wishes to interact.  An XRCE session is characterized by the state machine depicted in
+is configured statically, an Zenoh node can start establishing sessions with the entities with which
+it wishes to interact.  An Zenoh session is characterized by the state machine depicted in
 Figure~\ref{fig:session-initiator}.  A newly started application does not have any session, thus
 starts in the closed session state.  The session management protocol is then used to open as well
 close sessions.
 
 \begin{figure}
 \centering
-\includegraphics[scale=0.4]{session-initiator.pdf}
+\includegraphics[scale=0.3]{session-initiator.png}
 \caption{Session management state machine for the session initiator}\label{fig:session-initiator}
 \end{figure}
 
 \begin{figure}
 \centering
-\includegraphics[scale=0.4]{session-acceptor.pdf}
+\includegraphics[scale=0.3]{session-acceptor.png}
 \caption{Session management state machine for the broker}\label{fig:session-acceptor}
 \end{figure}
 
 \subsection{Session Establishment}
 
-The protocol exchange for opening a session between an XRCE entities is described in the sequence
+The protocol exchange for opening a session between an Zenoh entities is described in the sequence
 diagram described in Figure~\ref{fig:open-session}.  As represented in
-Figure~\ref{fig:open-session}a, to establish a session an XRCE application sends an Open message to
+Figure~\ref{fig:open-session}a, to establish a session an Zenoh application sends an Open message to
 the broker which in turn responds with an Accept if the section can be established or with a Close
 otherwise (see Figure~\ref{fig:open-session}b).
 
 \begin{figure}
 \centering
-\includegraphics[scale=0.6]{open-session.pdf}
+\includegraphics[scale=0.3]{open-session.png}
 \caption{Successful session establishment}\label{fig:open-session}
 \end{figure}
 
-The Open message is sent with best effort reliability.  As a consequence, an XRCE application should
+The Open message is sent with best effort reliability.  As a consequence, an Zenoh application should
 resend an Open for which no Accept or Close has been received after a configurable timeout.
 Likewise, the Accept and the Close messages are also sent with best effort reliability.  Thus, an
 Accept should be resent --- up to a configurable maximum number of times --— for session that have
@@ -579,12 +687,13 @@ The Open message has the following structure:
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Open = record {
   version: byte,
-  pid: [byte],
+  pid: PeerID,
   lease: nat,
   locators: [Locator],
   properties: Properties
 }  
 \end{minted}
+\UseVerbatim{pictOpenId}
 
 Its attributes have the following meaning:
 \begin{description}
@@ -608,12 +717,13 @@ The Accept message has the following structure:
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Accept = record {
-  openPid: [byte],
-  acceptPid: [byte],
+  openPid: PeerID,
+  acceptPid: PeerID,
   lease: nat,
   properties: Properties
 }  
 \end{minted}
+\UseVerbatim{pictAcceptId}
 
 Its attributes have the following meaning:
 \begin{description}
@@ -624,16 +734,16 @@ Its attributes have the following meaning:
 
 \subsection{Session Termination}
 
-The protocol exchange for gracefully closing a session between an XRCE application and a broker is
+The protocol exchange for gracefully closing a session between an Zenoh application and a broker is
 described in the sequence diagram described in Figure~\ref{fig:close-session}.  As represented in
-Figure~\ref{fig:close-session}, to close a session an XRCE application (broker) sends a Close message
+Figure~\ref{fig:close-session}, to close a session an Zenoh application (broker) sends a Close message
 to the broker (application) which in turn, when ready to close the session, responds with a Close.
 Notice that implementations that decide not to wait for the matching close may end up losing data.
 A session is implicitly closed after the expiration of the lease period.
  
 \begin{figure}
 \centering
-\includegraphics[scale=0.6]{close-session.pdf}
+\includegraphics[scale=0.3]{close-session.pdf}
 \caption{Session termination}\label{fig:close-session}
 \end{figure}
 
@@ -643,10 +753,11 @@ The Close message has the following structure:
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Close = record {
-  pid: [byte],
+  pid: PeerID,
   reason: byte
 }  
 \end{minted}
+\UseVerbatim{pictCloseId}
 Its attributes have the following meaning:
 \begin{description}
 \item[pid] The pid of the peer closing the session (or rejecting the opening of a session).
@@ -675,7 +786,7 @@ protocol.
 
 \begin{figure}
 \centering
-\includegraphics[scale=0.4]{lease-expiration.pdf}
+\includegraphics[scale=0.3]{lease-expiration.png}
 \caption{Liveliness state machine}\label{fig:lease-expiration}
 \end{figure}
 
@@ -688,9 +799,10 @@ A session lease can be renewed explicitly by sending a KeepAlive message defined
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 KeepAlive = record {
-  pid: [byte]
+  pid: PeerID
 }  
 \end{minted}
+\UseVerbatim{pictKeepAliveId}
 Its attributes have the following meaning:
 \begin{description}
 \item[pid] The pid of the peer wants to renew the lease.
@@ -722,7 +834,7 @@ limitation.
 
 Once a session has been established, entities such as resources, publisher and subscribers can be
 declared.  To maintain entity declaration atomic while ensuring that messages can be kept small,
-XRCE has a concept of commit for declarations.  In other terms, declarations are taken into account
+Zenoh has a concept of commit for declarations.  In other terms, declarations are taken into account
 only after a commit is received.  The result of the declaration is provided back to inform the
 sender of the declarations whether the declarations have been accepted or not.
 
@@ -748,6 +860,7 @@ Declare = record {
   declarations: [Declaration]
 }  
 \end{minted}
+\UseVerbatim{pictDeclareId}
 
 Its attributes have the following meaning:
 \begin{description}
@@ -812,6 +925,7 @@ ResourceDecl = record {
   properties: Properties
 }  
 \end{minted}
+\UseVerbatim{pictResourceDeclId}
 
 The attributes of this declaration have the following meaning:
 \begin{description}
@@ -834,6 +948,7 @@ PublisherDecl = record {
   properties: Properties
 }  
 \end{minted}
+\UseVerbatim{pictPublisherDeclId}
 
 The attributes of this declaration have the following meaning:
 \begin{description}
@@ -846,7 +961,7 @@ The attributes of this declaration have the following meaning:
 clause in the Declaration type defined above.
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
-  SubscriptionModeId = enum {
+SubscriptionModeId = enum {
   PushModeId         = 1,
   PullModeId         = 2,
   PeriodicPushModeId = 3,
@@ -864,6 +979,7 @@ SubscriberDecl = record {
   properties: Properties
 }
 \end{minted}
+\UseVerbatim{pictSubscriberDeclId}
 
 The attributes of this declaration have the following meaning:
 \begin{description}
@@ -896,6 +1012,7 @@ SelectionDecl = record {
   properties: Properties
 }  
 \end{minted}
+\UseVerbatim{pictSelectionDeclId}
 
 The attributes of this declaration have the following meaning:
 \begin{description}
@@ -918,6 +1035,7 @@ want to be able to multicast data belonging to the selection to the interested p
   newId: nat
 }
 \end{minted}
+\UseVerbatim{pictBindingDeclId}
 
 The attributes of this declaration have the following meaning:
 \begin{description}
@@ -936,6 +1054,7 @@ CommitDecl = record {
   commitId: byte
 }  
 \end{minted}
+\UseVerbatim{pictCommitDeclId}
 
 The attributes of this declaration have the following meaning:
 \begin{description}
@@ -949,17 +1068,19 @@ applying a lot of declarations.
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 ResultDecl = record {
   commitId: byte,
-  status: byte,
+  status: byte range 0 ... 254,
   id: case status of { 1 ... 254 -> nat }
 }
 \end{minted}
+\UseVerbatim{pictResultDeclId}
+
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[commitId] the identifier of the commit for which this a result.
 \item[status] the result of the declaration, where zero represent a success while a non-zero value
-  represents an error (255 is excluded).
+  represents an error.
 \item[id] the optional id of a resource or selection included in the current transaction whose
-  declaration failed.  The id field shall be omitted iff status = 0.
+  declaration failed.
 \end{description}
 
 \paragraph{ForgetResource Declaration.} The forget resource declaration informs the receiver that,
@@ -971,6 +1092,7 @@ ForgetResourceDecl = record {
   rid: nat
 }
 \end{minted}
+\UseVerbatim{pictForgetResourceDeclId}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[rid] the numerical identifier of the resource.
@@ -984,6 +1106,7 @@ ForgetPublisherDecl = record {
   id: nat
 }
 \end{minted}
+\UseVerbatim{pictForgetPublisherDeclId}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[id] the numerical identifier of the resource or selection.
@@ -997,6 +1120,7 @@ ForgetSubscriberDecl = record {
   id: nat
 }
 \end{minted}
+\UseVerbatim{pictForgetSubscriberDeclId}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[id] the numerical identifier of the resource or selection.
@@ -1010,6 +1134,7 @@ ForgetSelectionDecl = record {
   sid: nat
 }
 \end{minted}
+\UseVerbatim{pictForgetSelectionDeclId}
 The attributes of this declaration have the following meaning:
 \begin{description}
 \item[sid] the numerical identifier of the selection.
@@ -1019,18 +1144,18 @@ The attributes of this declaration have the following meaning:
 
 \section{Data Exchange}
 
-As a result of a session establishment between two XRCE runtimes, a conduit composed by two logical
-channels, is established, as depicted in Figure~\ref{fig:xrce-conduit}.  The two conduits’ channels
+As a result of a session establishment between two Zenoh runtimes, a conduit composed by two logical
+channels, is established, as depicted in Figure~\ref{fig:zenoh-conduit}.  The two conduits’ channels
 may be implemented over one or more transports, for instance the best effort channel could be
 implemented over UDP/IP while the reliable channel over TCP/IP\@.  However, the mechanism provided
-to implement an XRCE reliable channel doesn’t require a reliable transport.  Each conduit has a
+to implement an Zenoh reliable channel doesn’t require a reliable transport.  Each conduit has a
 numerical identifier, starting from zero for the default conduit.  Each of the channels belonging to
 the conduit has its own sequence number.
 
 \begin{figure}
 \centering
-\includegraphics[scale=0.6]{xrce-conduit.pdf}
-\caption{Logical communication channels between the XRCE application and the broker}\label{fig:xrce-conduit}
+\includegraphics[scale=0.6]{zenoh-conduit.pdf}
+\caption{Logical communication channels between the Zenoh application and the broker}\label{fig:zenoh-conduit}
 \end{figure}
 
 Message exchanges that take place before successfully establishing a session are best effort.  Once
@@ -1054,6 +1179,7 @@ Conduit = record {
   }
 }
 \end{minted}
+\UseVerbatim{pictConduitId}
 The id attribute represents the conduit identifier.
 
 If ``compact'' is true, that the compact format is used and in this case (as specified by the
@@ -1071,6 +1197,22 @@ As a final remark, recall that the conduit marker is prepended to messages that 
 conduit whenever the target conduit is different from the default, conduit id 0.  Message markers,
 as the name suggest, are sent as if they were a decoration of the message, thus a message and its
 markers are always sent as a unit.
+
+The migration of a resource across conduits is supported through the Migrate message defined as
+follows:
+% MSG
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
+Migrate = record {
+  ocid: nat,
+  id: if I then nat,
+  rchLastSN: nat,
+  bechLastSN: nat
+}
+\end{minted}
+\UseVerbatim{pictMigrateId}
+where the \emph{ocid} attribute is the id of the conduit from which traffic is being migrated to the conduit on which the Migrate message is received. The Migrate message shall always be sent sent on the reliable channel.
+
+If the I flag is clear, all traffic from the conduit \emph{ocid} is migrated and the conduit is considered closed.  If the I flag is set, only the resource or selection identified by \emph{id} is being migrated and the conduit remains open.
 
 \subsection{Best-Effort Channel}
 
@@ -1091,7 +1233,7 @@ The Best-Effort Channel supports the following primitives:
       \end{cases}
     \right.
   \]
-  In other terms, the XRCE best-effort channel may drop messages but always deliver messages in
+  In other terms, the Zenoh best-effort channel may drop messages but always deliver messages in
   order. To maintain ordering the channel relies on a sequence number. The sequence number sn is
   initialized to zero at the creation of the channel and is incremented by one for every message
   sent on the channel.
@@ -1101,11 +1243,11 @@ The Best-Effort Channel supports the following primitives:
 
 \subsubsection{Channel Implementation}
 
-The best-effort channel implementation is relatively straight forward. The XRCE runtime has to make
+The best-effort channel implementation is relatively straight forward. The Zenoh runtime has to make
 a reasonable effort to send the message over the associated transport and ensure that messages,
 whilst may be dropped, shall never be delivered to receive out of order.
 
-\subsection{Reliable Channel)}
+\subsection{Reliable Channel}
 
 \subsubsection{Channel Specification}
 The Reliable Channel supports the following primitives:
@@ -1122,7 +1264,7 @@ The semantic of the channel operations are as follows:
   \[
     m_0, m_1, \ldots{}, m_k
   \]
-  In other terms, the XRCE reliable channel shall not drop messages nor deliver them out of order.
+  In other terms, the Zenoh reliable channel shall not drop messages nor deliver them out of order.
   This behaviour has to be guaranteed only under the assumption that the communicating parties are
   correct, i.e., don't fail.  To maintain ordering the channel relies on a sequence number.  The
   sequence number \emph{sn} is initialized to zero at the creation of the channel and is incremented
@@ -1141,7 +1283,7 @@ message with sequence number $k$ the previous messages have been acknowledged.
 
 \begin{figure}
 \centering
-\includegraphics[scale=0.6]{xrce-relchan.pdf}
+\includegraphics[scale=0.6]{zenoh-relchan.pdf}
 \caption{Petri Net describing the Reliable Channel behaviour}\label{fig:reliable-channel}
 \end{figure}
 
@@ -1161,6 +1303,7 @@ Synch = record {
   count: if U then nat
 }
 \end{minted}
+\UseVerbatim{pictSynchId}
 Where the message attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable
@@ -1189,6 +1332,7 @@ AckNack = record {
   mask: if M then nat
 }
 \end{minted}
+\UseVerbatim{pictAckNackId}
 Where the attributes have the following meaning:
 \begin{description}
 \item[sn] the first sequence number not received; all preceding messages are acknowledged.
@@ -1204,14 +1348,14 @@ shall be implemented by the messages specified before.
 \subsection{Writing Data}
 
 After a publisher has been successfully created and the declaration of a matching data reader has
-been received, an XRCE implementation shall start to send data to the matching entity(s).  To avoid
-any ambiguity, an XRCE runtime shall avoid to sends data on a write for writers that are not
-matched.  The XRCE protocol provides different ways of ways of writing data, one which maps to that
+been received, an Zenoh implementation shall start to send data to the matching entity(s).  To avoid
+any ambiguity, an Zenoh runtime shall avoid to sends data on a write for writers that are not
+matched.  The Zenoh protocol provides different ways of ways of writing data, one which maps to that
 provided by DDS\@.
 
 \subsubsection{Write Data}
 
-Differently from DDS, XRCE allows to write samples for resources for which a publisher was not
+Differently from DDS, Zenoh allows to write samples for resources for which a publisher was not
 declared and for which only resource name is known (not the resource id).  This makes the write a
 bit less wire efficient because the resource name is part of the data message, but is quite handy
 for dealing with one-off writes of a resource.  These kind of writes are very cumbersome on DDS\@.
@@ -1227,6 +1371,7 @@ WriteData = record {
   payload : [byte]
 }
 \end{minted}
+\UseVerbatim{pictWriteDataId}
 Where the attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable
@@ -1236,13 +1381,13 @@ Where the attributes have the following meaning:
 \item[resource] the resource for which we are writing data.
 \item[payload] the serialised data.
 \end{description}
-To the XRCE protocol the format of the serialised data is transparent.  Thus, when
+To the Zenoh protocol the format of the serialised data is transparent.  Thus, when
 interoperating with DDS it shall be the same as that used by DDS\@.  In stand-alone situations can
 be whatever the application deems to be the most appropriate.
 
 \subsubsection{Stream Data}
 
-XRCE provides a very wire efficient to produce data belonging to a stream, namely the StreamData
+Zenoh provides a very wire efficient to produce data belonging to a stream, namely the StreamData
 message.  The structure of this message is as follows:
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
@@ -1255,14 +1400,15 @@ StreamData = record {
   payload : [byte]
 }
 \end{minted}
+\UseVerbatim{pictStreamDataId}
 Where the attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable channel.
 \item[sync] if set, the message shall be acknowledged promptly.
 \item[sn] the sequence number for this message.
 \item[id] the matching resource/selection id for which we are writing data.
-\item[prid] optionally the id of the resource to which the data belongs — this may be different to
-  the matching resource/selection id for non-trivial resources and selections.
+\item[prid] optionally the id of the resource to which the data belongs --- this may be different to
+  the matching resource/selection id for non-trivial resources and selections, or 0 to indicate the end of a response to a PULL request
 \item[payload] the serialised data.
 \end{description}
 Notice that the message overhead is at least 4 bytes, three bytes of protocol data and one byte --- at
@@ -1270,7 +1416,7 @@ minimum --- to encode the payload length.
 
 \subsubsection{Batch Data}
 
-XRCE supports message batching for the same resource/selection.  The BatchedData message further
+Zenoh supports message batching for the same resource/selection.  The BatchedData message further
 improves the wire efficiency of the protocol.  The structure of this message is as follows:
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
@@ -1286,49 +1432,64 @@ BatchedData = record {
   }
 }
 \end{minted}
+\UseVerbatim{pictBatchedDataId}
 Where the attributes have the following meaning:
 \begin{description}
 \item[reliable] set if this concerns the reliable channel, clear if it concerns the unreliable channel.
 \item[sync] if set, the message shall be acknowledged promptly.
 \item[sn] the sequence number for this message.
 \item[id] the matching resource /selection id for which we are writing data
-\item[payload] the batched data.
+\item[payload] the batched data
 \end{description}
 Notice that the minimal overhead in this case is: $(3+n)/n$ which gets very quickly close to 1 as
 the number $n$ of batched message grows beyond a few.
 
 \subsection{Reading Data}
 
-While in regular DDS reads are always local, in XRCE that is not always possible or desirable
-due to memory or network constraints.  As such XRCE needs a message to pull data remotely.
+While in regular DDS reads are always local, in Zenoh that is not always possible or desirable
+due to memory or network constraints.  As such Zenoh needs a message to pull data remotely.
 
 \subsubsection{Pull Message}
 Pull is a reliable message with the following structure:
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
 Pull = record {
+  final: F,
   sync: S,
   sn: nat,
   id: nat,
-  pullId: nat,
   maxSamples: if N then nat
 }
 \end{minted}
+\UseVerbatim{pictPullId}
 Its attributes have the following meaning:
 \begin{description}
+\item[final] if set, the indicates that this pull-session shall be considered concluded after serving this request
 \item[sync] if set, the message shall be acknowledged promptly.
 \item[sn] the message sequence number.
 \item[id] the resource / selection id for which data has to be pulled.
-\item[pullId] an id used to identify this pull session.  This way any state required can be cached
-  on the broker side. Implementations at least support $0 ≤ \mathrm{pullId} < 16$.
 \item[maxSamples] optionally the maximum number of samples that this node is willing to receive
   before having to issue another pull.  Implementations shall at least support
   $0 < \mathrm{maxSamples} < 2^{16}$.
 \end{description}
 
+Notice that the PULL message does not provide explicitly a way of expression the full resource for
+which data is being pulled.  It is assumed that even for a “one-shot” pull, a temporary selection
+will be created using the Declaration messages.
+
+The puller can send a PULL message with F=1 N=0 to indicate that no data will be requested for the
+current pull-id. XXX
+
+The Forget message may be used to indicate that the associated SID may be reused for other selections.
+
+The end of the sequence of data samples associated the pull session associated with the SID can be
+indicated by sending a DATA message with PRID=0 and A=1.  In this case the payload shall be ignored,
+which suggest that implementations should send a zero-length payload. Notice that as a consequence
+the cursor associated with this selection session will be reset.
+
 \subsubsection{Data Fragmentation}
 
-XRCE supports fragmentation to accommodate sending user data of any size.  This is done by a message
+Zenoh supports fragmentation to accommodate sending user data of any size.  This is done by a message
 marker called Frag.  As in the case of the Conduit message marker, these messages have to be sent in
 the same packet as the message they mark.  Fragmentation shall not be used for messages that fit in
 one MTU, and whenever data is fragmented into $n > 1$ fragments, the first $n - 1$ fragments shall
@@ -1341,6 +1502,7 @@ Frag = record {
   n: if N then nat
 }
 \end{minted}
+\UseVerbatim{pictFragId}
 Where the attributes have the following meaning:
 \begin{description}
 \item[snBase] the sequence number of the first message in this series of fragment.
@@ -1348,21 +1510,81 @@ Where the attributes have the following meaning:
   the first in order message that does not have the fragment marker.
 \end{description}
 
+\subsubsection{Resource Spaces}
+
+For multi-tenancy as well as to allow brokers to freely chose RID without conflicting with user
+defined resources we can define different resource spaces.
+
+The message is defined as:
+% MSG
+\begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
+RSpace = record {
+  compact: Z,
+  id: case compact of {
+    false -> nat,
+    true  -> record { id1: H, id0: L }
+  }
+}
+\end{minted}
+\UseVerbatim{pictRSpaceId}
+
+XXX encoding of resource space is the same is in Conduit --- should perhaps define a ``compact id'' type for that
+
+Resource space 0 is the default one. The Resource space 1 is reserved for Brokers.
+
+
 \subsection{Roundtrip-Time Estimation}
 
 Latency estimation is essential in order to do proper reliability window management.  As such the
-XRCE protocol provides a couple of messages to estimate the roundtrip-time between to nodes.  These
+Zenoh protocol provides a couple of messages to estimate the roundtrip-time between to nodes.  These
 messages are called Ping and Pong respectively and their structure is shown below.
 % MSG
 \begin{minted}[linenos=false,fontsize=\small,frame=lines]{haskell}
-Ping = record {
-  hash: nat
-}
-Pong = record {
+PingPong = record {
+  ispong: O,
   hash: nat
 }
 \end{minted}
-On receipt of a Ping, a Pong with the same hash shall be sent in response.  An implementation shall
-at least support hashes $< 2^{16}$.
+\UseVerbatim{pictPingPongId}
+On receipt of a PingPong with \emph{ispong} false, a PongPong with \emph{ispong} set to true and the
+same hash shall be sent in response.  An implementation shall at least support hashes $< 2^{16}$.
+
+
+\chapter{Resource Usage}
+
+One of the key aspects defining the quality and the fitness of a zenoh for constrained environments
+is its wire-overhead. zenoh has a wire overhead for user data of only 4 bytes. This wire-overhead
+can additionally be reduced by leveraging batching to (3+n)/n bytes – where n is the number of
+batched samples.
+
+Additionally, our current implementation of the protocol has proven that:
+\begin{itemize}
+\item The protocol can be implemented for very small targets, such as having a few Kbytes of memory. Notably we have implemented and demonstrated at the Huawei European Connect an implementation of this protocol for an Arduino Uno platform communicating through BLE with MTU of 20 bytes.
+\item The protocol can be used for both client to broker/agent as well as peer-to-peer communication. The submitters have built implementations of both and are ready to demonstrate to interested parties.
+\item The implementation of the core protocol fits in about 2500 lines of C code. 
+\item We have worked with a FPGA team to ensure that the protocol can be easily implemented in as an FPGA IP.
+\end{itemize}
+
+\chapter{Conformance}
+This specification defines the following modules:
+\begin{description}
+\item[Discovery] The discovery module allows application to dynamically discover each other and exchange entities declarations.
+  \begin{itemize}
+  \item SCOUT, HELLO, KEEPALIVE, PING, PONG
+  \item DECLARE: PUB, SUB, COMMIT, RESULT
+  \end{itemize}
+\item[Query] The query profile allows applications to execute queries over resources.
+  \begin{itemize}
+  \item DECLARE: RESOURCE, SELECTION, BIND
+  \end{itemize}
+\item[Core] The core profile defines the session establishment and the data exchange.
+  \begin{itemize}
+  \item OPEN, ACCEPT, CLOSE,
+  \item WDATA, SDATA, BDATA
+  \item PULL
+  \end{itemize}
+\end{description}
+
+Minimally, an implementation to comply with zenoh has to implement the functionalities specified as part of the Core Module. The Query and Discovery module represent additional point of conformance. 
 
 \end{document}
