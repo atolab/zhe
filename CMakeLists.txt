@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.9)
 project(zhe C)
 
+#set(TCP ON)
+#set(ZHE_CONFIG client-large)
+if(NOT ZHE_CONFIG)
+  set(ZHE_CONFIG p2p)
+endif()
+
 set(CMAKE_C_STANDARD 99)
 include(CheckIPOSupported)
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
@@ -28,14 +34,11 @@ if(${CMAKE_GENERATOR} STREQUAL "Ninja" AND (${CMAKE_C_COMPILER_ID} STREQUAL "Cla
 endif()
 
 include_directories(
-        "${PROJECT_SOURCE_DIR}/src"
-        "${PROJECT_SOURCE_DIR}/example/platform"
-        "${PROJECT_SOURCE_DIR}/example/configs/p2p"
-)
+  "${PROJECT_SOURCE_DIR}/src"
+  "${PROJECT_SOURCE_DIR}/example/platform"
+  "${PROJECT_SOURCE_DIR}/example/configs/${ZHE_CONFIG}")
 
-#set(TCP ON)
-
-file(GLOB Headers "src/*.h" "example/platform/*.h" "example/configs/p2p/*.h")
+file(GLOB Headers "src/*.h" "example/platform/*.h" "example/configs/${ZHE_CONFIG}/*.h")
 
 if(TCP)
 
