@@ -6,7 +6,7 @@ Simple pub/sub (`spub` and `spub`) show a the simplest use of *zhe* by using a w
 
 The publisher writes an 8-byte sequence number at 1Hz as resource id 1, and the subscriber displays the values.
 
-When using the UDP implementation, it uses default multicast addresses and port number 7447; when using TCP, it is hardcoded to have the publisher run as a TCP server listening on port 7447 and the subscriber as a client that tries to connect to port number 7447 on the local host. Nothing requires that the TCP connections are set up like this: it is simply convenient for a quick test.
+When using the UDP implementation, it uses default multicast addresses and port number 7447; when using TCP, both default to acting as a TCP server listening on port 7447 and a command-line argument giving IP:PORT can be specified to make it act as a TCP client trying to connect to that address.
 
 ## Throughput test
 

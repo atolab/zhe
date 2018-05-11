@@ -18,12 +18,13 @@ void data_handler(zhe_rid_t rid, const void *payload, zhe_paysize_t size, void *
 
 int main(int argc, char* argv[])
 {
-#ifdef TCP
-    struct zhe_platform * const platform = zhe(0, "127.0.0.1:7447");
-#else
-    struct zhe_platform * const platform = zhe(7447, NULL);
-#endif
+    struct zhe_platform *platform;
     zhe_subidx_t s;
+    if (argc > 2) {
+        fprintf(stderr, "usage: %s [BROKER-IP:PORT]\n", argv[0]);
+        return 1;
+    }
+    platform = zhe(argc == 2 ? 0 : 7447, argc == 2 ? argv[1] : NULL);
     s = zhe_subscribe(1, 0, 0, data_handler, NULL);
     while (true) {
         zhe_dispatch(platform);
