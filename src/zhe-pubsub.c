@@ -754,7 +754,7 @@ static void send_declare_pub(struct out_conduit *oc, declitem_idx_t *cursor, boo
     zhe_msgsize_t from;
     if (*cursor == ZHE_MAX_PUBLICATIONS) {
         *cursor = DECLITEM_IDX_INVALID;
-    } if (pubs[pub].rid == 0) {
+    } else if (pubs[pub].rid == 0) {
         (*cursor)++;
     } else if (zhe_oc_pack_mdeclare(oc, committed, 1, WC_DPUB_SIZE, &from, tnow)) {
         ZT(PUBSUB, "sending dpub %ju rid %ju", (uintmax_t)pub, (uintmax_t)pubs[pub].rid);
