@@ -16,10 +16,13 @@ int main(int argc, char *argv[])
     p = zhe_publish(1, 0, 1);
     uint64_t delay = 1000000000;
     zhe_once(platform, delay);
-    uint64_t count = 0;
+    uint32_t count = 0;
     while (true) {
-        printf(">> Writing count %"PRIu64"\n", count);
-        zhe_write(p, &count, sizeof(count), zhe_platform_time());
+        unsigned char buf[12];
+        int sz = snprintf((char*)buf+1, sizeof(buf)-1, "%"PRIu32, count);
+        buf[0] = (unsigned char)sz;
+        printf(">> Writing %s\n", buf);
+        zhe_write(p, buf, (zhe_paysize_t)(1+sz), zhe_platform_time());
         count += 1;
         zhe_once(platform, delay);
     }
