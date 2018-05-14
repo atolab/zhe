@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.9)
 project(zhe C)
 
+#cmake -GNinja -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl -DCMAKE_BUILD_TYPE=Debug -DTCP=ON -DSSL=ON -DZHE_CONFIG=client-nbiot ..
+
 #set(TCP ON)
+#set(SSL ON)
 #set(ZHE_CONFIG client-nbiot)
 if(NOT ZHE_CONFIG)
   set(ZHE_CONFIG p2p)
@@ -44,6 +47,14 @@ if(TCP)
 
   add_definitions(-DTCP)
   file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-tcp.c")
+
+  if(SSL)
+    find_package(openssl REQUIRED)
+    add_definitions(-DUSE_SSL=1)
+    include_directories(${OPENSSL_INCLUDE_DIR})
+    link_libraries(${OPENSSL_LIBRARIES})
+    message(STATUS "Using OpenSSL ${OPENSSL_VERSION} at ${OPENSSL_INCLUDE_DIR}")
+  endif()
 
   add_library(zhe ${Sources})
   

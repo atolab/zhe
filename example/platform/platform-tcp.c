@@ -18,6 +18,15 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
+#ifndef USE_SSL
+#define USE_SSL 0
+#endif
+
+#if USE_SSL
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#endif
+
 #include "platform-tcp.h"
 #include "zhe-assert.h"
 #include "zhe-tracing.h"
@@ -39,6 +48,9 @@ struct buf {
 enum conn_state {
     CS_CLOSED,
     CS_TCPCONNECT,
+#if USE_SSL
+    CS_SSLHANDSHAKE,
+#endif
     CS_WAITDATA,
     CS_LIVE
 };
@@ -48,6 +60,9 @@ struct conn {
     enum conn_state state;
     connid_t id;
     int s;
+#if USE_SSL
+    SSL *ssl;
+#endif
     bool inframed, outframed;
     bool datawaiting; /* for framed input */
     struct buf in, out;
@@ -60,6 +75,10 @@ struct tcp {
     uint16_t port;
     connidx_t cursor;
     struct conn conns[MAX_CONNECTIONS];
+#if USE_SSL
+    SSL_CTX *ssl_ctx;
+    BIO *ssl_servsock_bio;
+#endif
 
     DECL_BITSET(pingmask, MAX_PINGADDRS);
     DECL_BITSET(pingthrottle, MAX_PINGADDRS);
@@ -105,6 +124,141 @@ static void set_nosigpipe(int sock)
 #ifdef SO_NOSIGPIPE
     int set = 1;
     setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, (void *)&set, sizeof(int));
+#endif
+}
+
+#if USE_SSL
+static int ssl_verify (int ok, X509_STORE_CTX * store)
+{
+    if (!ok) {
+        char issuer[256];
+        X509 *cert = X509_STORE_CTX_get_current_cert (store);
+        int err = X509_STORE_CTX_get_error (store);
+        /* Allow self-signed certificates */
+        if (err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT || err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) {
+            ok = 1;
+        } else {
+            X509_NAME_oneline(X509_get_issuer_name(cert), issuer, sizeof (issuer));
+            ZT(ERROR, "failed to verify certificate from %s: %s", issuer, X509_verify_cert_error_string (err));
+        }
+    }
+    return ok;
+}
+
+static SSL_CTX *ssl_ctx_init(void)
+{
+    const char *keystore = getenv("ZHE_KEYSTORE");
+    if (keystore == NULL) {
+        ZT(ERROR, "ssl_ctx_init: configured to use TLS but ZHE_KEYSTORE not set");
+        return NULL;
+    }
+    SSL_library_init();
+    SSL_load_error_strings();
+    SSL_CTX *ctx = SSL_CTX_new(SSLv23_method());
+    if (!SSL_CTX_use_certificate_file(ctx, keystore, SSL_FILETYPE_PEM)) {
+        ZT(ERROR, "ssl_ctx_init: failed to load certificate from file %s", keystore);
+        goto fail;
+    }
+    if (!SSL_CTX_use_PrivateKey_file(ctx, keystore, SSL_FILETYPE_PEM)) {
+        ZT(ERROR, "ssl_ctx_init: failed to load private key from file %s", keystore);
+        goto fail;
+    }
+    if (!SSL_CTX_load_verify_locations(ctx, keystore, 0)) {
+        ZT(ERROR, "ssl_ctx_init: failed to load CA from file %s", keystore);
+        goto fail;
+    }
+#if 0
+    const char *ciphers = "";
+    if (!SSL_CTX_set_cipher_list(ctx, ciphers)) {
+        ZT(ERROR, "ssl_ctx_init: failed to set ciphers %s", ciphers);
+        goto fail;
+    }
+#endif
+    /* Require certificates both ways */
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, ssl_verify);
+    SSL_CTX_set_options(ctx, SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+    return ctx;
+fail:
+    SSL_CTX_free (ctx);
+    return NULL;
+}
+
+static ssize_t ssl_read(SSL *ssl, void *buf, size_t len)
+{
+    int ret;
+    assert (len <= INT32_MAX);
+    if ((ret = SSL_read(ssl, buf, (int)len)) > 0) {
+        return ret;
+    } else {
+        switch (SSL_get_error(ssl, ret)) {
+            case SSL_ERROR_NONE:
+                return ret;
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+                errno = EAGAIN;
+                return -1;
+            case SSL_ERROR_ZERO_RETURN:
+                return 0;
+        }
+        return -1;
+    }
+}
+
+static ssize_t ssl_write(SSL *ssl, const void *buf, size_t len)
+{
+    int ret;
+    assert (len <= INT32_MAX);
+    if ((ret = SSL_write(ssl, buf, (int)len)) > 0) {
+        return ret;
+    } else {
+        switch (SSL_get_error(ssl, ret)) {
+            case SSL_ERROR_NONE:
+                return ret;
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+                errno = EAGAIN;
+                return -1;
+            case SSL_ERROR_ZERO_RETURN:
+                return 0;
+        }
+        return -1;
+    }
+}
+
+static ssize_t ssl_writev(SSL *ssl, const struct iovec *iov, int iovcnt)
+{
+    ssize_t tot = 0;
+    for (int i = 0; i < iovcnt; i++) {
+        ssize_t ret = ssl_write(ssl, iov[i].iov_base, iov[i].iov_len);
+        if (ret <= 0) {
+            return ret;
+        }
+        tot += ret;
+        if (ret < iov[i].iov_len) {
+            break;
+        }
+    }
+    return tot;
+}
+#endif
+
+static ssize_t conn_read(struct conn *conn, void *buf, size_t sz)
+{
+#if USE_SSL
+    return ssl_read(conn->ssl, buf, sz);
+#else
+    return read(conn->s, buf, sz);
+#endif
+}
+
+static ssize_t conn_write(struct conn *conn, const void *buf, size_t sz)
+{
+#if USE_SSL
+    return ssl_write(conn->ssl, buf, sz);
+#elif defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
+    return write(conn->s, buf, sz);
+#else
+    return send(conn->s, buf, sz, MSG_NOSIGPIPE);
 #endif
 }
 
@@ -156,16 +310,23 @@ struct zhe_platform *zhe_platform_new(uint16_t port, const char *pingaddrs)
         }
     }
 
+#if USE_SSL
+    if ((tcp->ssl_ctx = ssl_ctx_init()) == NULL) {
+        ZT(ERROR, "zhe_platform_new: TLS initialisation failed");
+        return NULL;
+    }
+#endif
+
     if (port == 0) {
         tcp->servsock = -1;
         if (tcp->npingaddrs == 0) {
             ZT(ERROR, "zhe_platform_new: no addresses to ping and no port to listen on");
-            return NULL;
+            goto err_servsock;
         }
     } else {
         struct sockaddr_in addr;
         if ((tcp->servsock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-            return NULL;
+            goto err_servsock;
         }
         set_nonblock(tcp->servsock);
         int val = 1;
@@ -176,16 +337,26 @@ struct zhe_platform *zhe_platform_new(uint16_t port, const char *pingaddrs)
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
         if (bind(tcp->servsock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
             perror("bind");
-            close(tcp->servsock);
-            return NULL;
+            goto err_bind;
         }
         if (listen(tcp->servsock, 5) == -1) {
             perror("listen");
-            close(tcp->servsock);
-            return NULL;
+            goto err_listen;
         }
+#if USE_SSL
+        tcp->ssl_servsock_bio = BIO_new(BIO_s_accept());
+        BIO_set_fd(tcp->ssl_servsock_bio, tcp->servsock, BIO_NOCLOSE);
+#endif
     }
     return (struct zhe_platform *)tcp;
+err_listen:
+err_bind:
+    close(tcp->servsock);
+err_servsock:
+#if USE_SSL
+    SSL_CTX_free(tcp->ssl_ctx);
+#endif
+    return NULL;
 }
 
 static char *uint16_to_string(char * restrict str, uint16_t val)
@@ -307,11 +478,18 @@ bool zhe_platform_needs_keepalive(struct zhe_platform *pf)
     return false;
 }
 
-static void make_closed(struct conn *conn)
+static void make_closed(struct tcp *tcp, struct conn *conn, bool throttle)
 {
     close(conn->s);
+#if USE_SSL
+    SSL_free(conn->ssl);
+#endif
     conn->s = -1;
     conn->state = CS_CLOSED;
+    if (conn->pingprogeny != PINGADDRIDX_INVALID && throttle) {
+        zhe_bitset_set(tcp->pingthrottle, conn->pingprogeny);
+        tcp->pingtime[conn->pingprogeny] = zhe_platform_time();
+   }
 }
 
 static void make_live(struct conn *conn)
@@ -323,7 +501,7 @@ static void make_live(struct conn *conn)
     conn->id = newid.u.id;
 }
 
-static void make_waitdata(struct conn *conn)
+static void make_waitdata(struct tcp *tcp, struct conn *conn)
 {
     conn->state = CS_WAITDATA;
     conn->inframed = true;
@@ -331,7 +509,33 @@ static void make_waitdata(struct conn *conn)
     conn->datawaiting = false;
     conn->in.lim = conn->in.pos = 0;
     conn->out.lim = conn->out.pos = 0;
+
+    if (conn->pingprogeny == PINGADDRIDX_INVALID) {
+        if (!conn->outframed) {
+            const uint8_t noframe = 0;
+            if (conn_write(conn, &noframe, sizeof(noframe)) != sizeof(noframe)) {
+                ZT(TRANSPORT, "sock %d failed to send byte that disables framing", conn->s);
+                make_closed(tcp, conn, true);
+            }
+        }
+    } else {
+        /* FIXME: there needs to be a bit more cooperation on the sending of SCOUT messages */
+        uint8_t scoutmagic[MSCOUT_MAX_SIZE + 1];
+        zhe_msgsize_t sz = zhe_make_mscout(scoutmagic + 1, sizeof(scoutmagic) - 1);
+        scoutmagic[0] = conn->outframed ? (uint8_t)sz : 0;
+        if (conn_write(conn, scoutmagic, sz+1) != sz+1) {
+            ZT(TRANSPORT, "sock %d initial write failed", conn->s);
+            make_closed(tcp, conn, true);
+        }
+    }
 }
+
+#if USE_SSL
+static void make_sslhandshake(struct conn *conn)
+{
+    conn->state = CS_SSLHANDSHAKE;
+}
+#endif
 
 static size_t encvle14(uint8_t *dst, size_t val)
 {
@@ -374,11 +578,7 @@ static int zhe_platform_send_conn(struct tcp * const tcp, const void * restrict 
     zhe_assert(conn->s != -1);
     zhe_assert(conn->out.pos < conn->out.lim || (conn->out.pos == 0 && conn->out.lim == 0));
     if (conn->out.pos < conn->out.lim) {
-#if defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
-        ret = write(conn->s, conn->out.buf + conn->out.pos, conn->out.lim - conn->out.pos);
-#else
-        ret = send(conn->s, conn->out.buf + conn->out.pos, conn->out.lim - conn->out.pos, MSG_NOSIGPIPE);
-#endif
+        ret = conn_write(conn, conn->out.buf + conn->out.pos, conn->out.lim - conn->out.pos);
         if (ret > 0) {
             conn->out.pos += (zhe_msgsize_t)ret;
             if (conn->out.pos == conn->out.lim) {
@@ -402,7 +602,9 @@ static int zhe_platform_send_conn(struct tcp * const tcp, const void * restrict 
         iov[iovcnt++].iov_len = size;
         xsize += size;
         /* write length + messages and retain any leftovers */
-#if defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
+#if USE_SSL
+        ret = ssl_writev(conn->ssl, iov, iovcnt);
+#elif defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
         ret = writev(conn->s, iov, iovcnt);
 #else
         {
@@ -435,7 +637,7 @@ static int zhe_platform_send_conn(struct tcp * const tcp, const void * restrict 
         return (int)ret;
     } else if (ret == 0 || errno == EPIPE) {
         ZT(TRANSPORT, "sock %d eof on write", conn->s);
-        make_closed(conn);
+        make_closed(tcp, conn, false);
         return SENDRECV_HANGUP;
     } else if (errno == EAGAIN || errno == ENOBUFS || errno == EWOULDBLOCK) {
         return 0;
@@ -467,7 +669,6 @@ int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t
 int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t * restrict src)
 {
     struct tcp *tcp = (struct tcp *)pf;
-    int news;
 
     /* FIXME: should not poll like this ... */
     for (connidx_t i = tcp->cursor; i < MAX_CONNECTIONS; i++) {
@@ -477,7 +678,7 @@ int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t
         if (!state_allows_receive(conn->state)) {
             continue;
         }
-        ret = read(conn->s, conn->in.buf + conn->in.lim, sizeof(conn->in.buf) - conn->in.lim);
+        ret = conn_read(conn, conn->in.buf + conn->in.lim, sizeof(conn->in.buf) - conn->in.lim);
         if (ret > 0 || (ret == -1 && (errno == EAGAIN || errno == EWOULDBLOCK) && conn->datawaiting)) {
             if (conn->state == CS_WAITDATA) {
                 ZT(TRANSPORT, "sock %d now live", conn->s);
@@ -497,7 +698,7 @@ int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t
                 int lenlen = decvle14(conn->in.buf + conn->in.pos, conn->in.lim - conn->in.pos, &len);
                 if (lenlen < 0) {
                     ZT(TRANSPORT, "sock %d framing error", conn->s);
-                    make_closed(conn);
+                    make_closed(tcp, conn, true);
                     return (conn->state == CS_LIVE ? SENDRECV_HANGUP : 0);
                 } else if (lenlen == 0) {
                     ZT(TRANSPORT, "sock %d short read of frame length", conn->s);
@@ -529,7 +730,7 @@ int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t
             ZT(TRANSPORT, "sock %d eof", conn->s);
             src->kind = ZHE_AK_CONN;
             src->u.id = conn->id;
-            make_closed(conn);
+            make_closed(tcp, conn, false);
             tcp->cursor = i+1;
             /* only inform the core code of the closing of the connection if we previously informed it of its existence */
             return (conn->state == CS_LIVE ? SENDRECV_HANGUP : 0);
@@ -541,27 +742,41 @@ int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t
     /* Round-robin with an attempt at accepting a connection as the last step in the cycle */
     tcp->cursor = 0;
     if (tcp->servsock != -1) {
-        struct sockaddr_in *addr;
-        socklen_t addrlen;
         connidx_t idx;
         for (idx = 0; idx < MAX_CONNECTIONS; idx++) {
             if (tcp->conns[idx].state == CS_CLOSED) {
                 break;
             }
         }
-        if (idx < MAX_CONNECTIONS && (news = accept(tcp->servsock, (struct sockaddr *)&addr, &addrlen)) >= 0) {
-            struct conn * const conn = &tcp->conns[idx];
-            ZT(TRANSPORT, "sock %d accepted connection", news);
-            conn->s = news;
-            conn->ttent = zhe_platform_time(); /* FIXME: I kinda try to avoid calling time(), but then, this is platform code */
-            conn->pingprogeny = PINGADDRIDX_INVALID;
-            make_waitdata(conn);
-            if (!conn->outframed) {
-                const uint8_t noframe = 0;
-                if (write(conn->s, &noframe, sizeof(noframe)) != sizeof(noframe)) {
-                    ZT(TRANSPORT, "sock %d failed to send byte that disables framing", conn->s);
-                    make_closed(conn);
-                }
+        if (idx < MAX_CONNECTIONS) {
+            int news = -1;
+#if USE_SSL
+            SSL *ssl = NULL;
+            if (BIO_do_accept(tcp->ssl_servsock_bio) > 0) {
+                BIO *nbio = BIO_pop(tcp->ssl_servsock_bio);
+                news = (int)BIO_get_fd(nbio, NULL);
+                ssl = SSL_new(tcp->ssl_ctx);
+                SSL_set_bio(ssl, nbio, nbio);
+            }
+#else
+            struct sockaddr_in addr;
+            socklen_t addrlen;
+            news = accept(tcp->servsock, (struct sockaddr *)&addr, &addrlen);
+#endif
+            if (news >= 0) {
+                struct conn * const conn = &tcp->conns[idx];
+                ZT(TRANSPORT, "sock %d accepted connection", news);
+                conn->s = news;
+#if USE_SSL
+                conn->ssl = ssl;
+#endif
+                conn->ttent = zhe_platform_time(); /* FIXME: I kinda try to avoid calling time(), but then, this is platform code */
+                conn->pingprogeny = PINGADDRIDX_INVALID;
+#if USE_SSL
+                make_sslhandshake(conn);
+#else
+                make_waitdata(tcp, conn);
+#endif
             }
         }
     }
@@ -585,29 +800,104 @@ int zhe_platform_advance(struct zhe_platform *pf, const zhe_address_t * restrict
     return 0;
 }
 
+#if USE_SSL
+static void try_ssl_connect(struct tcp *tcp, struct conn *conn)
+{
+    char buf[128];
+    int ret;
+    unsigned long err;
+    ret = SSL_connect(conn->ssl);
+    if (ret == 1) {
+        ZT(ERROR, "try_ssl_connect: to waitdata");
+        make_waitdata(tcp, conn);
+    } else if (ret == 0) {
+        ZT(ERROR, "try_ssl_connect: handshake failed (%d)", ret);
+        while((err = ERR_get_error()) != 0) {
+            ERR_error_string(err, buf);
+            ZT(ERROR, "try_ssl_connect: %d %d %lu %s", ret, errno, err, buf);
+        }
+        make_closed(tcp, conn, true);
+    } else {
+        zhe_assert(ret < 0);
+        switch (SSL_get_error(conn->ssl, ret)) {
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+                break;
+            default:
+                ZT(ERROR, "try_ssl_connect: handshake failed (%d)", ret);
+                while((err = ERR_get_error()) != 0) {
+                    ERR_error_string(err, buf);
+                    ZT(ERROR, "try_ssl_connect: %d %d %lu %s", ret, errno, err, buf);
+                }
+                make_closed(tcp, conn, true);
+                break;
+        }
+    }
+}
+
+static void try_ssl_accept(struct tcp *tcp, struct conn *conn)
+{
+    char buf[128];
+    int ret;
+    unsigned long err;
+    ret = SSL_accept(conn->ssl);
+    if (ret == 1) {
+        ZT(ERROR, "try_ssl_accept: to waitdata");
+        make_waitdata(tcp, conn);
+    } else if (ret == 0) {
+        ZT(ERROR, "try_ssl_accept: handshake failed (%d)", ret);
+        while((err = ERR_get_error()) != 0) {
+            ERR_error_string(err, buf);
+            ZT(ERROR, "try_ssl_accept: %d %d %lu %s", ret, errno, err, buf);
+        }
+        make_closed(tcp, conn, true);
+    } else {
+        zhe_assert(ret < 0);
+        switch (SSL_get_error(conn->ssl, ret)) {
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+                break;
+            default:
+                ZT(ERROR, "try_ssl_accept: handshake failed (%d)", ret);
+                while((err = ERR_get_error()) != 0) {
+                    ERR_error_string(err, buf);
+                    ZT(ERROR, "try_ssl_accept: %d %d %lu %s", ret, errno, err, buf);
+                }
+                make_closed(tcp, conn, true);
+                break;
+        }
+    }
+}
+#endif
+
 static void try_connect(struct tcp *tcp, connidx_t clidx, pingaddridx_t pidx, zhe_time_t tnow)
 {
     struct conn * const conn = &tcp->conns[clidx];
+    int ret;
     if ((conn->s = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
         return;
     }
     set_nonblock(conn->s);
     set_nosigpipe(conn->s);
-    if (connect(conn->s, (struct sockaddr *)&tcp->pingaddrs[pidx], sizeof(tcp->pingaddrs[pidx])) == -1) {
-        if (errno != EINPROGRESS) {
+    ret = connect(conn->s, (struct sockaddr *)&tcp->pingaddrs[pidx], sizeof(tcp->pingaddrs[pidx]));
+    if (ret == -1 && errno != EINPROGRESS) {
             close(conn->s);
             return;
-        }
-        ZT(TRANSPORT, "sock %d connecting", conn->s);
-        conn->state = CS_TCPCONNECT;
-        conn->ttent = tnow;
-        conn->pingprogeny = pidx;
-    } else {
-        ZT(TRANSPORT, "sock %d connected instantaneously", conn->s);
-        conn->state = CS_TCPCONNECT;
-        conn->ttent = tnow;
-        conn->pingprogeny = pidx;
-        make_waitdata(conn);
+    }
+    ZT(TRANSPORT, "sock %d connecting", conn->s);
+    conn->state = CS_TCPCONNECT;
+    conn->ttent = tnow;
+    conn->pingprogeny = pidx;
+#if USE_SSL
+    conn->ssl = SSL_new(tcp->ssl_ctx);
+    SSL_set_fd(conn->ssl, conn->s);
+#endif
+    if (ret != -1) {
+#if USE_SSL
+        make_sslhandshake(conn);
+#else
+        make_waitdata(tcp, conn);
+#endif
     }
 }
 
@@ -642,7 +932,7 @@ void zhe_platform_housekeeping(struct zhe_platform *pf, zhe_time_t tnow)
             if (conn->state < CS_LIVE) {
                 if ((zhe_timediff_t)(tnow - tcp->conns[i].ttent) > ZHE_TCPOPEN_MAXWAIT) {
                     ZT(TRANSPORT, "sock %d did not make it to live", conn->s);
-                    make_closed(conn);
+                    make_closed(tcp, conn, true);
                 }
                 switch (conn->state) {
                     case CS_CLOSED:
@@ -658,24 +948,27 @@ void zhe_platform_housekeeping(struct zhe_platform *pf, zhe_time_t tnow)
                             getsockopt(conn->s, SOL_SOCKET, SO_ERROR, &err, &errlen);
                             if (err == 0) {
                                 ZT(TRANSPORT, "sock %d connection established", conn->s);
-                                make_waitdata(conn);
-                                /* FIXME: there needs to be a bit more cooperation on the sending of SCOUT messages */
-                                uint8_t scoutmagic[MSCOUT_MAX_SIZE + 1];
-                                zhe_msgsize_t sz = zhe_make_mscout(scoutmagic + 1, sizeof(scoutmagic) - 1);
-                                scoutmagic[0] = conn->outframed ? (uint8_t)sz : 0;
-                                if (write(conn->s, scoutmagic, sz+1) != sz+1) {
-                                    ZT(TRANSPORT, "sock %d initial write failed", conn->s);
-                                    make_closed(conn);
-                                }
+#if USE_SSL
+                                make_sslhandshake(conn);
+#else
+                                make_waitdata(tcp, conn);
+#endif
                             } else {
                                 ZT(TRANSPORT, "sock %d connect failed: %d %s", conn->s, err, strerror(err));
-                                zhe_bitset_set(tcp->pingthrottle, conn->pingprogeny);
-                                tcp->pingtime[conn->pingprogeny] = tnow;
-                                make_closed(conn);
+                                make_closed(tcp, conn, true);
                             }
                         }
                         break;
                     }
+#if USE_SSL
+                    case CS_SSLHANDSHAKE:
+                        if (conn->pingprogeny != PINGADDRIDX_INVALID) {
+                            try_ssl_connect(tcp, conn);
+                        } else {
+                            try_ssl_accept(tcp, conn);
+                        }
+                        break;
+#endif
                     case CS_WAITDATA:
                         break;
                 }
@@ -697,7 +990,7 @@ void zhe_platform_close_session(struct zhe_platform *pf, const struct zhe_addres
         /* FIXME: should check state in all cases where the id gets checked */
         return;
     }
-    make_closed(conn);
+    make_closed(tcp, conn, false);
 }
 
 int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *b)

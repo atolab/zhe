@@ -39,7 +39,7 @@
 		031EC64C20A0183500C1B7B7 /* zhe-util.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041688202F505A000EC6AF /* zhe-util.h */; };
 		031EC64D20A0183500C1B7B7 /* zhe-config.h in Headers */ = {isa = PBXBuildFile; fileRef = 030416D5202F505A000EC6AF /* zhe-config.h */; };
 		031EC64E20A0183500C1B7B7 /* zhe-package.h in Headers */ = {isa = PBXBuildFile; fileRef = 03041668202F39C8000EC6AF /* zhe-package.h */; };
-		031EC65420A0184700C1B7B7 /* platform-tcp.c in Sources */ = {isa = PBXBuildFile; fileRef = 031EC63920A017F300C1B7B7 /* platform-tcp.c */; };
+		031EC65420A0184700C1B7B7 /* platform-tcp.c in Sources */ = {isa = PBXBuildFile; fileRef = 031EC63920A017F300C1B7B7 /* platform-tcp.c */; settings = {COMPILER_FLAGS = "-Wno-documentation"; }; };
 		031EC65720A0186E00C1B7B7 /* throughput.c in Sources */ = {isa = PBXBuildFile; fileRef = 030416DC202F505A000EC6AF /* throughput.c */; };
 		031EC65F20A0187D00C1B7B7 /* liblibzhe-tcp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 031EC65320A0183500C1B7B7 /* liblibzhe-tcp.a */; };
 		031EC66320A40BE200C1B7B7 /* zhe-mscout.h in Headers */ = {isa = PBXBuildFile; fileRef = 031EC66220A40BE200C1B7B7 /* zhe-mscout.h */; };
@@ -55,6 +55,8 @@
 		0387A4D1202C853100599E82 /* zhe.c in Sources */ = {isa = PBXBuildFile; fileRef = 034BDF961F5472F700F261D1 /* zhe.c */; };
 		0387A4D4202C856100599E82 /* liblibzhe.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0387A4B6202C852200599E82 /* liblibzhe.a */; };
 		0387A4D5202C856F00599E82 /* liblibzhe.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0387A4B6202C852200599E82 /* liblibzhe.a */; };
+		03FCE28E20A9364A0046D287 /* libssl.1.0.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 03FCE28C20A9364A0046D287 /* libssl.1.0.0.dylib */; };
+		03FCE28F20A9364A0046D287 /* libcrypto.1.0.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 03FCE28D20A9364A0046D287 /* libcrypto.1.0.0.dylib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -172,6 +174,9 @@
 		037208F01F70E92600AE2144 /* roundtrip */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = roundtrip; sourceTree = BUILT_PRODUCTS_DIR; };
 		0387A4B1202B842600599E82 /* zhe-simpleset.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "zhe-simpleset.h"; path = "src/zhe-simpleset.h"; sourceTree = SOURCE_ROOT; };
 		0387A4B6202C852200599E82 /* liblibzhe.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibzhe.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		03FCE28C20A9364A0046D287 /* libssl.1.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libssl.1.0.0.dylib; path = ../../../../usr/local/Cellar/openssl/1.0.2o_1/lib/libssl.1.0.0.dylib; sourceTree = "<group>"; };
+		03FCE28D20A9364A0046D287 /* libcrypto.1.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcrypto.1.0.0.dylib; path = ../../../../usr/local/Cellar/openssl/1.0.2o_1/lib/libcrypto.1.0.0.dylib; sourceTree = "<group>"; };
+		03FCE29020A970A20046D287 /* tcptls.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = tcptls.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -210,6 +215,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				03FCE28E20A9364A0046D287 /* libssl.1.0.0.dylib in Frameworks */,
+				03FCE28F20A9364A0046D287 /* libcrypto.1.0.0.dylib in Frameworks */,
 				031EC65F20A0187D00C1B7B7 /* liblibzhe-tcp.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -319,12 +326,13 @@
 		0304173D20338422000EC6AF /* docs */ = {
 			isa = PBXGroup;
 			children = (
-				0304173E20338422000EC6AF /* examples.md */,
 				0304173F20338422000EC6AF /* api.md */,
+				0304174320338422000EC6AF /* configuration.md */,
+				0304173E20338422000EC6AF /* examples.md */,
 				0304174020338422000EC6AF /* platform.md */,
+				03FCE29020A970A20046D287 /* tcptls.md */,
 				0304174120338422000EC6AF /* TODO.md */,
 				0304174220338422000EC6AF /* usecases.md */,
-				0304174320338422000EC6AF /* configuration.md */,
 			);
 			path = docs;
 			sourceTree = "<group>";
@@ -396,6 +404,8 @@
 		0387A4D3202C856100599E82 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				03FCE28D20A9364A0046D287 /* libcrypto.1.0.0.dylib */,
+				03FCE28C20A9364A0046D287 /* libssl.1.0.0.dylib */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -793,6 +803,7 @@
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				USER_HEADER_SEARCH_PATHS = /usr/local/Cellar/openssl/1.0.2o_1/include;
 			};
 			name = Debug;
 		};
@@ -846,6 +857,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
+				USER_HEADER_SEARCH_PATHS = /usr/local/Cellar/openssl/1.0.2o_1/include;
 			};
 			name = Release;
 		};
@@ -909,10 +921,14 @@
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
+					"USE_SSL=1",
 					"TCP=1",
 				);
+				HEADER_SEARCH_PATHS = /usr/local/Cellar/openssl/1.0.2o_1/include;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = "";
+				USER_HEADER_SEARCH_PATHS = "";
 			};
 			name = Debug;
 		};
@@ -927,10 +943,14 @@
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					NDEBUG,
+					"USE_SSL=1",
 					"TCP=1",
 				);
+				HEADER_SEARCH_PATHS = /usr/local/Cellar/openssl/1.0.2o_1/include;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = "";
+				USER_HEADER_SEARCH_PATHS = "";
 			};
 			name = Release;
 		};
@@ -946,6 +966,10 @@
 				);
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_SIGN_COMPARE = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/usr/local/Cellar/openssl/1.0.2o_1/lib,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -962,6 +986,10 @@
 				);
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_SIGN_COMPARE = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/usr/local/Cellar/openssl/1.0.2o_1/lib,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
