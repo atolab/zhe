@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.9)
 project(zhe C)
 
 #set(TCP ON)
-#set(ZHE_CONFIG client-large)
+#set(ZHE_CONFIG client-nbiot)
 if(NOT ZHE_CONFIG)
   set(ZHE_CONFIG p2p)
 endif()
