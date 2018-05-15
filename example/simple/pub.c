@@ -23,6 +23,7 @@ int main(int argc, char *argv[])
         buf[0] = (unsigned char)sz;
         printf(">> Writing %s\n", buf);
         zhe_write(p, buf, (zhe_paysize_t)(1+sz), zhe_platform_time());
+        zhe_flush(zhe_platform_time());
         count += 1;
         zhe_once(platform, delay);
     }

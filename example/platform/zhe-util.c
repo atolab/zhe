@@ -46,7 +46,7 @@ struct zhe_platform *zhe(uint16_t port, const char *peers)
     init_rnd_gen();
 
 #if ENABLE_TRACING
-    zhe_trace_cats = ZTCAT_PEERDISC | ZTCAT_PUBSUB;
+    zhe_trace_cats = ZTCAT_PEERDISC | ZTCAT_PUBSUB | ZTCAT_ERROR;
 #endif
 
     ownidsize = getrandomid(ownid, sizeof(ownid));

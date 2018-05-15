@@ -262,6 +262,21 @@ static ssize_t conn_write(struct conn *conn, const void *buf, size_t sz)
 #endif
 }
 
+static ssize_t conn_writev(struct conn *conn, const struct iovec *iov, int iovcnt)
+{
+#if USE_SSL
+    return ssl_writev(conn->ssl, iov, iovcnt);
+#elif defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
+    return writev(conn->s, iov, iovcnt);
+#else
+    struct msghdr mh;
+    memset(&mh, 0, sizeof(mh));
+    mh.msg_iov = iov;
+    mh.msg_iovlen = iovcnt;
+    return sendmsg(conn->s, &mh, MSG_NOSIGPIPE);
+#endif
+}
+
 struct zhe_platform *zhe_platform_new(uint16_t port, const char *pingaddrs)
 {
     struct tcp * const tcp = &gtcp;
@@ -602,19 +617,7 @@ static int zhe_platform_send_conn(struct tcp * const tcp, const void * restrict 
         iov[iovcnt++].iov_len = size;
         xsize += size;
         /* write length + messages and retain any leftovers */
-#if USE_SSL
-        ret = ssl_writev(conn->ssl, iov, iovcnt);
-#elif defined SO_NOSIGPIPE || !defined MSG_NOSIGPIPE
-        ret = writev(conn->s, iov, iovcnt);
-#else
-        {
-            struct msghdr mh;
-            memset(&mh, 0, sizeof(mh));
-            mh.msg_iov = iov;
-            mh.msg_iovlen = iovcnt;
-            ret = sendmsg(conn->s, &mh, MSG_NOSIGPIPE);
-        }
-#endif
+        ret = conn_writev(conn, iov, iovcnt);
         if (ret > 0 && (size_t)ret < xsize) {
             size_t nwr = (size_t)ret;
             int i = 0;
@@ -666,6 +669,49 @@ int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t
     }
 }
 
+static int handle_data(struct tcp *tcp, struct conn *conn, zhe_recvbuf_t *buf, ssize_t cnt)
+{
+    if (cnt > 0) {
+        conn->in.lim += (zhe_msgsize_t)cnt;
+    }
+    if (!conn->inframed) {
+        buf->buf = conn->in.buf + conn->in.pos;
+        return (int)(conn->in.lim - conn->in.pos);
+    } else {
+        size_t len;
+        int lenlen = decvle14(conn->in.buf + conn->in.pos, conn->in.lim - conn->in.pos, &len);
+        if (lenlen < 0) {
+            ZT(TRANSPORT, "sock %d framing error", conn->s);
+            make_closed(tcp, conn, true);
+            return (conn->state == CS_LIVE ? SENDRECV_HANGUP : 0);
+        } else if (lenlen == 0) {
+            ZT(TRANSPORT, "sock %d short read of frame length", conn->s);
+            /* short read of length */
+            conn->datawaiting = false;
+            return 0;
+        } else if (len == 0) {
+            ZT(TRANSPORT, "sock %d switch input to non-framed", conn->s);
+            /* "infinite" frame switches from framed to non-framed */
+            conn->inframed = false;
+            conn->datawaiting = false;
+            conn->in.pos += lenlen;
+            buf->buf = conn->in.buf + conn->in.pos;
+            return (int)(conn->in.lim - conn->in.pos);
+        } else if (conn->in.lim - conn->in.pos < lenlen + len) {
+            ZT(TRANSPORT, "sock %d incomplete frame (%u of %u)", conn->s, (unsigned)len, conn->in.lim - conn->in.pos - lenlen);
+            conn->datawaiting = false;
+            /* incomplete frame - try again later */
+            return 0;
+        } else {
+            conn->datawaiting = true; /* there may be, we aren't quite sure! */
+            conn->in.pos += lenlen;
+            buf->buf = conn->in.buf + conn->in.pos;
+            ZT(TRANSPORT, "sock %d frame (%u of %u)", conn->s, (unsigned)len, conn->in.lim - conn->in.pos);
+            return (int)len;
+        }
+    }
+}
+
 int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t * restrict src)
 {
     struct tcp *tcp = (struct tcp *)pf;
@@ -684,48 +730,10 @@ int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t
                 ZT(TRANSPORT, "sock %d now live", conn->s);
                 make_live(conn);
             }
-            if (ret > 0) {
-                conn->in.lim += (zhe_msgsize_t)ret;
-            }
             src->kind = ZHE_AK_CONN;
             src->u.id = conn->id;
             tcp->cursor = i+1;
-            if (!conn->inframed) {
-                buf->buf = conn->in.buf + conn->in.pos;
-                return (int)(conn->in.lim - conn->in.pos);
-            } else {
-                size_t len;
-                int lenlen = decvle14(conn->in.buf + conn->in.pos, conn->in.lim - conn->in.pos, &len);
-                if (lenlen < 0) {
-                    ZT(TRANSPORT, "sock %d framing error", conn->s);
-                    make_closed(tcp, conn, true);
-                    return (conn->state == CS_LIVE ? SENDRECV_HANGUP : 0);
-                } else if (lenlen == 0) {
-                    ZT(TRANSPORT, "sock %d short read of frame length", conn->s);
-                    /* short read of length */
-                    conn->datawaiting = false;
-                    return 0;
-                } else if (len == 0) {
-                    ZT(TRANSPORT, "sock %d switch input to non-framed", conn->s);
-                    /* "infinite" frame switches from framed to non-framed */
-                    conn->inframed = false;
-                    conn->datawaiting = false;
-                    conn->in.pos += lenlen;
-                    buf->buf = conn->in.buf + conn->in.pos;
-                    return (int)(conn->in.lim - conn->in.pos);
-                } else if (conn->in.lim - conn->in.pos < lenlen + len) {
-                    ZT(TRANSPORT, "sock %d incomplete frame (%u of %u)", conn->s, (unsigned)len, conn->in.lim - conn->in.pos - lenlen);
-                    conn->datawaiting = false;
-                    /* incomplete frame - try again later */
-                    return 0;
-                } else {
-                    conn->datawaiting = true; /* there may be, we aren't quite sure! */
-                    conn->in.pos += lenlen;
-                    buf->buf = conn->in.buf + conn->in.pos;
-                    ZT(TRANSPORT, "sock %d frame (%u of %u)", conn->s, (unsigned)len, conn->in.lim - conn->in.pos);
-                    return (int)len;
-                }
-            }
+            return handle_data(tcp, conn, buf, ret);
         } else if (ret == 0) {
             ZT(TRANSPORT, "sock %d eof", conn->s);
             src->kind = ZHE_AK_CONN;
@@ -749,6 +757,8 @@ int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t
             }
         }
         if (idx < MAX_CONNECTIONS) {
+            zhe_address_t addr;
+            socklen_t addrlen = (socklen_t)sizeof(addr.u.a);
             int news = -1;
 #if USE_SSL
             SSL *ssl = NULL;
@@ -757,15 +767,22 @@ int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *buf, zhe_address_t
                 news = (int)BIO_get_fd(nbio, NULL);
                 ssl = SSL_new(tcp->ssl_ctx);
                 SSL_set_bio(ssl, nbio, nbio);
+                if (getpeername(news, (struct sockaddr *)&addr.u.a, &addrlen) == -1) {
+                    perror("getpeername");
+                    SSL_free(ssl);
+                    close(news);
+                    news = -1;
+                }
             }
 #else
-            struct sockaddr_in addr;
-            socklen_t addrlen;
-            news = accept(tcp->servsock, (struct sockaddr *)&addr, &addrlen);
+            news = accept(tcp->servsock, (struct sockaddr *)&addr.u.a, &addrlen);
 #endif
             if (news >= 0) {
                 struct conn * const conn = &tcp->conns[idx];
-                ZT(TRANSPORT, "sock %d accepted connection", news);
+                char buf[TRANSPORT_ADDRSTRLEN];
+                addr.kind = ZHE_AK_IP;
+                addr2string1(tcp, buf, &addr);
+                ZT(TRANSPORT, "sock %d accepted connection from %s", news, buf);
                 conn->s = news;
 #if USE_SSL
                 conn->ssl = ssl;
