@@ -49,7 +49,7 @@ if(TCP)
   file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-tcp.c")
 
   if(SSL)
-    find_package(openssl REQUIRED)
+    find_package(OpenSSL REQUIRED)
     add_definitions(-DUSE_SSL=1)
     include_directories(${OPENSSL_INCLUDE_DIR})
     link_libraries(${OPENSSL_LIBRARIES})
