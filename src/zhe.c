@@ -1738,7 +1738,7 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
     if (zhe_seq_lt(seq, c->seqbase) || zhe_seq_lt(c->seq, seq)) {
         /* If a peer ACKs messages we have dropped already, or if it NACKs ones we have not
            even sent yet, send a SYNCH and but otherwise ignore the ACKNACK */
-        ZT(RELIABLE, "handle_macknack peeridx %u cid %d %p seq %"PRIuSEQ" mask %08"PRIx32" - [%"PRIuSEQ",%"PRIuSEQ"] - send synch", peeridx, cid, (void*)c, (seq_t)(seq >> SEQNUM_SHIFT), mask, (seq_t)(c->seqbase >> SEQNUM_SHIFT), (seq_t)((c->seq >> SEQNUM_SHIFT)-1));
+        ZT(RELIABLE, "handle_macknack peeridx %u cid %d %p seq %"PRIuSEQ" mask %08"PRIx32" - [%"PRIuSEQ",%"PRIuSEQ"] - send synch", peeridx, cid, (void*)c, (seq_t)(seq >> SEQNUM_SHIFT), mask, (seq_t)(c->seqbase >> SEQNUM_SHIFT), (seq_t)((c->seq - SEQNUM_UNIT) >> SEQNUM_SHIFT));
         zhe_pack_msynch(&c->addr, 0, c->cid, c->seqbase, oc_get_nsamples(c), tnow);
         zhe_pack_msend(tnow);
         return ZUR_OK;
@@ -1756,7 +1756,7 @@ static zhe_unpack_result_t handle_macknack(peeridx_t peeridx, const uint8_t * co
     if (mask == 0) {
         /* Pure ACK - no need to do anything else */
         if (seq != c->seq) {
-            ZT(RELIABLE, "handle_macknack peeridx %u cid %d seq %"PRIuSEQ" ACK but we have [%"PRIuSEQ",%"PRIuSEQ"]", peeridx, cid, (seq_t)(seq >> SEQNUM_SHIFT), (seq_t)(c->seqbase >> SEQNUM_SHIFT), (seq_t)((c->seq >> SEQNUM_SHIFT)-1));
+            ZT(RELIABLE, "handle_macknack peeridx %u cid %d seq %"PRIuSEQ" ACK but we have [%"PRIuSEQ",%"PRIuSEQ"]", peeridx, cid, (seq_t)(seq >> SEQNUM_SHIFT), (seq_t)(c->seqbase >> SEQNUM_SHIFT), (seq_t)((c->seq - SEQNUM_UNIT) >> SEQNUM_SHIFT));
         } else {
             ZT(RELIABLE, "handle_macknack peeridx %u cid %d seq %"PRIuSEQ" ACK", peeridx, cid, (seq_t)(seq >> SEQNUM_SHIFT));
         }
