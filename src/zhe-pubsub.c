@@ -512,10 +512,11 @@ int zhe_handle_mwdata_deliver(zhe_paysize_t urisz, const uint8_t *uri, zhe_paysi
 
 static int zhe_handle_msdata_deliver_anon(zhe_rid_t prid, zhe_paysize_t paysz, const void *pay)
 {
-    zhe_subidx_t subidx;
-    if (!zhe_rid2sub_search(&rid2sub, prid, &subidx)) {
+    zhe_subidx_t rid2subidx;
+    if (!zhe_rid2sub_search(&rid2sub, prid, &rid2subidx)) {
         return 1;
     }
+    const zhe_subidx_t subidx = rid2sub.elems[rid2subidx.idx].subidx;
     const struct subtable *s = &subs[subidx.idx];
     if (s->next.idx == subidx.idx) {
         if (s->xmitneed == 0 || zhe_xmitw_hasspace(zhe_out_conduit_from_cid(s->xmitcid), s->xmitneed)) {
@@ -1092,7 +1093,9 @@ zhe_subidx_t zhe_subscribe(zhe_rid_t rid, zhe_paysize_t xmitneed, unsigned cid, 
         subidx.idx++;
     }
     zhe_subidx_t nextidx;
-    if (!zhe_rid2sub_search(&rid2sub, rid, &nextidx)) {
+    if (zhe_rid2sub_search(&rid2sub, rid, &nextidx)) {
+        nextidx = rid2sub.elems[nextidx.idx].subidx;
+    } else {
         nextidx = subidx;
     }
     zhe_assert(subidx.idx < ZHE_MAX_SUBSCRIPTIONS);
