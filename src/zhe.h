@@ -3,8 +3,13 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+
 #include "zhe-config.h"
 #include "zhe-rid.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #if ZHE_MAX_PUBLICATIONS < 256
 typedef uint8_t zhe_pubidx_inner_t;
@@ -60,7 +65,7 @@ enum zhe_declstatus {
 int zhe_init(const struct zhe_config *config, struct zhe_platform *pf, zhe_time_t tnow);
 void zhe_start(zhe_time_t tnow);
 void zhe_housekeeping(zhe_time_t tnow);
-int zhe_input(const void * restrict buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow);
+int zhe_input(const void *buf, size_t sz, const struct zhe_address *src, zhe_time_t tnow);
 void zhe_flush(zhe_time_t tnow);
 
 bool zhe_declare_resource(zhe_rid_t rid, const char *uri);
@@ -71,5 +76,9 @@ enum zhe_declstatus zhe_get_declstatus(zhe_rid_t *rid);
 
 int zhe_write(zhe_pubidx_t pubidx, const void *data, zhe_paysize_t sz, zhe_time_t tnow);
 int zhe_write_uri(const char *uri, const void *data, zhe_paysize_t sz, zhe_time_t tnow);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

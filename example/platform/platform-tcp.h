@@ -4,6 +4,10 @@
 #include <netinet/in.h>
 #include "zhe-platform.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef MAX_PEERS
 #  error "platform include file should come after core configuration settings have been defined"
 #endif
@@ -61,5 +65,9 @@ typedef struct zhe_platform_waitinfo {
 
 void zhe_platform_wait_prep(zhe_platform_waitinfo_t *wi, const struct zhe_platform *pf);
 int zhe_platform_wait_block(zhe_platform_waitinfo_t *wi, zhe_timediff_t timeout);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
