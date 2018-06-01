@@ -89,13 +89,14 @@ else()
   add_executable(psrid test/psrid.c)
   target_link_libraries(psrid zhe)
 
-  install(TARGETS zhe DESTINATION ${PROJECT_SOURCE_DIR}/lib)
   install(TARGETS throughput DESTINATION ${PROJECT_SOURCE_DIR}/bin)
   install(TARGETS roundtrip DESTINATION ${PROJECT_SOURCE_DIR}/bin)
   install(TARGETS spub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
   install(TARGETS ssub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
   install(TARGETS psrid DESTINATION ${PROJECT_SOURCE_DIR}/bin)
   install(TARGETS dzhe DESTINATION lib)
-  install(FILES ${Headers} DESTINATION include/zhe)
 
 endif()
+
+install(TARGETS zhe DESTINATION ${PROJECT_SOURCE_DIR}/lib)
+install(FILES ${Headers} DESTINATION ${PROJECT_SOURCE_DIR}/include/zhe)
