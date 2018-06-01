@@ -390,20 +390,30 @@ int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *
     return a->a.sin_addr.s_addr == b->a.sin_addr.s_addr && a->a.sin_port == b->a.sin_port;
 }
 
-int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
+void zhe_platform_wait_prep(zhe_platform_waitinfo_t *wi, const struct zhe_platform *pf)
 {
     struct udp * const udp = (struct udp *)pf;
-    const int k = (udp->s[0] > udp->s[1]) ? udp->s[0] : udp->s[1];
-    fd_set rs;
-    FD_ZERO(&rs);
-    FD_SET(udp->s[0], &rs);
-    FD_SET(udp->s[1], &rs);
+    FD_ZERO(&wi->rs);
+    FD_SET(udp->s[0], &wi->rs);
+    FD_SET(udp->s[1], &wi->rs);
+    wi->maxfd = (udp->s[0] > udp->s[1]) ? udp->s[0] : udp->s[1];
+}
+
+int zhe_platform_wait_block(zhe_platform_waitinfo_t *wi, zhe_timediff_t timeout)
+{
     if (timeout < 0) {
-        return select(k+1, &rs, NULL, NULL, NULL) > 0;
+        return select(wi->maxfd+1, &wi->rs, NULL, NULL, NULL) > 0;
     } else {
         struct timeval tv;
         tv.tv_sec = ZTIME_TO_SECu32(timeout);
         tv.tv_usec = 1000 * ZTIME_TO_MSECu32(timeout);
-        return select(k+1, &rs, NULL, NULL, &tv) > 0;
+        return select(wi->maxfd+1, &wi->rs, NULL, NULL, &tv) > 0;
     }
+}
+
+int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
+{
+    zhe_platform_waitinfo_t wi;
+    zhe_platform_wait_prep(&wi, pf);
+    return zhe_platform_wait_block(&wi, timeout);
 }

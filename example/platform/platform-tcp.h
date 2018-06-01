@@ -53,4 +53,13 @@ int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout);
 int zhe_platform_recv(struct zhe_platform *pf, zhe_recvbuf_t *rbuf, struct zhe_address * restrict src);
 int zhe_platform_advance(struct zhe_platform *pf, const struct zhe_address * restrict src, int cnt);
 
+typedef struct zhe_platform_waitinfo {
+    bool shouldwait;
+    int maxfd;
+    fd_set rs, ws;
+} zhe_platform_waitinfo_t;
+
+void zhe_platform_wait_prep(zhe_platform_waitinfo_t *wi, const struct zhe_platform *pf);
+int zhe_platform_wait_block(zhe_platform_waitinfo_t *wi, zhe_timediff_t timeout);
+
 #endif

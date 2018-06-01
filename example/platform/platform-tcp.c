@@ -1028,41 +1028,56 @@ int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *
     }
 }
 
-int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
+void zhe_platform_wait_prep(zhe_platform_waitinfo_t *wi, const struct zhe_platform *pf)
 {
     struct tcp * const tcp = (struct tcp *)pf;
-    fd_set rs, ws;
-    struct timeval tv;
-    int maxfd;
-    FD_ZERO(&rs);
-    FD_ZERO(&ws);
+    FD_ZERO(&wi->rs);
+    FD_ZERO(&wi->ws);
+    wi->shouldwait = true;
     if (tcp->servsock != -1) {
-        FD_SET(tcp->servsock, &rs);
-        maxfd = tcp->servsock;
+        FD_SET(tcp->servsock, &wi->rs);
+        wi->maxfd = tcp->servsock;
     } else {
-        maxfd = -1;
+        wi->maxfd = -1;
     }
     for (connidx_t i = 0; i < MAX_CONNECTIONS; i++) {
         if (state_allows_receive(tcp->conns[i].state)) {
             if (tcp->conns[i].datawaiting) {
                 /* if we have reason to believe there is data ready for processing, there is nothing to be gained from calling select() */
-                return 1;
+                wi->shouldwait = false;
+                return;
             }
             const int s = tcp->conns[i].s;
-            FD_SET(s, &rs);
-            if (s > maxfd) { maxfd = s; }
+            FD_SET(s, &wi->rs);
+            if (s > wi->maxfd) { wi->maxfd = s; }
         } else if (tcp->conns[i].state == CS_TCPCONNECT) {
             const int s = tcp->conns[i].s;
-            FD_SET(s, &ws);
-            if (s > maxfd) { maxfd = s; }
+            FD_SET(s, &wi->ws);
+            if (s > wi->maxfd) { wi->maxfd = s; }
         }
     }
-    if (timeout < 0) {
-        tv.tv_sec = 0;
-        tv.tv_usec = 100000;
+}
+
+int zhe_platform_wait_block(zhe_platform_waitinfo_t *wi, zhe_timediff_t timeout)
+{
+    if (!wi->shouldwait) {
+        return 1;
     } else {
-        tv.tv_sec = ZTIME_TO_SECu32(timeout);
-        tv.tv_usec = 1000 * ZTIME_TO_MSECu32(timeout);
+        struct timeval tv;
+        if (timeout < 0) {
+            tv.tv_sec = 0;
+            tv.tv_usec = 100000;
+        } else {
+            tv.tv_sec = ZTIME_TO_SECu32(timeout);
+            tv.tv_usec = 1000 * ZTIME_TO_MSECu32(timeout);
+        }
+        return select(wi->maxfd+1, &wi->rs, &wi->ws, NULL, &tv) > 0;
     }
-    return select(maxfd+1, &rs, &ws, NULL, &tv) > 0;
+}
+
+int zhe_platform_wait(const struct zhe_platform *pf, zhe_timediff_t timeout)
+{
+    zhe_platform_waitinfo_t wi;
+    zhe_platform_wait_prep(&wi, pf);
+    return zhe_platform_wait_block(&wi, timeout);
 }
