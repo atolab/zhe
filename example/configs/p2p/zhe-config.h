@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 /* Highest allowed RID */
-#define ZHE_MAX_RID 553
+#define ZHE_MAX_RID 1048576
 
 /* Maximum number of subscriptions, publications. Having multiple subscriptions per resource may well make sense becasue they have different associated callbacks/arguments, having more than a reliable and an unreliable publication for a single resource (currently) seems unnecessary as no state is (currently) maintained for a publication */
 #define ZHE_MAX_SUBSCRIPTIONS 69
