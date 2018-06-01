@@ -1432,7 +1432,7 @@ static zhe_unpack_result_t handle_mdeclare(peeridx_t peeridx, const uint8_t * co
         }
         intp = ic_may_deliver_seq(&peers[peeridx].ic[cid], MRFLAG, seq) ? DIM_INTERPRET : DIM_IGNORE;
     }
-    ZT(PUBSUB, "handle_mdeclare %p seq %"PRIuSEQ" peeridx %u ndecls %u intp %s", (void *)data, seq, peeridx, ndecls, decl_intp_mode_str(intp));
+    ZT(PUBSUB, "handle_mdeclare %p seq %"PRIuSEQ" peeridx %u ndecls %u intp %s", (void *)data, (seq_t)(seq >> SEQNUM_SHIFT), peeridx, ndecls, decl_intp_mode_str(intp));
     while (ndecls > 0 && *data < end && res == ZUR_OK) {
         switch (**data & DKIND) {
             case DRESOURCE:   res = handle_dresource(peeridx, end, data, &intp, !(hdr & MCFLAG)); break;
