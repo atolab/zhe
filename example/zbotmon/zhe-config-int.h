@@ -3,20 +3,20 @@
 #define ZHE_CONFIG_INT_H
 
 #include "zhe-config.h"
-#include "platform-arduino.h"
+#include "platform-serial.h"
 
 #define MAX_PEERS 1
 #define N_IN_CONDUITS 1
 #define N_OUT_CONDUITS 1
 #define HAVE_UNICAST_CONDUIT 1
 #define MAX_MULTICAST_GROUPS 0
-#define XMITW_BYTES 128u
-#define XMITW_BYTES_UNICAST 128u
+#define XMITW_BYTES 1280u
+#define XMITW_BYTES_UNICAST 1280u
 #define XMITW_SAMPLES_UNICAST 63u
 #define XMITW_SAMPLE_INDEX 0
 #define ZHE_MAX_SUBSCRIPTIONS_PER_PEER 10
 
-#define ENABLE_TRACING 0
+#define ENABLE_TRACING 1
 
 /* Setting a latency budget globally for now, though it could be done per-publisher as well. Packets will go out when full or when LATENCY_BUDGET milliseconds passed since we started filling it. Setting it to 0 will disable packing of data messages, setting to INF only stops packing when the MTU is reached and generally requires explicit flushing. Both edge cases eliminate the latency budget handling and state from the code, saving a whopping 4 bytes of RAM!  */
 #define LATENCY_BUDGET_INF      (4294967295u)

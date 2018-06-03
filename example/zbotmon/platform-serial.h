@@ -1,5 +1,5 @@
-#ifndef PLATFORM_ARDUINO_H
-#define PLATFORM_ARDUINO_H
+#ifndef PLATFORM_SERIAL_H
+#define PLATFORM_SERIAL_H
 
 #include "zhe-platform.h"
 

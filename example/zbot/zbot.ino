@@ -1,12 +1,8 @@
 /* -*- mode: c++; c-basic-offset: 4; fill-column: 95; -*- */
 
-#define restrict
-
 #include <string.h>
-extern "C" {
 #include "zhe.h"
 #include "platform-arduino.h"
-}
 #include "zhe-assert.h"
 
 static const uint8_t peerid[] = { 'z', 'b', 'o', 't' };
@@ -14,11 +10,10 @@ static uint8_t inbuf[TRANSPORT_MTU];
 static uint8_t inp;
 static struct zhe_address dummyaddr;
 
-#define RID_BASE     ((zhe_rid_t)0x00010000) /* unique for this mBot */
-#define RID_DISTANCE (RID_BASE + 0x1)
-#define RID_MOTOR    (RID_BASE + 0x2)
+#define RID_DISTANCE (1)
+#define RID_MOTOR    (2)
 
-#define BLINKENLIGHTS 0
+#define BLINKENLIGHTS 1
 
 #if BLINKENLIGHTS
 
@@ -167,27 +162,26 @@ void xrce_panic(uint16_t line, uint16_t code)
 
 #endif /* BLINKENLIGHTS */
 
-size_t zhe_platform_addr2string(const struct zhe_platform *pf, char * restrict str, size_t size, const zhe_address_t * restrict addr)
+size_t zhe_platform_addr2string(const struct zhe_platform *pf, char *str, size_t size, const zhe_address_t *addr)
 {
     zhe_assert(size > 0);
     str[0] = 0;
     return 0;
 }
 
-int zhe_platform_string2addr(const struct zhe_platform *pf, struct zhe_address * restrict addr, const char * restrict str)
+int zhe_platform_string2addr(const struct zhe_platform *pf, struct zhe_address *addr, const char *str)
 {
     memset(addr, 0, sizeof(*addr));
     return 1;
 }
 
-int zhe_platform_send(struct zhe_platform *pf, const void * restrict buf, size_t size, const zhe_address_t * restrict dst)
+int zhe_platform_send(struct zhe_platform *pf, const void *buf, size_t size, const zhe_address_t *dst)
 {
     size_t i;
     zhe_assert(size <= TRANSPORT_MTU);
 #if TRANSPORT_MTU > 255
 #error "PACKET mode currently has MTU limited to 255 because it writes the length as a single byte"
 #endif
-    Serial.write((uint8_t)size);
     for (i = 0; i != size; i++) {
         Serial.write(((uint8_t *)buf)[i]);
     }
@@ -199,12 +193,17 @@ int zhe_platform_addr_eq(const struct zhe_address *a, const struct zhe_address *
     return 1;
 }
 
-void zhe_platform_close_session(struct zhe_platform *pf, const struct zhe_address * restrict addr)
+void zhe_platform_close_session(struct zhe_platform *pf, const struct zhe_address *addr)
 {
 }
 
 void zhe_platform_housekeeping(struct zhe_platform *pf, zhe_time_t tnow)
 {
+}
+
+bool zhe_platform_needs_keepalive(struct zhe_platform *pf)
+{
+    return false;
 }
 
 void pre_panic_handler(void)
