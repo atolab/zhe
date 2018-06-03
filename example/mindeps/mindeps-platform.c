@@ -19,6 +19,7 @@
 
 #include "mindeps-platform.h"
 #include "zhe-tracing.h"
+#include "zhe-assert.h"
 #include "zhe-config-deriv.h"
 #include "zhe.h"
 
@@ -129,7 +130,7 @@ struct zhe_platform *zhe_platform_new(void)
     (void)getsockname(udp->s[0], (struct sockaddr *)&addr, &addrlen);
     udp->ucport = addr.sin_port;
 
-    /* MC sockets needs reuse options set, and is bound to the MC address we use at a "well-known" 
+    /* MC sockets needs reuse options set, and is bound to the MC address we use at a "well-known"
        port number */
     if (setsockopt(udp->s[1], SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one)) == -1) {
         perror("SO_REUSEADDR");

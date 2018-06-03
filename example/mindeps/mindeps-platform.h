@@ -19,9 +19,6 @@ void zhe_platform_wait(const struct zhe_platform *pf);
 int zhe_platform_recv(struct zhe_platform *pf, void * restrict buf, size_t size, zhe_address_t * restrict src);
 void zhe_platform_background(struct zhe_platform * const platform);
 
-#include <assert.h>
-#define zhe_assert(x) assert(x)
-
 #define PORT       0x1d17u   /* 7447 */
 #define MCADDR     0xefff0001u /* 239.255.0.1 */
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -34,12 +31,12 @@ void zhe_platform_background(struct zhe_platform * const platform);
 #error "byte order must be known for IP address constants"
 #endif
 
-static const zhe_address_t scoutaddr = {
-    .a = {
-        .sin_family = AF_INET,
-        .sin_port = PORT_NBO,
-        .sin_addr = { .s_addr = MCADDR_NBO }
-    }
-};
+#define SCOUTADDR_INIT {                        \
+    .a = {                                      \
+        .sin_family = AF_INET,                  \
+        .sin_port = PORT_NBO,                   \
+        .sin_addr = { .s_addr = MCADDR_NBO }    \
+    }                                           \
+}
 
 #endif

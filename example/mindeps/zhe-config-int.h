@@ -3,7 +3,7 @@
 #define ZHE_CONFIG_INT_H
 
 #include "zhe-config.h"
-#include "platform-mindeps.h"
+#include "mindeps-platform.h"
 
 /* Maximum number of peers one node can have (that is, the network may consist of at most MAX_PEERS+1 nodes). If MAX_PEERS is 0, it becomes a client rather than a peer, and scouts for a broker instead */
 #define MAX_PEERS 16

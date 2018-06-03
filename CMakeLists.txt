@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.9)
 project(zhe C)
 
+#cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DTCP=OFF -DCMAKE_INSTALL_PREFIX=.. ..
 #cmake -GNinja -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl -DCMAKE_BUILD_TYPE=Debug -DTCP=ON -DSSL=ON -DZHE_CONFIG=client-nbiot ..
 
 #set(TCP ON)
@@ -36,18 +37,16 @@ if(${CMAKE_GENERATOR} STREQUAL "Ninja" AND (${CMAKE_C_COMPILER_ID} STREQUAL "Cla
   add_compile_options(-Xclang -fcolor-diagnostics)
 endif()
 
-include_directories(
+set(ZIncludes
   "${PROJECT_SOURCE_DIR}/src"
   "${PROJECT_SOURCE_DIR}/example/platform"
   "${PROJECT_SOURCE_DIR}/example/configs/${ZHE_CONFIG}")
 
-file(GLOB Headers "src/*.h" "example/platform/*.h" "example/configs/${ZHE_CONFIG}/*.h")
+file(GLOB ZSources "src/*.c")
 
 if(TCP)
-
   add_definitions(-DTCP)
-  file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-tcp.c")
-
+  file(GLOB ZPlatform "example/platform/zhe-*.c" "example/platform/platform-tcp.c")
   if(SSL)
     find_package(OpenSSL REQUIRED)
     add_definitions(-DUSE_SSL=1)
@@ -55,48 +54,9 @@ if(TCP)
     link_libraries(${OPENSSL_LIBRARIES})
     message(STATUS "Using OpenSSL ${OPENSSL_VERSION} at ${OPENSSL_INCLUDE_DIR}")
   endif()
-
-  add_library(zhe ${Sources})
-  
-  add_executable(throughput example/throughput/throughput.c)
-  target_link_libraries(throughput zhe)
-
-  add_executable(spub example/simple/pub.c)
-  target_link_libraries(spub zhe)
-
-  add_executable(ssub example/simple/sub.c)
-  target_link_libraries(ssub zhe)
-
 else()
-
-  file(GLOB Sources "src/*.c" "example/platform/zhe-*.c" "example/platform/platform-udp.c")
-
-  add_library(zhe ${Sources})
-  add_library(dzhe SHARED ${Sources})
-
-  add_executable(throughput example/throughput/throughput.c)
-  target_link_libraries(throughput zhe)
-
-  add_executable(roundtrip example/roundtrip/roundtrip.c)
-  target_link_libraries(roundtrip zhe)
-
-  add_executable(spub example/simple/pub.c)
-  target_link_libraries(spub zhe)
-
-  add_executable(ssub example/simple/sub.c)
-  target_link_libraries(ssub zhe)
-
-  add_executable(psrid test/psrid.c)
-  target_link_libraries(psrid zhe)
-
-  install(TARGETS throughput DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-  install(TARGETS roundtrip DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-  install(TARGETS spub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-  install(TARGETS ssub DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-  install(TARGETS psrid DESTINATION ${PROJECT_SOURCE_DIR}/bin)
-  install(TARGETS dzhe DESTINATION lib)
-
+  file(GLOB ZPlatform "example/platform/zhe-*.c" "example/platform/platform-udp.c")
 endif()
 
-install(TARGETS zhe DESTINATION ${PROJECT_SOURCE_DIR}/lib)
-install(FILES ${Headers} DESTINATION ${PROJECT_SOURCE_DIR}/include/zhe)
+add_subdirectory(src)
+add_subdirectory(example)

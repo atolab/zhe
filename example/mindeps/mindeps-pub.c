@@ -11,6 +11,7 @@ int main()
 {
     struct zhe_platform * const platform = zhe_platform_new();
     struct zhe_config cfg;
+    zhe_address_t scoutaddr = SCOUTADDR_INIT;
     memset(&cfg, 0, sizeof(cfg));
     cfg.id = uniqueid;
     cfg.idlen = sizeof(uniqueid);
