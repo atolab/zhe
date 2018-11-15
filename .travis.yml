@@ -1,0 +1,38 @@
+language: c
+
+# Platform descriptions
+# NOTE: These can be used in creating the build matrix by making use of the
+#       anchor/alias YAML features.
+linux_gcc8: &linux_gcc8
+  os: linux
+  compiler: gcc
+  addons:
+    apt:
+      update: true
+      sources: [ ubuntu-toolchain-r-test ]
+      packages: [ gcc-8 g++-8 ]
+
+matrix:
+  include:
+    - <<: *linux_gcc8
+      env: [ BUILD_TYPE=Debug, ZCFG=p2p ]
+    - <<: *linux_gcc8
+      env: [ BUILD_TYPE=Release, ZCFG=p2p ]
+    - <<: *linux_gcc8
+      env: [ BUILD_TYPE=Debug, ZCFG_TCP=ON, ZCFG_SSL=ON, ZCFG=client-large ]
+    - <<: *linux_gcc8
+      env: [ BUILD_TYPE=Release, ZCFG_TCP=ON, ZCFG_SSL=ON, ZCFG=client-large ]
+    - <<: *linux_gcc8
+      env: [ BUILT_TYPE=Debug, ZCFG=p2p-large ]
+    - <<: *linux_gcc8
+      env: [ BUILT_TYPE=Release, ZCFG=p2p-large ]
+    - <<: *linux_gcc8
+      env: [ BUILT_TYPE=Debug, ZCFG=p2p-small ]
+    - <<: *linux_gcc8
+      env: [ BUILT_TYPE=Release, ZCFG=p2p-small ]
+
+script:
+  - mkdir build
+  - cd build
+  - cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DTCP=${ZCFG_TCP:-OFF} -DSSL=${ZCFG_SSL:-OFF} -DZHE_CONFIG=${ZCFG} ..
+  - cmake --build .
