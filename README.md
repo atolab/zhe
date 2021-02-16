@@ -1,3 +1,5 @@
+This is the old proof-of-concept for Zenoh. It still offers some interesting tricks, but it doesn't even come close to giving you all you get with the new Zenoh. Chances are you're looking for https://github.com/eclipse-zenoh/zenoh-pico. But if perchance you are looking for a proof-of-concept of a peer-to-peer publish-subscribe system without any call to malloc or free, then do read on.
+
 Zeno-He (*zhe* for short) is a compact implementation of the Zenoh protocol that does not depend on dynamic allocation or threading. Instead, it is a non-blocking implementation that assumes single threaded use with polling, and a system that can be sized at compile time. *Zhe* can be configured to operate in peer-to-peer mode or to operate as a client that relies on a broker.
 
 Targeted configurations vary from a minimal client on an Arduino Uno (an 8-bit CPU with only 2kB of RAM) to a bunch of low-power, high-integrity CPUs running a real-time, distributed control system, and on to dozens of peers running on high-end CPUs and saturating a fast network. Whether it will actually meet all these requirements remains to be seen. Still, so far, so good.
